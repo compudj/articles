@@ -1,0 +1,73 @@
+% The flip-latch, installed: N slots -> N proxies -> ONE shared selector.
+% This is the paper's essential diagram; everything in Sec. 4 refers to it.
+%
+% Drawn in TikZ (not an imported image) so the figure ships as source in the
+% arXiv submission and needs no external toolchain to rebuild.
+%
+% The picture must make exactly one thing obvious: every proxy reads the SAME
+% selector word, so the single store that flips it switches the whole set. If a
+% reader of the figure can see that, the mechanism is explained.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  slot/.style   = {draw, minimum width=15mm, minimum height=6mm, fill=gray!8},
+  proxy/.style  = {draw, minimum width=26mm, minimum height=9mm, fill=blue!6},
+  target/.style = {draw, rounded corners=2pt, minimum width=11mm, minimum height=5.5mm},
+  old/.style    = {target, fill=gray!15},
+  new/.style    = {target, fill=green!12},
+  sel/.style    = {draw, very thick, minimum width=17mm, minimum height=8mm, fill=orange!18},
+  arr/.style    = {-latex, thin},
+  dep/.style    = {-latex, thin, densely dotted, gray!70!black},
+]
+
+% ---- slots (the words the reader loads) -------------------------------------
+\node[slot] (s1) at (0, 1.6)  {\code{s$_1$}};
+\node[slot] (s2) at (0, 0)    {\code{s$_2$}};
+\node[slot] (s3) at (0, -1.6) {\code{s$_3$}};
+\node[above=1.5mm of s1, align=center, font=\footnotesize\itshape] {slots\\(tagged)};
+
+% ---- proxies ---------------------------------------------------------------
+\node[proxy] (p1) at (3.6, 1.6)  {$\{o_1,\, n_1\}$};
+\node[proxy] (p2) at (3.6, 0)    {$\{o_2,\, n_2\}$};
+\node[proxy] (p3) at (3.6, -1.6) {$\{o_3,\, n_3\}$};
+\node[above=1.5mm of p1, align=center, font=\footnotesize\itshape] {proxies};
+
+\draw[arr] (s1) -- (p1);
+\draw[arr] (s2) -- (p2);
+\draw[arr] (s3) -- (p3);
+
+% ---- the shared selector: the whole point ----------------------------------
+\node[sel] (sel) at (7.9, 0) {\code{sel}: $0 \to 1$};
+\node[above=1.5mm of sel, align=center, font=\footnotesize\itshape] {flip group\\(one word)};
+
+\draw[dep] (p1.east) -- (sel.north west);
+\draw[dep] (p2.east) -- (sel.west);
+\draw[dep] (p3.east) -- (sel.south west);
+
+% ---- resolution ------------------------------------------------------------
+\node[old] (o1) at (11.6, 1.15) {$o_1$};
+\node[new] (n1) at (11.6, 0.05) {$n_1$};
+\draw[arr, gray!70!black] (sel.east) -- node[above, font=\scriptsize, pos=0.55] {\code{sel}=0} (o1.west);
+\draw[arr, thick] (sel.east) -- node[below, font=\scriptsize, pos=0.55] {\code{sel}=1} (n1.west);
+
+\node[align=left, font=\footnotesize, anchor=north west] at (9.7, -0.9)
+  {Every proxy reads the \emph{same} \code{sel}.\\
+   One store switches all of them.};
+
+% ---- the flip --------------------------------------------------------------
+\draw[-latex, very thick, orange!70!black]
+  (sel.south) ++(0,-0.15) -- ++(0,-0.75)
+  node[below, align=center, font=\footnotesize\bfseries, text=black]
+  {the commit:\\one release store};
+
+\end{tikzpicture}
+\caption{The flip-latch, installed. Each slot in the set holds a \emph{tagged}
+pointer to a proxy rather than its target; each proxy carries
+$\{\mathit{old},\mathit{new}\}$ and reads one shared selector word. While
+\code{sel} is $0$ every proxy resolves to its old target, so installation is
+invisible to readers. The commit is a single release store, $0 \to 1$, after
+which every proxy resolves to its new target --- so one store switches the
+entire set, with no instant at which the set is part-old and part-new.}
+\label{fig:fliplatch}
+\end{figure}

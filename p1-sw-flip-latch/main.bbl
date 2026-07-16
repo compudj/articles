@@ -1,0 +1,265 @@
+\begin{thebibliography}{26}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Arbel{-}Raviv and Brown(2017)]{arbelraviv2017descriptors}
+Maya Arbel{-}Raviv and Trevor Brown.
+\newblock Reuse, don't recycle: Transforming lock-free algorithms that throw
+  away descriptors.
+\newblock In Andr{\'{e}}a~W. Richa, editor, \emph{31st International Symposium
+  on Distributed Computing, {DISC} 2017, Vienna, Austria, October 16-20, 2017},
+  volume~91 of \emph{LIPIcs}, pages 4:1--4:16. Schloss Dagstuhl -
+  Leibniz-Zentrum f{\"{u}}r Informatik, 2017.
+\newblock \doi{10.4230/LIPIcs.DISC.2017.4}.
+\newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2017.4}.
+
+\bibitem[Batty et~al.(2011)Batty, Owens, Sarkar, Sewell, and
+  Weber]{batty2011cppconcurrency}
+Mark Batty, Scott Owens, Susmit Sarkar, Peter Sewell, and Tjark Weber.
+\newblock Mathematizing {C++} concurrency.
+\newblock In Thomas Ball and Mooly Sagiv, editors, \emph{Proceedings of the
+  38th {ACM} {SIGPLAN-SIGACT} Symposium on Principles of Programming Languages,
+  {POPL} 2011, Austin, TX, USA, January 26-28, 2011}, pages 55--66. {ACM},
+  2011.
+\newblock \doi{10.1145/1926385.1926394}.
+\newblock URL \url{https://doi.org/10.1145/1926385.1926394}.
+
+\bibitem[Boehm and Adve(2008)]{boehm2008memorymodel}
+Hans{-}Juergen Boehm and Sarita~V. Adve.
+\newblock Foundations of the {C++} concurrency memory model.
+\newblock In Rajiv Gupta and Saman~P. Amarasinghe, editors, \emph{Proceedings
+  of the {ACM} {SIGPLAN} 2008 Conference on Programming Language Design and
+  Implementation, {PLDI} 2008, Tucson, AZ, USA, June 7-13, 2008}, pages 68--78.
+  {ACM}, 2008.
+\newblock \doi{10.1145/1375581.1375591}.
+\newblock URL \url{https://doi.org/10.1145/1375581.1375591}.
+
+\bibitem[Desnoyers et~al.(2012)Desnoyers, McKenney, Stern, Dagenais, and
+  Walpole]{desnoyers2012urcu}
+Mathieu Desnoyers, Paul~E. McKenney, Alan~S. Stern, Michel~R. Dagenais, and
+  Jonathan Walpole.
+\newblock User-level implementations of read-copy update.
+\newblock \emph{{IEEE} Transactions on Parallel and Distributed Systems},
+  23\penalty0 (2):\penalty0 375--382, 2012.
+\newblock \doi{10.1109/TPDS.2011.159}.
+\newblock URL \url{https://doi.org/10.1109/TPDS.2011.159}.
+
+\bibitem[Feldman et~al.(2015)Feldman, LaBorde, and
+  Dechev]{feldman2015waitfreemcas}
+Steven~D. Feldman, Pierre LaBorde, and Damian Dechev.
+\newblock A wait-free multi-word compare-and-swap operation.
+\newblock \emph{International Journal of Parallel Programming}, 43\penalty0
+  (4):\penalty0 572--596, 2015.
+\newblock \doi{10.1007/s10766-014-0308-7}.
+\newblock URL \url{https://doi.org/10.1007/s10766-014-0308-7}.
+
+\bibitem[Fraser(2004)]{fraser2004lockfreedom}
+Keir Fraser.
+\newblock \emph{Practical Lock-Freedom}.
+\newblock PhD thesis, University of Cambridge, Computer Laboratory, February
+  2004.
+\newblock URL \url{https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf}.
+\newblock Technical Report UCAM-CL-TR-579; dissertation submitted September
+  2003.
+
+\bibitem[Fraser and Harris(2007)]{fraser2007locks}
+Keir Fraser and Tim Harris.
+\newblock Concurrent programming without locks.
+\newblock \emph{{ACM} Transactions on Computer Systems}, 25\penalty0
+  (2):\penalty0 5, 2007.
+\newblock \doi{10.1145/1233307.1233309}.
+\newblock URL \url{https://doi.org/10.1145/1233307.1233309}.
+
+\bibitem[Guerraoui and Kapalka(2008)]{guerraoui2008opacity}
+Rachid Guerraoui and Michal Kapalka.
+\newblock On the correctness of transactional memory.
+\newblock In Siddhartha Chatterjee and Michael~L. Scott, editors,
+  \emph{Proceedings of the 13th {ACM} {SIGPLAN} Symposium on Principles and
+  Practice of Parallel Programming, {PPoPP} 2008, Salt Lake City, UT, USA,
+  February 20-23, 2008}, pages 175--184. {ACM}, 2008.
+\newblock \doi{10.1145/1345206.1345233}.
+\newblock URL \url{https://doi.org/10.1145/1345206.1345233}.
+
+\bibitem[Guerraoui et~al.(2020)Guerraoui, Kogan, Marathe, and
+  Zablotchi]{guerraoui2020mcas}
+Rachid Guerraoui, Alex Kogan, Virendra~J. Marathe, and Igor Zablotchi.
+\newblock Efficient multi-word compare and swap.
+\newblock In Hagit Attiya, editor, \emph{34th International Symposium on
+  Distributed Computing, {DISC} 2020, Virtual Conference, October 12-16, 2020},
+  volume 179 of \emph{LIPIcs}, pages 4:1--4:19. Schloss Dagstuhl -
+  Leibniz-Zentrum f{\"{u}}r Informatik, 2020.
+\newblock \doi{10.4230/LIPIcs.DISC.2020.4}.
+\newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2020.4}.
+
+\bibitem[Harris et~al.(2002)Harris, Fraser, and Pratt]{harris2002mcas}
+Timothy~L. Harris, Keir Fraser, and Ian~A. Pratt.
+\newblock A practical multi-word compare-and-swap operation.
+\newblock In Dahlia Malkhi, editor, \emph{Distributed Computing, 16th
+  International Conference, {DISC} 2002, Toulouse, France, October 28-30, 2002,
+  Proceedings}, volume 2508 of \emph{Lecture Notes in Computer Science}, pages
+  265--279. Springer, 2002.
+\newblock \doi{10.1007/3-540-36108-1\_18}.
+\newblock URL \url{https://doi.org/10.1007/3-540-36108-1\_18}.
+
+\bibitem[Herlihy and Koskinen(2008)]{herlihy2008boosting}
+Maurice Herlihy and Eric Koskinen.
+\newblock Transactional boosting: A methodology for highly-concurrent
+  transactional objects.
+\newblock In Siddhartha Chatterjee and Michael~L. Scott, editors,
+  \emph{Proceedings of the 13th {ACM} {SIGPLAN} Symposium on Principles and
+  Practice of Parallel Programming, {PPoPP} 2008, Salt Lake City, UT, USA,
+  February 20-23, 2008}, pages 207--216. {ACM}, 2008.
+\newblock \doi{10.1145/1345206.1345237}.
+\newblock URL \url{https://doi.org/10.1145/1345206.1345237}.
+
+\bibitem[Herlihy et~al.(2003)Herlihy, Luchangco, Moir, and
+  III]{herlihy2003dstm}
+Maurice Herlihy, Victor Luchangco, Mark Moir, and William N.~Scherer III.
+\newblock Software transactional memory for dynamic-sized data structures.
+\newblock In Elizabeth Borowsky and Sergio Rajsbaum, editors, \emph{Proceedings
+  of the Twenty-Second {ACM} Symposium on Principles of Distributed Computing,
+  {PODC} 2003, Boston, Massachusetts, USA, July 13-16, 2003}, pages 92--101.
+  {ACM}, 2003.
+\newblock \doi{10.1145/872035.872048}.
+\newblock URL \url{https://doi.org/10.1145/872035.872048}.
+
+\bibitem[Kim et~al.(2019)Kim, Mathew, Kashyap, Ramanathan, and
+  Min]{kim2019mvrlu}
+Jaeho Kim, Ajit Mathew, Sanidhya Kashyap, Madhava~Krishnan Ramanathan, and
+  Changwoo Min.
+\newblock {MV-RLU:} scaling read-log-update with multi-versioning.
+\newblock In Iris Bahar, Maurice Herlihy, Emmett Witchel, and Alvin~R. Lebeck,
+  editors, \emph{Proceedings of the Twenty-Fourth International Conference on
+  Architectural Support for Programming Languages and Operating Systems,
+  {ASPLOS} 2019, Providence, RI, USA, April 13-17, 2019}, pages 779--792.
+  {ACM}, 2019.
+\newblock \doi{10.1145/3297858.3304040}.
+\newblock URL \url{https://doi.org/10.1145/3297858.3304040}.
+
+\bibitem[Matveev et~al.(2015)Matveev, Shavit, Felber, and
+  Marlier]{matveev2015rlu}
+Alexander Matveev, Nir Shavit, Pascal Felber, and Patrick Marlier.
+\newblock Read-log-update: A lightweight synchronization mechanism for
+  concurrent programming.
+\newblock In Ethan~L. Miller and Steven Hand, editors, \emph{Proceedings of the
+  25th Symposium on Operating Systems Principles, {SOSP} 2015, Monterey, CA,
+  USA, October 4-7, 2015}, pages 168--183. {ACM}, 2015.
+\newblock \doi{10.1145/2815400.2815406}.
+\newblock URL \url{https://doi.org/10.1145/2815400.2815406}.
+
+\bibitem[McKenney(2010)]{mckenney2010keyupdate851}
+Paul~E. McKenney.
+\newblock Lockless hash table lookups while performing key update on hash table
+  element.
+\newblock U.S. Patent No. 7,668,851, 2010.
+\newblock URL \url{https://www.freepatentsonline.com/7668851.html}.
+\newblock Application Ser. No. 11/564,568, filed 2006-11-29; granted
+  2010-02-23; assignee International Business Machines Corp. FPO renders the
+  inventor list as ``McKenney et al.''; the full list is unconfirmed.
+
+\bibitem[McKenney(2015)]{mckenney2015issaquah}
+Paul~E. McKenney.
+\newblock High-performance and scalable updates: The {Issaquah} challenge.
+\newblock Presented at linux.conf.au, Auckland, New Zealand, January 2015.
+\newblock URL
+  \url{http://www.rdrop.com/users/paulmck/scalability/paper/Updates.2015.01.16b.LCA.pdf}.
+\newblock 92 slides; presented 2015-01-16. Copyright IBM Corporation.
+
+\bibitem[McKenney(2016)]{mckenney2016beyondissaquah}
+Paul~E. McKenney.
+\newblock Beyond the {Issaquah} challenge: High-performance scalable complex
+  updates.
+\newblock Presented at CppCon, Bellevue, WA, USA, September 2016.
+\newblock URL
+  \url{http://www.rdrop.com/users/paulmck/RCU/Updates.2016.09.19i.CPPCON.pdf}.
+\newblock 112 slides; presented 2016-09-19. Copyright IBM Corporation.
+
+\bibitem[McKenney(2018)]{mckenney2018atomicmove907}
+Paul~E. McKenney.
+\newblock Atomically moving data elements between or within linked data
+  structures.
+\newblock U.S. Patent No. 9,910,907, 2018.
+\newblock URL \url{https://patents.google.com/patent/US9910907B2/en}.
+\newblock Filed 2015-01-29 (priority 2015-01-29); granted 2018-03-06; assignee
+  International Business Machines Corp.; adjusted expiration 2036-05-09;
+  status: Expired - Fee Related as of 2026-07-16.
+
+\bibitem[McKenney(2019)]{mckenney2019atomicmove638}
+Paul~E. McKenney.
+\newblock Atomically moving data elements between or within linked data
+  structures having no support for atomic moves.
+\newblock U.S. Patent No. 10,452,638, 2019.
+\newblock URL \url{https://patents.google.com/patent/US10452638B2/en}.
+\newblock Filed 2016-12-14 (priority 2016-12-14); granted 2019-10-22; assignee
+  International Business Machines Corp.; adjusted expiration 2038-04-11;
+  status: Expired - Fee Related as of 2026-07-16.
+
+\bibitem[McKenney(2023)]{mckenney2023perfbook}
+Paul~E. McKenney.
+\newblock Is parallel programming hard, and, if so, what can you do about it?
+  (release v2023.06.11a).
+\newblock arXiv:1701.00854, 2023.
+\newblock URL \url{https://arxiv.org/abs/1701.00854}.
+
+\bibitem[McKenney(2026)]{mckenney2026perfbookcode}
+Paul~E. McKenney.
+\newblock perfbook {CodeSamples}: supporting code for ``is parallel programming
+  hard, and, if so, what can you do about it?''.
+\newblock Git repository, 2026.
+\newblock URL
+  \url{https://git.kernel.org/pub/scm/linux/kernel/git/paulmck/perfbook.git}.
+\newblock GPL-2.0. \code{CodeSamples/datastruct/} vendored at upstream commit
+  a1d3bc7e (2026-06-28), imported 2026-07-08; local patches recorded in the
+  vendored tree's PROVENANCE.txt.
+
+\bibitem[McKenney and Slingwine(1998)]{mckenney1998rcu}
+Paul~E. McKenney and John~D. Slingwine.
+\newblock Read-copy update: Using execution history to solve concurrency
+  problems.
+\newblock In \emph{Parallel and Distributed Computing and Systems}, pages
+  509--518, Las Vegas, NV, USA, October 1998.
+\newblock URL
+  \url{http://www.rdrop.com/~paulmck/scalability/paper/rclockpdcsproof.pdf}.
+
+\bibitem[McKenney et~al.(2008)McKenney, Sarma, and
+  Soni]{mckenney2008filerename926}
+Paul~E. McKenney, Dipankar Sarma, and Maneesh Soni.
+\newblock Atomic renaming and moving of data files while permitting lock-free
+  look-ups.
+\newblock U.S. Patent No. 7,349,926, 2008.
+\newblock URL \url{https://www.freepatentsonline.com/7349926.html}.
+\newblock Application Ser. No. 10/813,470, filed 2004-03-30; granted
+  2008-03-25; assignee International Business Machines Corp.; parent of U.S.
+  Patent No. 7,987,166. Inventor list taken from the continuation; FPO renders
+  it as ``McKenney et al.''.
+
+\bibitem[Michael(2004)]{michael2004hazard}
+Maged~M. Michael.
+\newblock Hazard pointers: Safe memory reclamation for lock-free objects.
+\newblock \emph{{IEEE} Transactions on Parallel and Distributed Systems},
+  15\penalty0 (6):\penalty0 491--504, 2004.
+\newblock \doi{10.1109/TPDS.2004.8}.
+\newblock URL \url{https://doi.org/10.1109/TPDS.2004.8}.
+
+\bibitem[Shavit and Touitou(1995)]{shavit1995stm}
+Nir Shavit and Dan Touitou.
+\newblock Software transactional memory.
+\newblock In James~H. Anderson, editor, \emph{Proceedings of the Fourteenth
+  Annual {ACM} Symposium on Principles of Distributed Computing, {PODC} 1995,
+  Ottawa, Ontario, Canada, August 20-23, 1995}, pages 204--213. {ACM}, 1995.
+\newblock \doi{10.1145/224964.224987}.
+\newblock URL \url{https://doi.org/10.1145/224964.224987}.
+
+\bibitem[Sundell(2011)]{sundell2011waitfreemcas}
+H{\aa}kan Sundell.
+\newblock Wait-free multi-word compare-and-swap using greedy helping and
+  grabbing.
+\newblock \emph{International Journal of Parallel Programming}, 39\penalty0
+  (6):\penalty0 694--716, 2011.
+\newblock \doi{10.1007/s10766-011-0167-4}.
+\newblock URL \url{https://doi.org/10.1007/s10766-011-0167-4}.
+
+\end{thebibliography}

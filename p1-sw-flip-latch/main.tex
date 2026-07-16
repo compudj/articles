@@ -1,0 +1,2048 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\input{../common/preamble}
+\input{../common/macros}
+
+% Draft build: `make draft` drops draft.flag to surface TODO/CITE/NOTE markers.
+% Submission builds leave it absent, so the markers vanish.
+\IfFileExists{draft.flag}{\draftmodetrue}{}
+
+\title{RCU Pseudo-Transactions and the Single-Writer Flip-Latch:\\
+       Atomic Multi-Slot Publication for Read-Copy-Update Data Structures}
+
+\author{Mathieu Desnoyers\\ EfficiOS Inc.\\ \texttt{mathieu.desnoyers@efficios.com}}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% ---------------------------------------------------------------------------
+% FRAMING RULE FOR THE WHOLE SERIES -- do not soften this in editing.
+% The guarantee is: atomic multi-slot write, opt-in per-slot read validation.
+% NEVER "serializable", NEVER "opacity", NEVER "STM". "Linearizable" stays
+% scoped to the commit itself, never to a read+write transaction. Overclaiming
+% here is the single most damaging error available to this paper.
+% ---------------------------------------------------------------------------
+Read-copy-update (RCU) makes a \emph{single} pointer store atomic with respect
+to concurrent readers, and readers pay nothing for it. This works only when an
+update is expressible as one store. Updates that must change several
+words coherently---a doubly-linked list's back edge, a skip list's tower---fall
+back to copying a larger region, to a grace-period drain, or to omitting the
+operation. Userspace RCU's list does the last: it ships no RCU-safe reverse
+iterator, because
+\code{cds\_list\_del\_rcu()} publishes its forward edge atomically and its back
+edge with a plain assignment.
+
+We describe an RCU \pseudotxn: a frozen set of \record{slot}{old}{new} records
+made visible by one commit step, together with a \sw realization---the
+\fliplatch---in which every proxy in a group names one shared selector word, so
+a single store switches the whole set. Two transacted structures follow: a
+bidirectional list whose two chains stay mutually coherent, making the reverse
+walk ordinary, and a hash list.
+
+The guarantee is deliberately weaker than software transactional memory. The
+write set is atomic: every record resolves to its old value before the commit
+and to its new value after. But a reader is \emph{not} a \pseudotxn---each of
+its loads resolves independently, so a traversal spanning several slots may
+straddle a commit. There is no opacity and no multi-read snapshot; a reader gets
+monotonicity, never new-then-old.
+
+The weakening is the design. Isolation is paid for on the read side, in state
+attached to every element and work on every dereference---and the read side is
+what RCU exists to keep free. A \pseudotxn's marker instead rides in spare bits
+of the slot itself, the word the reader had to load anyway, so it adds no
+per-element state and no extra load, and vanishes when no mutation is in flight.
+The cost moves to the writer, in the width of a commit, and we say where.
+\end{abstract}
+
+% ===========================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Read-copy-update rests on a bargain. Readers pay nothing --- no lock, no
+barrier, no write to shared state --- and in exchange a writer gets exactly one
+atomic act: a single pointer store, bracketed by building the new structure
+where readers cannot reach it and reclaiming the old one after a grace period.
+The bargain has held for decades because the structures \rcu serves are
+read-dominated, so making the majority free is worth constraining the minority.
+
+The constraint is real, though, and it is one store. An update that must change
+several words coherently has no atomic act to express itself with. The remedies
+are familiar and each gives something up: copy the enclosing region so the
+change becomes one pointer swap, and pay to copy; drain the readers with a grace
+period so nobody spans the inconsistent window, and pay to wait; or decline the
+operation.
+
+\Cref{sec:rculistgap} looks at a library that took the third option, and it is
+the cleanest evidence available that the problem is real. Userspace \rcu's
+doubly-linked list publishes only its forward chain: in
+\code{cds\_list\_del\_rcu()} the forward edge is committed by an atomic store,
+while the back edge is a plain assignment --- no release, and correspondingly
+the \code{prev} pointers are never \code{rcu\_dereference}d. The consequence is
+not a subtle ordering nit but a semantic one: a removed node survives as a ghost
+until its grace period elapses, so a reverse walker can keep stepping onto nodes
+the forward chain has already dropped. The \code{prev} view trails the
+\code{next} view. There is no barrier that fixes this, because the two chains
+are changed by two stores and nothing makes them one event. So the library ships
+forward iterators and no RCU-safe reverse walk. Nobody has to be persuaded the
+gap matters: the missing API is the argument.
+
+\subsection*{Contributions}
+
+This paper describes an engine that gives \rcu writers a second atomic act ---
+a set of word-sized slots that change together --- without disturbing the
+bargain that makes \rcu worth using. Specifically:
+
+\begin{itemize}
+\item \textbf{A \pseudotxn model} (\cref{sec:model}): a frozen set of
+      \record{slot}{old}{new} records made visible by one commit step. We state
+      what it guarantees, and state what it does not before any evaluation ---
+      including the property that a reader is not a \pseudotxn, and the weaker
+      one that it does have: monotone resolution, never new-then-old
+      (\cref{sec:monotone}).
+
+\item \textbf{The \fliplatch} (\cref{sec:fliplatch}): a \sw realization in which
+      every proxy in a group names one shared selector word, so a single release
+      store switches the set. It has no compare-and-swap, no conflict detection
+      and no abort --- and correspondingly requires writer exclusion, which we
+      state as a precondition of the mechanism rather than a caveat on it.
+
+\item \textbf{A per-record tag scheme} (\cref{sec:tags}): the marker lives in
+      spare bits of the slot rather than in per-element state, which is what
+      makes the reader's cost zero. Because a \pseudotxn may span structures
+      whose encodings differ, the tag must travel with the record rather than be
+      fixed per translation unit. Slots need not hold pointers: a shifted
+      integer or a bitmap word is transacted the same way.
+
+\item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
+      list whose two chains stay mutually coherent --- so the reverse walk
+      \code{rculist} declines to offer becomes ordinary --- and a hash list. We
+      also give the boundary: composition is legal only across slot-disjoint
+      edits, and we say what happens when it is not.
+
+\item \textbf{The design space we did not take} (\cref{sec:variations}):
+      selector encodings, tag placement and width, proxy allocation, settle
+      policies, reclamation schemes and non-pointer encodings, with the cost of
+      each alternative rather than only the name of it.
+\end{itemize}
+
+\paragraph{Scope.} This paper covers the \sw case, where writers are mutually
+excluded by the embedder. A companion paper covers the concurrent engine, which
+attacks the same model with a multi-word compare-and-swap and pays for
+contention detection with machinery this one does not need. The two share the
+model of \cref{sec:model} and the status vocabulary, deliberately: an embedder
+written against one migrates to the other without rewriting its commit handling.
+Where a property here holds only under exclusion, we say so.
+
+\subsection{Where the cost goes}
+\label{sec:costcomparison}
+
+Multi-pointer atomicity under \rcu is not a new goal, and the established
+answers pay for it in the same place: state attached to every element, and work
+on the reader's path. \Cref{tab:comparison} places this engine against them.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l l c l l@{}}
+\toprule
+ & \textbf{Per-element} & \textbf{Extra} & \textbf{Reader} & \textbf{Publish} \\
+ & \textbf{state} & \textbf{loads} & \textbf{guarantee} & \textbf{step} \\
+\midrule
+Existence~\citep{mckenney2016beyondissaquah}
+  & \code{eh\_egi} field
+  & 1
+  & per-element
+  & group state \\
+RLU~\citep{matveev2015rlu}
+  & object header
+  & 1
+  & snapshot
+  & clock bump \\
+MV-RLU~\citep{kim2019mvrlu}
+  & header $+$ versions
+  & $\geq 2$
+  & snapshot
+  & clock bump \\
+\midrule
+\textbf{This work}
+  & \textbf{none}
+  & \textbf{0}
+  & never new-then-old
+  & one store \\
+\bottomrule
+\end{tabular}
+\caption{Where each design pays for multi-pointer atomicity. Read-path counts
+are additional \emph{memory references} per dereference in the common case, over
+and above the load the reader must issue anyway; both existence and RLU do more
+work while a mutation is in flight. A \pseudotxn issues none, because its marker
+rides in the value \code{v} that \code{rcu\_dereference} already returned. The
+first column is the unconditional cost: existence and RLU attach state to every
+element for as long as the structure lives, whereas a \pseudotxn attaches
+nothing and confines its state to the mutation. Existence's load is an
+\emph{acquire}; RLU's is a plain load from its per-thread state. Ours is zero
+because the marker rides in \code{v} itself, not because the check is cheap.
+MV-RLU is the one entry whose count is not a constant: its dereference reads the
+object header unconditionally --- it has no counterpart to RLU's pure-reader
+bypass --- and then walks a version chain whose length the reader does not
+control, so $\geq 2$ is a floor rather than a typical case.}
+\label{tab:comparison}
+\end{table}
+
+% ---------------------------------------------------------------------------
+% PROVENANCE OF EVERY CELL IN tab:comparison -- VERIFIED FROM SOURCE 2026-07-16.
+% Kept as a LaTeX comment rather than a \NOTE because it quotes C: the bare _, &
+% and ~ would need escaping inside a macro argument, and an escaping slip here
+% breaks only the draft build, which is exactly when you need to read this.
+% Do not "tidy" these cells from memory. What was actually read:
+%
+% existence_exists()  --  perfbook datastruct/existence/existence.h:116
+%     uintptr_t egi = smp_load_acquire(&ehp->eh_egi);
+%     if (likely(!egi)) return 1;
+%     esp = (uintptr_t *)(egi & ~0x1);
+%     return (egi & 0x1) == smp_load_acquire(esp);
+% The FAST path is ALREADY one acquire load of a PER-ELEMENT field (eh_egi).
+% When the element is in a group there is a SECOND acquire load, of the group's
+% state word -- and struct existence_group is __attribute__((aligned(
+% CACHE_LINE_SIZE))), so that is a line shared by every reader of every element
+% in the group. Note also: existence uses pointer tagging in bit 0 of eh_egi
+% ("Dmitry Vjukov's pointer-tagging trick", per its own comment). Say so.
+% Tagging is not our invention and claiming it would be trivially refuted.
+%
+% RLU_DEREF_INTERNAL  --  third_party/rlu/rlu.h:221
+%     if (rlu_likely(self->is_check_locks == 0)) { p_cur_obj = p_obj; }
+%     else { if (p_obj && RLU_IS_UNLOCKED(p_obj)) ... else slow_path }
+% and rlu.c:797 clears is_check_locks at reader-lock time when the thread has no
+% pending writes of its own (n_pure_readers++). So a PURE READER never touches
+% the object header: a thread-local load and a predicted branch, nothing more.
+%
+% DO NOT claim "RLU costs an extra load on every read". It is FALSE for pure
+% readers and a reviewer who knows RLU will catch it on sight. RLU's
+% unconditional cost is SPACE -- rlu_obj_header_t is prepended to every object
+% (RLU_MOVE_PTR_BACK) -- not instructions. An earlier draft of this table made
+% exactly that error; it was caught only by reading rlu.h.
+%
+% mvrlu_deref()  --  github.com/cosmoss-jigu/mv-rlu, lib/mvrlu.c, read 2026-07-16
+%     p_act = get_act_obj(obj);                    /* reads the object header */
+%     p_copy = vobj_to_obj_hdr(p_act)->p_copy;     /* second header load      */
+%     if (unlikely(p_copy)) {
+%         do {
+%             chs = vobj_to_chs(p_copy);
+%             wrt_clk = get_wrt_clk(chs);
+%             if (lte_clock(wrt_clk, self->local_clk)) return p_copy;
+%             if (unlikely(lte_clock(chs->cpy_hdr.wrt_clk_next, qp_clk2)))
+%                     break;
+%             p_copy = chs->obj_hdr.p_copy;        /* version-chain walk      */
+%         } while (p_copy);
+%     }
+%     return p_act;
+%
+% So: >= 2 loads, and NOT a constant. Two facts matter and both were verified,
+% not inferred from the RLU row (the comment above says why that inference is
+% unsafe -- and it would have been WRONG here in the opposite direction):
+%
+%   1. The header read is UNCONDITIONAL. There is no counterpart to RLU's
+%      `if (self->is_check_locks == 0)` pure-reader bypass. Multi-versioning
+%      costs RLU's pure-reader fast path -- MV-RLU's reader always touches the
+%      object. This is a real difference BETWEEN the two RLU rows.
+%   2. The version-chain walk is length-dependent with no iteration limit, so
+%      the cell is a floor, not a typical case. That is why it reads ">= 2"
+%      rather than a number.
+%
+% Deliberately NOT claimed: mvrlu_deref also does self->num_act_obj++ and
+% self->num_deref++ (per-thread STORES on the read path). Those read like
+% statistics counters and may be compiled out in a production build; we did not
+% verify that, so we do not count them. Counting them would be exactly the kind
+% of flattering-to-us overclaim the RLU note above exists to prevent.
+%
+% RLU HAS NO TLS. There is no __thread anywhere in rlu.h/rlu.c: `self` is a
+% caller-held pointer parameter, so self->is_check_locks is a plain load through
+% a register. Do not write "thread-local flag" -- it is a field of a per-thread
+% STRUCT, which is not the same claim.
+%
+% Our own benchmark is what puts `self` in TLS (bench_list_scale.c:1505,
+% `static __thread rlu_thread_data_t *tls_rlu`), fetched once per operation via
+% rlu_self() at :1579 and then held in a register across the traversal. So it is
+% hoisted out of the per-dereference path this table is about.
+%
+% DO NOT argue TLS access models (initial-exec vs global-dynamic under dlopen)
+% against RLU. It is a property of how an embedder stores `self`, not of RLU's
+% design -- RLU takes `self` as a parameter precisely to leave that open -- and
+% it is amortised per operation, not per dereference. It also cuts both ways:
+% rcu_read_lock() touches URCU_TLS(rcu_reader) under the same rules (urcu ships
+% tls-compat.h for exactly this), so the point nets to ~zero and reads as
+% reaching. The argument is strongest on ground where the difference is
+% structural: existence and RLU must put their mechanism somewhere the reader
+% can LOAD it; ours is already in the register.
+% ---------------------------------------------------------------------------
+
+% ===========================================================================
+\section{Background}
+\label{sec:background}
+
+This section fixes only the vocabulary the rest of the paper needs. Readers
+familiar with \rcu will find nothing new in \cref{sec:rcu} and
+\cref{sec:buildpublish}; \cref{sec:onestore} is where the problem is stated, and
+it is stated on shipped code rather than in the abstract.
+
+\subsection{Read-copy-update}
+\label{sec:rcu}
+
+\rcu~\citep{mckenney1998rcu,desnoyers2012urcu} divides a mutation between two
+parties and gives each of them a different bargain. A reader brackets its
+traversal in \code{rcu\_read\_lock()} and \code{rcu\_read\_unlock()}. On the
+common implementations these are not locks at all: they exclude nothing, they
+contend with nothing, and in the userspace library's \QSBR mode they compile to
+nothing at all. What a reader gets in exchange for that non-cost is narrow but
+sufficient: any object it reaches during the bracket remains allocated until the
+bracket ends.
+
+That promise is kept by the writer, not by the reader, and it is kept by
+waiting. A \emph{grace period} is an interval that every pre-existing read-side
+bracket has been observed to leave. Once one elapses, no reader can still hold a
+reference obtained before it began, so anything unlinked before it began is
+unreachable and may be freed. The writer waits synchronously
+(\code{synchronize\_rcu()}) or defers a callback (\code{call\_rcu()}); either
+way the cost of reclamation is charged entirely to the side doing the mutating.
+
+Publication is the mirror image. A writer makes an object reachable with
+\code{rcu\_assign\_pointer()}, a release store, and a reader reaches it with
+\code{rcu\_dereference()}, which returns the pointer and guarantees that the
+loads dependent on it see the object's initialized contents rather than
+pre-initialization garbage. On every architecture Userspace \rcu supports, the
+reader's half of that is free: the dependency between loading a pointer and
+loading through it is respected by the hardware, so \code{rcu\_dereference()}
+emits an ordinary load and no barrier.\footnote{Alpha, which did not respect it,
+is the standing exception and is no longer supported. The C11 \code{consume}
+ordering that was meant to express this in the abstract machine is not usable in
+practice, and compilers promote it to \code{acquire}~\citep{boehm2008memorymodel,batty2011cppconcurrency};
+Userspace \rcu therefore relies on the dependency directly.}
+
+The whole arrangement rests on one sentence: \emph{readers pay nothing, and in
+exchange a writer gets exactly one atomic act.} The rest of this paper is about
+the second half of that sentence.
+
+\subsection{Build, publish, reclaim}
+\label{sec:buildpublish}
+
+The one atomic act is a single pointer store, and it sits in the middle of a
+three-phase discipline that every \rcu mutation follows:
+
+\begin{enumerate}
+\item \textbf{Build.} Allocate and fully initialize the new nodes \emph{where no
+reader can reach them}. Because they are unreachable, this phase is
+single-threaded by construction: no ordering is needed, no barrier is paid, and
+an operation that fails here has published nothing and can free its work
+immediately with no grace period.
+\item \textbf{Publish.} One release store makes the new structure reachable.
+This is the linearization point, and it is the only instant at which concurrent
+readers change what they see. It is also the paper's pivot: \emph{everything
+before it is private, everything after it is committed, and there is exactly one
+of it.}
+\item \textbf{Reclaim.} The nodes the publish displaced were reachable, so they
+may still be held by readers that started earlier. Free them after a grace
+period, never before.
+\end{enumerate}
+
+The middle phase is the constraint. Build is unconstrained and reclaim is merely
+deferred, but publish must be \emph{one store}, because a store is the only
+thing the hardware will make atomic with respect to a reader that has taken no
+lock and paid no barrier.
+
+This frame carries through the whole series, and it is worth stating the
+punchline now so that \cref{sec:model} lands as an extension rather than a
+replacement: a \pseudotxn does not add a fourth phase. It \emph{widens the
+second one}. Build and reclaim keep their meanings exactly; commit is the
+publish step, still a single store, and what changes is how many slots that one
+store moves.
+
+\subsection{Why one store is not enough}
+\label{sec:onestore}
+
+An update that must re-point two edges coherently has no atomic act to express
+itself with, and the consequence is not hypothetical. It is visible in the
+interface of the most widely deployed \rcu container there is.
+
+Userspace \rcu ships a circular doubly-linked list in two variants. The plain
+one, \code{<urcu/list.h>}, iterates in both directions:
+\code{cds\_list\_for\_each\_prev()},
+\code{cds\_list\_for\_each\_prev\_safe()}, and
+\code{cds\_list\_for\_each\_entry\_reverse()} are all part of its interface. The
+\rcu one, \code{<urcu/rculist.h>}, ships exactly two iterators ---
+\code{cds\_list\_for\_each\_rcu()} and
+\code{cds\_list\_for\_each\_entry\_rcu()} --- and both walk forward. There is no
+\rcu-safe reverse walk, and this is not because the backward chain is missing.
+Every node still has a \code{prev} pointer and every writer still maintains it,
+on \code{add}, on \code{del}, and on \code{replace}. The chain is there, it is
+correct, and a reader may not read it.
+
+The reason is one line. In \code{cds\_list\_del\_rcu()}, unlinking a node
+\code{E} between \code{P} and \code{N} re-points two edges:
+
+\begin{lstlisting}
+/* unlink E, which sits between P and N */
+elem->next->prev = elem->prev;                 /* N->prev: E -> P */
+uatomic_store(&elem->prev->next, elem->next);  /* P->next: E -> N */
+\end{lstlisting}
+
+The forward edge is written with \code{uatomic\_store()}: indivisible, safe for
+a concurrent reader to load. The back edge is written with a bare \code{=}, to a
+node that readers can reach at that very moment. Under the C11 model a plain
+store racing with a concurrent load is a data race and the behaviour is
+undefined --- so that line is sound \emph{only because no reader is permitted to
+read \code{prev}}. The missing iterator is not an oversight or a gap someone
+neglected to fill. It is load-bearing. The library declines the operation, and
+in exchange the write side gets to be cheap.
+
+It is tempting to conclude that the omission is a mere ordering bug: publish
+\code{prev} with \code{rcu\_assign\_pointer()}, read it with
+\code{rcu\_dereference()}, and the reverse walk falls out. It does not, and
+seeing why is the point of this subsection. Suppose both edges were properly
+published. They are still \emph{two} release stores, hence two publication
+instants, and a reader that arrives between them sees \code{P->next == N} while
+\code{N->prev == E}. The forward chain has dropped \code{E}; the backward chain
+still contains it. Neither view is corrupt and neither is torn. They simply
+describe different lists, and a reader that walks forward and then hops backward
+--- the operation the reverse iterator exists to serve --- gets an answer no
+sequential list could ever produce.
+
+Ordering does not fix this because ordering is not what is missing. What is
+missing is \emph{atomicity across two slots}, and \rcu has no way to ask for it.
+
+There is a second, subtler failure that survives even careful ordering, and it
+is specific to \rcu. An unlinked node is a ghost: it must remain allocated for a
+grace period, and it keeps its own \code{next} and \code{prev} pointing at its
+former neighbours. The live forward chain drops it at the instant of the
+publish. A reverse walker stepping through \code{prev} pointers can keep landing
+on it for as long as the ghost survives. The backward view therefore trails the
+forward view by up to a grace period --- not by a few instructions, but by the
+full reclamation latency of the algorithm. No amount of barrier placement closes
+a window whose width is a grace period.
+
+So the doubly-linked list, the textbook structure, is already past what one
+store can express, and the library's response was to remove the operation from
+the interface. \Cref{sec:fliplatch} makes both edges move at one instant, and
+\cref{sec:wrappers} spends that to give the reverse walk back.
+
+% ===========================================================================
+\section{The Pseudo-Transaction Model}
+\label{sec:model}
+
+% ---------------------------------------------------------------------------
+% SCOPE NOTE (drafting): this section is deliberately ENGINE-AGNOSTIC. It must
+% define only what the single-writer flip-latch (Sec. 4) and the multi-writer
+% MCAS engine (companion paper) BOTH realize, because the companion paper
+% inherits these definitions verbatim. Anything that is a property of one
+% realization -- descriptors, install/settle, the tri-state status word, abort
+% -- belongs there, not here. In particular there is no abort in this model:
+% under writer exclusion a commit cannot fail for contention, and the ABORT
+% status exists only because the two front-ends share a status enum.
+% ---------------------------------------------------------------------------
+
+\subsection{Records and pseudo-transactions}
+
+\begin{definition}[Record]
+\label{def:record}
+A \emph{record} is a triple \record{s}{o}{n}, where $s$ is the address of a
+word-sized \emph{slot}, $o$ is the value the slot must hold at the commit
+point, and $n$ is the value it takes afterwards.
+\end{definition}
+
+\begin{definition}[Pseudo-transaction]
+\label{def:pseudotxn}
+A \pseudotxn is a set of records over pairwise-distinct slots, \emph{frozen}
+at the commit point, together with a single \emph{commit step} that makes the
+whole set take effect at once.
+\end{definition}
+
+Two properties of \cref{def:pseudotxn} carry the entire model. The record set
+is \emph{frozen}: no record may join it after the commit step begins, so what
+becomes visible is decided before anything is published. And the commit is a
+\emph{single step}: one store, not a protocol, so there is no interval during
+which part of the set has taken effect and part has not.
+
+\subsection{A transaction in the filesystem sense}
+\label{sec:fssense}
+
+The word \emph{transaction} carries two meanings, and only one of them applies
+here. A journaling filesystem stages a batch of block writes, closes the batch,
+and writes a commit record; before that record the old state is authoritative,
+after it the new state is, and no partial batch is ever authoritative. It calls
+this a transaction, and it has never meant isolation by it. A database or an
+STM means something else: a unit that is atomic \emph{and} isolated, where
+isolation constrains what concurrent \emph{readers} may observe.
+
+Our model is the first of these, essentially point for point:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
+\midrule
+journal transaction, closed      & record set, frozen \\
+journal blocks                   & \record{s}{o}{n} records \\
+commit record                    & the commit step \\
+before commit: old state         & before commit: every record resolves $o$ \\
+after commit: new state          & after commit: every record resolves $n$ \\
+never a partial batch            & no slot, and no instant, is ever torn \\
+readers are not transactional    & readers are plain \rcu readers \\
+gives atomicity, not isolation   & gives atomicity, not opacity \\
+\bottomrule
+\end{tabular}
+\caption{The model is the journaling sense of \emph{transaction}, not the
+database sense. The staged record set is the journal; the commit step is the
+commit record.}
+\label{tab:fssense}
+\end{table}
+
+This is why we say \pseudotxn rather than transaction. The prefix is not an
+apology for an incomplete STM; it is a disambiguation for readers who take
+\emph{transaction} to imply isolation. What the prefix marks as absent is
+isolation, and the reason it is absent is the subject of
+\cref{sec:whyweakening}: isolation is paid for on the read side, and the \rcu
+read side is precisely what this engine declines to charge.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% If space is tight this table is the first thing to cut to prose --- but
+% the point it makes is not optional. It is what stops a concurrency reader
+% filing the model under "weak STM" in the first thirty seconds.
+% -----------------------------------------------------------------------
+
+\subsection{What is guaranteed}
+\label{sec:guarantees}
+
+\begin{property}[Write-set atomicity]
+\label{prop:atomicity}
+Every record in a committed \pseudotxn resolves to its old value $o$ before the
+commit step and to its new value $n$ after it. One step switches the whole
+frozen set.
+\end{property}
+
+\begin{property}[No tearing]
+\label{prop:notearing}
+No slot, and no instant, is ever torn: at every instant, every slot holds
+either a value that resolves to $o$ or one that resolves to $n$, and never
+anything else.
+\end{property}
+
+\begin{property}[Single linearization point]
+\label{prop:lp}
+A committed \pseudotxn is linearizable, and its linearization point is the
+commit step. The steps that stage the set beforehand and that tidy up
+afterwards change no observable value, so neither is a linearization point.
+\end{property}
+
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Keep "linearizable" scoped to the WRITE, exactly as in Property 3. The
+% engine's own words: "This linearizes the WRITE." Never extend it to a
+% read-plus-write bracket -- that bracket is not atomic and claiming
+% otherwise is the single most damaging error available to this series.
+% -----------------------------------------------------------------------
+
+\begin{property}[Cross-structure atomicity]
+\label{prop:crossstructure}
+Because the record set may span data structures, the commit is one
+linearization point \emph{across all of them}. This is strictly stronger than
+composing independent \rcu structures, where a node can be reachable in $A$
+before it is reachable in $B$. The unit of cross-structure atomicity is exactly
+one \pseudotxn: two commits are two linearization points, the same as two
+unrelated \rcu structures.
+\end{property}
+
+\paragraph{Worked example.} Consider a cache with two access paths: entries are
+found by key through a hash index, and ordered by recency through a linked list.
+Both are \rcu structures and both are read without a lock. Inserting an entry
+$E$ has to make it findable and make it ordered.
+
+Plain \rcu forces the writer to choose an order, and neither choice is right.
+Publish into the index first, and there is an interval in which a reader finds
+$E$ by key, follows it, and discovers it is in no position in the recency list.
+Splice into the list first, and there is an interval in which $E$ occupies a
+position in the recency list while a lookup for its key still reports it absent.
+The interval is not a few instructions --- the writer can be preempted between
+the two stores --- and no amount of barrier placement removes it, because there
+genuinely are two publications. Callers are left to tolerate the skew, which
+usually means the structures grow a validity flag, or a lock, and the reason
+\rcu was chosen erodes.
+
+A \pseudotxn names the slots of both structures in one record set: the index
+bucket slot that must come to name $E$, and the list edges that splice it into
+position. One commit publishes all of them. $E$ becomes findable and ordered at
+the same instant, and the question of which to publish first stops existing,
+because there is only one publish.
+
+\Cref{prop:crossstructure} also fixes the boundary, and it is a real one. The
+unit of cross-structure atomicity is one \pseudotxn, not one writer and not one
+critical section. An operation that commits the index edit and then commits the
+list edit has produced two linearization points and is back to exactly the skew
+above --- the engine has made the composition \emph{available}, not automatic.
+What may legally be folded into a single commit is constrained in turn:
+composition is sound across slot-disjoint edits, which cross-structure
+composition satisfies by construction, and \cref{sec:swcomposition} gives the
+boundary and what happens on the wrong side of it.
+
+\subsection{What is not guaranteed}
+\label{sec:nonguarantees}
+
+We state the limits here, before any evaluation, because they are constitutive
+of the model rather than defects in it.
+
+\textbf{A reader is not a \pseudotxn.} It is a sequence of single-slot reads,
+each linearizing at its own access. A traversal spanning several slots may
+therefore \emph{straddle} a commit: it can observe the \pseudotxn in a slot it
+reads after the commit and not in one it read before.
+\Cref{prop:notearing} still holds throughout --- no slot and no instant is torn
+--- but a reader's several reads are simply not a mutual snapshot.
+
+\textbf{There is no opacity and no multi-read snapshot.} This is weaker than
+STM, deliberately and in exactly one direction: readers are plain \rcu readers
+that pay no per-read barrier. An embedder that needs a multi-read snapshot
+layers its own versioning on top, as with any value-based \mcas.
+
+\textbf{A record's old is a value at an instant, not a value over an interval.}
+\Cref{def:record}'s $o$ is what the slot must hold \emph{at} the commit point,
+not what it must have held throughout. An operation whose correctness requires
+\emph{detecting} an away-and-back change must carry its own version in the word.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Do NOT write "a validated slot is CHECKED to hold its expected value" in
+% P1. The single-writer engine performs no check: it has no install CAS, so
+% nothing verifies o against memory. Under exclusion the writer is entitled
+% to know, and o is used for RESOLUTION (what a proxy returns pre-flip), not
+% for validation. The concurrent engine's install CAS is what turns this
+% into a check -- so the checking language belongs in P2, and the model here
+% must state the property without implying an enforcement that does not
+% exist. Sec. 7.4 explains where this DOES bite in P1: through composition.
+% -----------------------------------------------------------------------
+
+\subsection{Monotonicity: never new-then-old}
+\label{sec:monotone}
+
+The previous section understates what a reader gets, and the gap matters. A
+reader's reads are not mutually atomic, but neither are they unrelated.
+
+\begin{property}[Monotone resolution]
+\label{prop:monotone}
+The word that decides a \pseudotxn's outcome is written once and never written
+back. A reader resolving several slots of one \pseudotxn over time therefore
+observes a monotone sequence --- $o \ldots o, n \ldots n$ --- and
+\textbf{never $n$ then $o$}. A reader may lag a commit; it never regresses
+across one.
+\end{property}
+
+\Cref{prop:monotone} is strictly more than treating each slot as an independent
+register and strictly less than a snapshot, and that middle ground is
+exploitable rather than merely tolerable (\cref{sec:publishorder}).
+
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% DO NOT call this "causal". "Causal consistency" names a specific model
+% that is WEAKER than linearizability -- it lets observers disagree on the
+% order of unrelated writes -- so borrowing the word would make the engine
+% read as claiming less than it provides. "Never new-then-old" is precise,
+% memorable, collides with no existing model's name, and is the engine's own
+% phrasing. Equally, do not write "per-slot linearizability": true of each
+% read, but it implies reads are unrelated and so undersells Property 5.
+% -----------------------------------------------------------------------
+
+\paragraph{Scope.} \Cref{prop:monotone} has a precondition that must travel
+with it. Monotonicity of the deciding word is unconditional: it is one word,
+stored once. What a reader's \emph{sequence} of resolutions inherits from it
+depends on how the reader got from one slot to the next. A
+\emph{dependency-chained} traversal --- each hop's address derived from the
+value the previous hop loaded --- carries the order for free on every
+architecture \urcu supports, as does any build using the default C11
+dereference. A reader that hops \emph{without} that chain, by re-reading a
+pointer it cached earlier or by walking between two independently-reached
+slots, has no such edge: under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on
+weakly-ordered hardware its two loads may be reordered, and it can observe the
+new value on the later slot and the old on the earlier one. Such a reader owes
+itself an explicit acquire, or a dependency.
+
+We state the build condition rather than relegating it, because it is the
+difference between a guarantee and a hope. An embedder who misses it writes a
+race that no test on a strongly-ordered machine will ever reproduce.
+
+\subsection{Publish order, not snapshots}
+\label{sec:publishorder}
+
+\Cref{sec:nonguarantees} invites an obvious objection. If a reader gets no
+snapshot, and a traversal touching several slots may straddle a commit, how is
+any multi-slot traversal ever correct? The answer is not that snapshots are
+recovered somewhere later. It is that a snapshot is only one way of buying what
+the reader actually needs, and there is a cheaper way to buy it.
+
+What a snapshot buys is \emph{independence from timing}: it makes a reader's
+conclusions hold no matter when its individual loads happened. But a reader does
+not read in an arbitrary order. It reads in the order its traversal dictates,
+and that order is usually fixed by the structure --- a tree is descended, a list
+is walked, a hash bucket is entered at its head. If the order in which edits
+\emph{become visible} is made to agree with the order in which the reader
+\emph{looks}, timing-independence stops being something to buy at all.
+
+\paragraph{The rule.} Suppose a reader resolves slots in a fixed order
+$s_1, s_2, \ldots, s_k$, and the writer splits the edit across several
+\pseudotxns rather than one. Then:
+
+\begin{quote}
+\emph{Commit in the reverse of the reader's read order: publish $s_k$ first and
+$s_1$ last.}
+\end{quote}
+
+The consequence is worth spelling out, because it is a short argument with a
+disproportionate payoff. Write $t_i$ for the instant $s_i$ is published and
+$a_i$ for the instant the reader resolves it. The reader's order gives
+$a_1 < a_2 < \cdots < a_k$; the rule gives $t_1 > t_2 > \cdots > t_k$. Now
+suppose the reader observes $s_i$ as \emph{new}, i.e.\ $a_i > t_i$. For any
+later slot $s_j$ with $j > i$ we have $a_j > a_i > t_i > t_j$, so the reader
+observes $s_j$ as new too. Once a reader crosses into the new state it stays
+there for the remainder of its traversal. It sees a prefix of old and a suffix
+of new, and the crossing point is wherever the commits caught it.
+
+\paragraph{Why a prefix of old and a suffix of new is enough.} The two
+observations the reader can be left with are not equally troublesome, and the
+asymmetry is the whole point.
+
+Old-then-new is a straddle, not a contradiction. It is precisely what an
+ordinary \rcu reader has always tolerated: a reader that begins before a publish
+sees the old structure, one that begins after sees the new, and one that
+overlaps sees the old up to the point the publish caught it and the new
+thereafter. Every deployed \rcu container already asks its callers to accept
+this, and callers do, because the alternative --- excluding readers for the
+duration of a traversal --- is the cost \rcu exists to avoid.
+
+New-then-old is a different animal. A reader that observes the new value of one
+slot and then the old value of another has seen two effects of a single state
+transition in reverse order, and no sequential execution of the data structure
+produces that. There is nothing the reader can do about it locally: it cannot
+tell the stale load from a fresh one, so its only recourse is to re-read
+everything and compare --- which is to say, to build a snapshot. \emph{This is
+the observation that forces snapshots, and it is the one the model already
+forbids.} \Cref{prop:monotone} rules it out by construction, because the
+deciding word is written once and never written back.
+
+So the design rule does not weaken the reader's obligations and then apologize
+for it. It removes the only observation a reader genuinely could not have coped
+with, and leaves behind exactly the straddle that \rcu programmers have been
+handling correctly for two decades.
+
+\paragraph{A worked example.} Re-parent a node $E$ from $P$ to $Q$ in a tree
+that carries parent pointers. Two reader-visible edges move: the forward edge
+($Q$'s child link now names $E$) and the back edge ($E$'s parent link now names
+$Q$). A reader descends first and walks back up second, so it reads the forward
+edge before the back edge. By the rule, publish them in the opposite order:
+
+\begin{enumerate}
+\item Commit the back edge: \code{E->parent}: \edit{P}{Q}.
+\item Commit the forward edge: the child links of $P$ and $Q$.
+\end{enumerate}
+
+A reader that descends and finds $E$ in its new position under $Q$ read the
+forward edge after the second commit, hence after the first, so when it walks
+back up it finds \code{E->parent} already naming $Q$, and the two agree. The excluded
+observation --- descending into the new position and then being told by the
+parent pointer that $E$ still hangs off $P$ --- is exactly the
+$(\mathit{new}, \mathit{old})$ pair the ordering makes unreachable. Publishing
+the forward edge first would permit it.
+
+\paragraph{Why this is safe, and where it stops.} The argument above quietly
+assumed both orders it used, and both have to be earned. The writer's side is
+free here: under exclusion (\cref{sec:exclusion}) the commits are two release
+stores issued in program order by one thread. The reader's side is the one that
+needs care, and it is exactly the precondition of \cref{sec:monotone} --- the
+reader's loads must be genuinely ordered, not merely written in that sequence.
+
+They are, and for a reason worth noticing rather than assuming: the reader
+reaches $E$ by loading the forward edge, and then computes the address of
+$E \rightarrow parent$ \emph{from the value that load returned}. The second load
+depends on the first. The fixed-read-order idiom is therefore not something that
+must be reconciled with the dependency-chaining requirement of
+\cref{sec:monotone} --- it \emph{is} a dependency-chained descent, which is why
+it is safe as stated and why it costs the reader nothing.
+
+The limits should be equally clear. This is an embedder's discipline, not an
+engine guarantee: the engine cannot know a structure's traversal order, so
+nothing checks that the commits were ordered against it. It applies only where a
+read order actually is fixed; a reader that compares two independently-reached
+slots, or re-reads a pointer it cached, has no chain to carry the order and is
+back to owing itself an acquire. And it buys coherence along the traversal, not
+a snapshot: the reader still cannot ask what the whole structure looked like at
+one instant. What it can do --- and what a very large class of traversals needs
+--- is never be told that time ran backwards.
+
+That is what converts \cref{prop:monotone} from a consolation into a tool, and
+it is the honest reply to the reviewer who asks why anyone would accept a model
+without opacity.
+
+\subsection{Why this weakening}
+\label{sec:whyweakening}
+
+\rcu exists because readers dominate. Its entire bargain is that a reader pays
+nothing: no lock, no barrier, no write to shared state. Every design that adds
+multi-pointer atomicity on top of \rcu must decide what to charge that reader,
+and the answer is what separates them (\cref{tab:comparison}).
+
+\paragraph{Isolation is paid for on the read side.} A snapshot is a claim about
+what a reader observes, so only the reader can establish it. RLU establishes it
+by giving every object a header that can name a newer copy, and by having
+readers consult that machinery when a writer's copies might be relevant to them.
+Existence structures establish per-element membership by giving every element a
+field that can name a group, and having readers load it. In both cases the
+mechanism must be reachable \emph{from the reader}, which is precisely why it
+must live in, or hang off, the elements themselves.
+
+\paragraph{Every other design adds a load; this one adds none.} The read-path
+costs are ordered, and the ordering is structural rather than a matter of
+constant factors. Existence's fast path is one acquire load of a per-element
+field. RLU's fast path, for a thread with no writes of its own, never touches
+the object header --- but it still loads a flag from its per-thread state, once per
+dereference. Neither is expensive; both are memory references.
+
+A \pseudotxn issues none. Its marker occupies tag bits of the slot, so
+recognizing it is
+\begin{center}
+\code{((uintptr\_t) v \& tag) == tag}
+\end{center}
+where \code{v} is the value the reader's \code{rcu\_dereference} already
+returned. That is arithmetic on a register the reader was obliged to hold
+anyway: no additional load, no additional cache line, and a branch that is not
+taken in the absence of an in-flight commit. The marker rides the dereference
+the reader had to perform regardless.
+
+\paragraph{The unconditional cost is space.} Instruction counts are the smaller
+half of the argument, because the state is the part that cannot be made
+conditional. RLU's header is prepended to every object and existence's field
+sits in every element, for as long as the structure lives, whether or not any
+mutation is in flight. That is a permanent addition to the footprint of the data
+the readers traverse --- and footprint is a read-side cost, paid in cache rather
+than in instructions. A \pseudotxn adds no per-element state at all, so in the
+steady state both the structure a reader traverses and the path it takes through
+it are byte-for-byte what they would be with no engine present.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is where the rcu_head layout experiment belongs -- it isolates
+% exactly this effect (segregated vs inline: roughly 2x read throughput at
+% 1000 nodes) under our own control. It is not the same field, so present it
+% as evidence for the MECHANISM (per-element growth costs read throughput),
+% not as a measurement of existence or RLU. Overclaiming it as a direct
+% measurement of either would be the same error as the RLU read-path claim
+% we already had to retract. Cross-reference the evaluation paper.
+% -----------------------------------------------------------------------
+
+\paragraph{A pseudo-transaction charges the reader nothing.} The engine adds no
+per-element state at all. Its marker lives in tag bits of the slot itself ---
+the very word the reader had to load in order to proceed --- so recognizing it
+costs no additional load, no additional line, and a branch that is not taken
+except in the presence of an in-flight commit. And because the marker is
+transient, the structure a reader traverses in the steady state is
+byte-for-byte the structure it would traverse with no engine present.
+
+\paragraph{The cost moves to the write side.} This is not a free lunch, and the
+evaluation must not pretend otherwise. Where existence collapses an element's
+entire membership into a single object it can flip once, a \pseudotxn names
+individual slots, so its commit is as wide as the number of edges it changes. A
+structure whose logical update touches many pointers --- a tower, a wide node
+--- therefore commits many records where existence commits one. Commit width is
+the scarce resource, and it is the axis on which this design is at its worst.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Say this plainly, and let the evaluation confirm it rather than apologize
+% for it: the existence-vs-txn gap on a tower-structured workload should
+% WIDEN with tower height, because width grows and existence's does not.
+% That is a prediction the cost model makes, and it is testable with the
+% engine's own commit-cost introspection. A validated cost model is a
+% result; an unexplained loss is an embarrassment. They are the same
+% numbers.
+% -----------------------------------------------------------------------
+
+\paragraph{The weakening is targeted, not residual.} We did not fail to provide
+isolation; we declined to charge for it. The structures \rcu serves are
+read-dominated by construction, so paying permanently, in every element, for a
+snapshot those readers never requested spends the one resource they cannot
+spare. A \pseudotxn removes exactly that charge and relocates the cost onto the
+writers, who are by hypothesis the minority.
+
+One qualification belongs here rather than in a footnote, because the argument
+above is otherwise too flattering. What RLU buys with its charge is strictly
+more than what we provide: a coherent snapshot, where we give only monotone
+resolution (\cref{prop:monotone}). "We declined to charge for it" is therefore
+an honest description of the trade only if it travels with what the charge
+bought. A reader who needs a snapshot cannot take this engine and economize ---
+they need a different engine. The comparison holds where the guarantee classes
+match, as they do against existence structures (\cref{sec:costcomparison}); a
+comparison against RLU crosses classes and we say so wherever we make one
+(\cref{sec:related}).
+
+% ---------------------------------------------------------------------------
+% GUARDRAIL (do not delete in an editing pass).
+%
+% The paragraph above is the honest asterisk on Sec. 3.7's whole argument, and
+% it must stay IN THE TEXT rather than become a footnote. RLU's tax buys
+% strictly MORE than ours does -- a coherent snapshot, where we give "never
+% new-then-old" -- so a comparison against RLU crosses guarantee classes and
+% must say so. The comparison against existence structures is class-matched and
+% needs no such qualification. Sec. 9 states the same asterisk for the
+% throughput comparison specifically; both are needed, because Sec. 3.7 is
+% where a reader forms the impression that the trade was free.
+% ---------------------------------------------------------------------------
+
+% ===========================================================================
+\section{The Single-Writer Flip-Latch}
+\label{sec:fliplatch}
+
+\subsection{The intermediate-state problem}
+\label{sec:intermediate}
+
+A structural \rcu mutation often has to re-point many slots at once. Re-parenting
+a set of live nodes must rewrite each node's back-pointer; a reader walking
+several of them must not see a mix of old and new targets. Re-pointing the slots
+one at a time cannot offer that: each store is individually atomic, but between
+them the set is part-old and part-new, and a reader traversing the set observes
+exactly that.
+
+The conventional remedy is to drain the readers --- a grace period around the
+update, so that no reader spans the inconsistent window. It is correct, and it
+is expensive: the writer waits out every reader in the system to publish a
+change none of them were looking at.
+
+\subsection{Mechanism: one level of indirection}
+\label{sec:swmechanism}
+
+The flip-latch removes the intermediate states rather than hiding them behind a
+drain, and it does so with one level of indirection
+(\cref{fig:fliplatch}).
+
+Each slot in the set is made to hold a \emph{tagged} pointer to a small
+\emph{proxy} rather than the target directly. A proxy carries
+$\{\mathit{old},\mathit{new}\}$ and a pointer to a shared \emph{flip group}
+carrying one boolean \emph{selector} word. Resolving a proxy returns
+$\mathit{old}$ while the selector is $0$, and $\mathit{new}$ once it is $1$.
+
+Everything follows from one property: \textbf{every proxy in a group reads the
+same selector.} A single store flipping that selector therefore switches the
+whole set at once, and at every instant every proxy resolves consistently ---
+all old, or all new. There is no instant at which the set is part-old and
+part-new, because there is only one word that decides, and one store that
+changes it.
+
+\input{fig-fliplatch}
+
+This is the commit step of \cref{def:pseudotxn}, realized: the record set is the
+set of installed proxies, frozen once installation ends, and the commit is the
+selector store. It is also why \cref{prop:monotone} holds --- the selector is
+written once, $0 \to 1$, and never written back.
+
+\subsection{Why exclusion is required}
+\label{sec:exclusion}
+
+The flip-latch is legal \emph{only} under writer mutual exclusion. This is a
+precondition of the mechanism, not a caveat on it.
+
+The engine has no install-time CAS, no conflict detection, and no abort. Those
+are precisely the parts that would let two writers discover each other, and they
+are absent by design --- their absence is what makes this engine cheaper than the
+multi-writer one. The consequence is unforgiving: two writers racing on one slot
+simply corrupt it, and a default build says nothing.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Do not soften this sentence. It is the whole contract, and an embedder who
+% misreads it writes a corruption that no test in a default build will
+% surface.
+% -----------------------------------------------------------------------
+
+Because the failure is silent, the engine ships a runtime validator
+(\code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE}) that aborts the process on a violation.
+It is off by default and costs nothing when off --- the handle does not even
+carry the owner field. It claims the two things that exist to be claimed: the
+\emph{handle}, whose owner is the thread that initialized it (catching a
+\pseudotxn handed between threads mid-flight), and the \emph{slot}, which is
+what two racing writers actually share and so is where the violation is really
+visible. In a correct single-updater program a slot being recorded or parked
+cannot already hold a parked proxy.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is worth stating as a design lesson rather than an implementation
+% note: the contract is unenforceable at zero cost, so the engine makes the
+% check opt-in and free-when-off rather than pretending the contract is
+% safe. Ties to the series-wide honesty point: memory safety is
+% unconditional, atomicity is conditional on embedder contracts. Cross-
+% reference Sec. 7.
+% -----------------------------------------------------------------------
+
+\subsection{Lifecycle: build, install, commit, settle}
+\label{sec:lifecycle}
+
+\begin{enumerate}
+\item \textbf{Build} the new structure where readers cannot reach it.
+\item \textbf{Install.} Initialize the group, then for each slot initialize a
+      proxy with its $\{\mathit{old},\mathit{new}\}$ targets and point the slot
+      at the tagged proxy. The selector is $0$, so this is \emph{transparent to
+      readers}: they still resolve to old. Installation is not a partial commit;
+      it is not observable at all.
+\item \textbf{Commit.} One release store, $0 \to 1$. Every proxy now resolves to
+      new, atomically. This is the linearization point
+      (\cref{prop:lp}).
+\item \textbf{Settle.} Rewrite each slot from the tagged proxy back to the
+      direct new target. This is idempotent for readers, since the proxy already
+      resolves to new --- so settle changes no observable value and is not a
+      linearization point either. Then \code{call\_rcu()} the proxies and the
+      group.
+\end{enumerate}
+
+The shape is exactly build~$\rightarrow$~publish~$\rightarrow$~reclaim
+(\cref{sec:background}), with the commit as the single publish. Steps 2 and 4
+bracket it symmetrically: install makes the indirection reader-visible without
+changing any value, and settle removes it without changing any value.
+
+The claim that only one of these four steps is observable is easy to assert and
+worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
+the lifecycle, alongside what a concurrent reader resolving $s$ actually
+obtains.
+
+\begin{table}[t]
+\centering
+\caption{One transacted slot $s$ through the lifecycle. The reader's column
+changes exactly once. Install and settle both rewrite $s$ --- they are stores to
+a word readers are concurrently loading --- yet neither changes what resolving
+$s$ yields, which is why the commit is the only linearization point.}
+\label{tab:lifecycle}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Step & $s$ holds & Reader resolving $s$ obtains & Linearization point? \\
+\midrule
+(before)  & $o$, directly            & $o$ & --- \\
+Build     & $o$, directly            & $o$ & no: new nodes unreachable \\
+Install   & tagged proxy, \code{sel}$=0$ & $o$ & no: resolved value unchanged \\
+Commit    & tagged proxy, \code{sel}$=1$ & $n$ & \textbf{yes} \\
+Settle    & $n$, directly            & $n$ & no: resolved value unchanged \\
+(after)   & $n$, directly            & $n$ & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The third column is the mechanism. It reads $o, o, o, n, n, n$: one transition,
+at the commit, no matter how many slots the set contains or how long the writer
+takes over the other three steps. A reader cannot tell installed-but-uncommitted
+from untouched, and cannot tell settled from committed-but-unsettled. Only the
+selector store is visible, and it is one store.
+
+\paragraph{The wrinkle, which is the contract in disguise.} Across the install
+window a proxy resolves to the old target \emph{recorded at install time} rather
+than to whatever the slot happens to hold. Under exclusion those are the same
+thing --- no one else writes $s$, so the recorded $o$ stays the true $o$ --- and
+the row for Install above is exact.
+
+Remove exclusion and that row becomes a lie in the most inconvenient way
+available. A second writer's store to $s$ during the window is not detected and
+not lost-but-noticed: the proxy goes on publishing the $o$ it recorded, so
+readers resolve to a value that is no longer what the slot was set to, and the
+subsequent settle overwrites the intruder's store with $n$. Nothing traps, and
+readers are handed a stale value \emph{as though it were current}. This is the
+same fact as \cref{sec:exclusion} viewed from the reader's side, and it is worth
+seeing from both: the \fliplatch's cheapness comes from having no install-time
+check, and an engine with one --- the \mw engine's install
+compare-and-swap --- would have refused the install instead.
+
+\subsection{Progress}
+\label{sec:swprogress}
+
+Under exclusion there is nothing to contend for, and the progress story is
+correspondingly short: a commit cannot fail. The engine has no abort because it
+has no contention to abort on.
+
+This is worth stating plainly because the shared status enumeration carries an
+\ABORT value, and its presence invites the opposite conclusion. That value
+exists so that an embedder can be written once against both front-ends: only the
+concurrent engine ever returns it, and the single-updater, having no contention,
+never does.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is the migration-shape argument and it pays off in the companion
+% paper: the *_prepare forms and the shared status enum are what let an
+% embedder move from this engine to the multi-writer one mechanically.
+% Forward-reference it, but do not develop it here -- P1 should not depend
+% on P2 to be complete.
+% -----------------------------------------------------------------------
+
+\subsection{What the embedder owes}
+\label{sec:embedderowes}
+
+The engine is deliberately incomplete: it supplies the latch, and leaves three
+obligations with the structure that embeds it.
+
+\begin{itemize}
+\item \textbf{Tagging.} The embedder chooses how a proxy pointer is marked so
+      its readers recognize one --- a spare low or high bit, or a reserved type
+      code in an already-tagged pointer --- and routes resolution through the
+      engine's accessor. \Cref{sec:tags} takes this up: it is where the engine's
+      zero-added-state claim is actually cashed.
+\item \textbf{Allocation.} Proxies and the group are the embedder's to allocate,
+      with whatever alignment its tagging scheme demands --- often as a single
+      backing block with one \code{rcu\_head}.
+\item \textbf{Reclamation.} After settle has unpublished every proxy, the
+      embedder \code{call\_rcu()}s them.
+\end{itemize}
+
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Frame this as a design position, not a shortfall: the engine cannot know
+% the embedder's pointer encoding, so a general engine that OWNED the
+% tagging would have to add a field -- which is the very cost this design
+% exists to avoid. The obligations are the price of adding no per-element
+% state, and that trade is the paper's thesis. Do not let this read as "and
+% the user has to do the hard part".
+% -----------------------------------------------------------------------
+
+% ===========================================================================
+\section{Slots and Tags}
+\label{sec:tags}
+
+\Cref{sec:whyweakening} claimed that this engine adds no per-element state and
+costs the reader no additional load. This section is where that claim is
+cashed, and where its price is stated: the engine has nowhere of its own to put
+the marker, so it must borrow bits from the embedder's pointer encoding.
+
+\subsection{The tag contract}
+\label{sec:tagcontract}
+
+A parked slot must hold something a reader can recognize as a proxy and
+distinguish from every legitimate value the slot could otherwise hold. The
+engine takes those bits from the slot itself:
+
+\begin{itemize}
+\item a parked slot's value is \code{(record\_address | tag)};
+\item the record is recovered as \code{(value \& \textasciitilde tag)};
+\item a value is this record's proxy iff \code{(value \& tag) == tag}.
+\end{itemize}
+
+Which imposes a contract on the embedder, and it is unforgiving:
+\textbf{every value the slot may legitimately hold must satisfy
+\code{(value \& tag) != tag}.} A single value that happens to carry the tag
+pattern is indistinguishable from a proxy, and a reader will follow it into a
+record that does not exist.
+
+Two further obligations follow. Every write to a transacted slot must go through
+the engine: one raw store breaks atomicity for every participant, not only the
+writer that made it. And every read must resolve through the engine's accessor,
+since a bare load of a parked slot yields a tagged record address rather than a
+value.
+
+\subsection{Slots need not hold pointers}
+\label{sec:nonpointer}
+
+Nothing in \cref{sec:tagcontract} mentions pointers. The contract constrains
+\emph{values}, and the engine transacts \emph{words} --- what a word means is
+the embedder's business. A transacted slot may hold any word-sized value that
+keeps the tag bits clear.
+
+For integers the discipline is to store them shifted left by one, so bit~0 stays
+clear and a word carries one bit fewer than its width --- 63 data bits on a
+64-bit word. A bitmap is the limiting case: it is \emph{all} data, with no
+spare bits of its own to donate, so it spends bit~0 as the tag and lays logical
+bit $i$ at physical bit $i+1$. Nothing about the engine changes, and no sentinel
+value has to be carved out of the data range. A zero-filled region is a valid
+empty bitmap --- all bits clear, bit~0 clear --- so \code{calloc}'d or
+demand-zero storage needs no initialization.
+
+This matters beyond generality, and it is the sharpest form of the argument in
+\cref{sec:whyweakening}. A design that attaches metadata to elements needs an
+\emph{element} to attach it to. A bare word of bitmap is not an object: it has
+no header to prepend and no field to add, so making it transactable under such a
+scheme means wrapping it in one --- paying an object's worth of metadata to
+transact a word's worth of data. This engine spends one bit.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% State this carefully. The fair version is about GRANULARITY, not a claim
+% that RLU/existence "cannot" do it: you can always wrap a word in a struct
+% and give the struct a header. The point is that the wrapping IS the cost,
+% and it is ~100% overhead for a bare data word, whereas the tag is one bit.
+% Do not overstate into "impossible" -- it is trivially refutable and the
+% honest version is already strong.
+% -----------------------------------------------------------------------
+
+\subsection{One commit, two tag widths}
+\label{sec:mixedtags}
+
+The bitmap of \cref{sec:nonpointer} keeps its tag as narrow as possible ---
+bit~0 alone --- for a reason that is not frugality. It is so that a bitmap word
+can share a commit with pointer slots that need a \emph{wider} tag.
+
+That is \cref{sec:pertag}'s argument in the concrete: an occupancy bit flipping
+atomically with the child-pointer store it accompanies, where the bitmap word is
+tagged with bit~0 and the pointer slot is tagged with a reserved nibble because
+its own encoding has already spent the low bits. One \pseudotxn, two tag widths,
+resolved per record. A per-translation-unit tag could not express it.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is the worked example Sec. 5.2 needed and it costs nothing: it is
+% statable entirely in terms of a bitmap and a typed pointer, with no
+% dependency on the deferred consumer. Use it INSTEAD of the fractal trie,
+% not alongside.
+% -----------------------------------------------------------------------
+
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% PENDING (as of 2026-07-16): there is no SINGLE-WRITER bitmap wrapper yet.
+% rcu-txn-bitmap.h is written against the multi-writer MCAS engine only, and
+% the sw wrappers are the list and hlist. Mathieu plans to implement an sw
+% bitmap. So Sec. 5.2 and 5.3 currently argue the capability from the TAG
+% CONTRACT -- which is legitimate, because it IS a property of the contract
+% and not of either engine -- but they cannot point at a shipped sw wrapper.
+% When the sw bitmap lands, revisit both sections and Sec. 6: the prose is
+% already written and needs only the wrapper as its concrete instance. Two
+% things to check at that point: (1) whether rank()/select() consistency
+% differs under exclusion -- the MCAS bitmap leans on the value-CAS at
+% commit to re-validate the bits within a word, and the sw engine has no
+% such CAS; (2) whether the sw bitmap keeps the narrow bit-0 tag, since Sec.
+% 5.3's whole example depends on it composing with wider-tagged pointer
+% slots in one commit.
+% -----------------------------------------------------------------------
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Be explicit that this is the cost side of the Sec. 3.7 bargain. We pay no
+% space and no load; we pay in a CONTRACT the embedder must honour and the
+% engine cannot check for free. That is the same shape as the exclusion
+% precondition (Sec. 4.3) and the same shape as the series' honesty point:
+% memory safety unconditional, atomicity conditional. Sec. 7 collects these.
+% -----------------------------------------------------------------------
+
+\subsection{Why the tag cannot be fixed}
+\label{sec:pertag}
+
+The obvious design is a single tag, chosen once by the engine --- bit~0, say,
+free in any aligned pointer. It is also the design that
+\cref{prop:crossstructure} rules out.
+
+Bit~0 is free only in structures that have not already spent it. A structure
+whose pointers encode a type or a mark in their low bits has not; for such a
+structure, a bit-0 proxy \emph{aliases a real value}, and the contract of
+\cref{sec:tagcontract} is violated by construction. Such a structure can still
+be transacted --- it simply has to nominate a different pattern, one that no
+value of its own can carry, perhaps a reserved low nibble rather than a single
+bit.
+
+That alone would argue for a per-embedder tag, which a compile-time constant
+could supply. What forces the tag \emph{per record} is cross-structure
+atomicity. One \pseudotxn may span structures with different encodings: the
+whole point of \cref{prop:crossstructure} is that a single commit can publish a
+node into one structure and splice it into another. Those slots have different
+free bits, so \emph{one transaction needs two tags at once}. A
+per-translation-unit macro cannot express that; the tag has to travel with the
+record. \Cref{sec:mixedtags} gives the concrete case.
+
+So each record carries its own \code{proxy\_tag}, supplied when the record is
+added, and heterogeneous slots share one engine, each resolved through its own
+tag.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is the tightest argument in the paper: Property 4 (cross-structure
+% atomicity) FORCES the per-record tag. It is not a convenience or a
+% generalisation-for-its-own-sake -- a per-TU tag would make Property 4
+% unimplementable for heterogeneous embedders. Lead with that, not with
+% "flexibility". Do NOT use the fractal trie as the worked example here --
+% it is deferred to a later paper and P1 must not depend on it. The hazard
+% is fully statable in the abstract: "a structure whose pointers already
+% encode a type in their low bits". The engine header names the trie's 0xF
+% nibble as its motivating case; we can describe the shape without the
+% consumer.
+% -----------------------------------------------------------------------
+
+\subsection{Storing the tag, not a tagged pointer}
+\label{sec:tagnotptr}
+
+A record stores the \emph{tag}, not a pre-tagged pointer, and the proxy is
+formed from the record's current address at install time. That distinction looks
+pedantic and is not: it is what makes a descriptor safe to grow.
+
+A transaction that outgrows its descriptor must move its records. Had each
+record cached a proxy value computed from its old address, every such value
+would be stranded by the move --- pointing at storage the records no longer
+occupy. Because the record stores only the tag, the tag travels with the
+record's content through the move, and the installer re-derives the proxy from
+the record's final address. Nothing is stranded, and growth needs no fixup pass.
+
+\subsection{The alignment budget}
+\label{sec:alignment}
+
+The tag's width is bounded by how many low bits of a record address are
+guaranteed clear. Records are 16-byte aligned, so an embedder has four bits to
+choose from: enough for a single bit, or for a reserved nibble.
+
+The alignment is established deliberately rather than inherited. The descriptor
+is allocated with \code{posix\_memalign()} to a 16-byte boundary, and the record
+array's offset and stride are both multiples of 16, so every record address ---
+including every inline record --- has its low four bits clear. This holds
+\emph{portably}: relying on \code{malloc} would rely on an allocator's habits
+rather than a guarantee, and \code{max\_align\_t} is only 8 bytes on some 32-bit
+ABIs.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Small but worth one sentence: "we asserted the alignment we need rather
+% than inheriting whatever the allocator happened to give us" is exactly the
+% kind of detail an enabling disclosure needs, and exactly the kind a normal
+% paper drops. Keep it.
+% -----------------------------------------------------------------------
+
+\subsection{What the tag buys}
+\label{sec:tagbuys}
+
+The tag is the whole of the engine's presence in a reader's world. There is no
+header, no side table, no per-element field --- the marker occupies bits of a
+word the structure already had and the reader already loads. That is why
+\cref{tab:comparison}'s last row reads zero, and it is why the structure a
+reader traverses in the steady state is byte-for-byte the one it would traverse
+with no engine linked at all.
+
+The price is that the engine cannot own the encoding. It does not know which
+bits a given structure has left, so it cannot choose for the embedder ---
+\cref{sec:embedderowes}'s obligations are the direct consequence. An engine that
+owned the tagging would have to add a field to say what it owned, which is
+precisely the cost this design exists to avoid.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Close the loop with Sec. 3.7 explicitly: the obligations are not a
+% shortfall, they are the mechanism by which the cost is avoided. An engine
+% that took the decision away from the embedder would have to pay for the
+% privilege in exactly the coin (per-element state) the design refuses to
+% spend.
+% -----------------------------------------------------------------------
+
+% ===========================================================================
+\section{Transacted Data Structures}
+\label{sec:wrappers}
+
+\subsection{The gap: a list with no reverse walk}
+\label{sec:rculistgap}
+
+Userspace \rcu's doubly-linked list, \code{rculist.h}, ships forward iterators
+and no RCU-safe reverse walk. That is not an oversight, and the reason is worth
+following, because it is the concrete form of the problem this engine solves.
+
+A doubly-linked list has two chains, but \code{rculist} publishes only one. In
+\code{cds\_list\_del\_rcu()} the forward edge is committed by a single atomic
+store to \code{prev->next}. The back edge is a plain assignment: no
+\code{rcu\_assign\_pointer}, no release ordering --- and correspondingly, the
+\code{prev} pointers are never \code{rcu\_dereference}d. A backward walk
+therefore has no acquire to pair with and no atomic handoff, and can read a
+\code{prev} value inconsistent with the live forward chain.
+
+The semantic consequence is worse than the ordering one. A removed node is a
+ghost, reclaimed only after a grace period. A reverse walker can keep stepping
+onto a node the forward chain has already dropped, for as long as that ghost
+survives --- so \textbf{the \code{prev} view trails the \code{next} view by up to
+a grace period}. There is no barrier to sprinkle that fixes this: the two chains
+are updated by two stores, and nothing makes them one event.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is the paper's best motivating example and it should be in Sec. 1
+% too, in one sentence. It is a real, shipped, widely-deployed library that
+% OMITS AN OPERATION because it cannot publish two edges atomically. Nobody
+% has to be persuaded the problem is real -- the absence of the API is the
+% evidence.
+% -----------------------------------------------------------------------
+
+\subsection{Two edges, one flip}
+\label{sec:swlist}
+
+Every structural change to a doubly-linked list re-points exactly two
+reader-visible edges, one forward and one backward:
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+insert $E$ between $P$ and $N$: & \code{P->next}: \edit{N}{E} \quad and \quad \code{N->prev}: \edit{P}{E} \\
+delete $E$ between $P$ and $N$: & \code{P->next}: \edit{E}{N} \quad and \quad \code{N->prev}: \edit{E}{P} \\
+\end{tabular}
+\end{center}
+
+Two edges is exactly the case \cref{sec:swmechanism} handles. Both slots
+transiently hold tagged proxies sharing one selector word; one release store
+flips the selector and switches both edges together. At every instant the
+forward and backward chains describe the same list, and the reverse walk that
+\code{rculist} cannot offer becomes ordinary.
+
+\subsection{The coherence guarantee, and its scope}
+\label{sec:coherence}
+
+\begin{property}[Mutual inverses]
+\label{prop:coherence}
+For any two nodes that are both members of the list at the instant they are
+resolved, the links are mutual inverses: \code{a->next == b} implies
+\code{b->prev == a}. No operation exposes a window in which one direction sees
+the change and the other does not.
+\end{property}
+
+This does not freeze the list for a long-lived reader --- nothing here does, and
+\cref{sec:nonguarantees} said so. A reader may still observe an operation that
+commits during its walk. What is guaranteed is that whatever it observes is
+internally coherent in both directions \emph{at each step}.
+
+``At each step'' is the precise scope, and it is \cref{sec:monotone}'s
+dependency-chaining caveat in concrete form. Coherence is a property of a single
+resolution; carrying it across two resolutions needs an ordering edge between
+them. A dependency-chained walk --- next-then-next, or a \code{prev} hop taken
+\emph{from} the node the previous load returned --- has one on every supported
+architecture, as does any build using the default C11 dereference. A reader
+comparing two independently-reached slots, a cached pointer or a \code{prev} and
+a \code{next} read from nodes it did not chain between, must supply its own
+acquire.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Do not bury this. It is the same precondition as Property 5's scope
+% paragraph, and stating it twice -- abstractly in Sec. 3.5, concretely here
+% -- is correct rather than repetitive, because this is where an embedder
+% will actually trip over it.
+% -----------------------------------------------------------------------
+
+\subsection{The hash list: one visible edge, two recorded}
+\label{sec:swhlist}
+
+The hash-bucket sibling is shaped like the kernel's hlist: the head is a single
+8-byte pointer, so a bucket table costs half what sentinel-node heads cost.
+
+Its backward link is the elegant part. A node's \code{pprev} is a pointer to the
+\emph{slot that names it} --- \code{\&prev->next}, or \code{\&head->first} ---
+rather than a pointer to the previous node. So the head's single pointer is just
+another \code{next} slot, and \textbf{no operation carries a head special
+case}: first-position insert and delete are the general code path with a
+different slot address.
+
+Readers walk forward only, so each structural operation has exactly one
+reader-visible edge; \code{pprev} is writer-only bookkeeping. Both edges are
+nonetheless recorded into the flip transaction, for two reasons that have
+nothing to do with reader visibility. A mutation becomes all-or-nothing under an
+allocation failure. And it composes: through the \code{*\_prepare} forms, a
+single-edge hlist edit can be folded into a larger cross-structure flip ---
+which is \cref{prop:crossstructure} being cashed, and the reason even an
+operation that needs no atomicity for its own sake is still expressed as a
+\pseudotxn.
+
+\subsection{Composition is slot-disjoint only}
+\label{sec:swcomposition}
+
+The \sw engine's composition has a hard limit, and it follows directly from what
+\cref{sec:exclusion} removed.
+
+The engine has no transactional loads and no same-slot reconciliation. Each
+\code{*\_prepare} therefore reads its neighbour slots \emph{raw}, and cannot see
+an edit made earlier in the same bracket. Composition is legal only across
+\textbf{slot-disjoint} edits.
+
+Cross-structure composition --- the intended use --- is disjoint by
+construction: a node published into a trie and spliced into a list touches
+slots that cannot coincide. But two edits on \emph{one} list whose
+neighbourhoods touch, adjacent deletes being the obvious case, will silently
+commit stale pointers. The second edit's idea of its neighbour predates the
+first edit, and nothing in this engine notices.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Say "silently" and mean it -- there is no abort, no assert, no debug trap
+% for this in the sw engine. It is the sharpest edge in the paper and it
+% must be in Sec. 7 as well. This is also the cleanest possible motivation
+% for the companion paper: the multi-writer front-end's read-your-own-writes
+% chaining exists precisely to make same-slot composition safe, and it is
+% the reason that engine has transactional loads at all. So the limitation
+% is not a defect to apologise for -- it is the boundary that defines what
+% the other engine is for. Frame it that way.
+% -----------------------------------------------------------------------
+
+\subsection{Composing with reclamation}
+\label{sec:reclaim}
+
+The wrappers inherit the discipline of \cref{sec:background} without amendment,
+because the commit is the publish step.
+
+A node's payload is initialized before the commit that links it, and the commit
+is the release edge, so the payload is published safely. Nodes that a committed
+\pseudotxn unlinked were reader-visible, so they are freed by
+\code{call\_rcu()} after a grace period. Nothing an aborted attempt allocated
+was ever published, so it is freed immediately --- but only what \emph{that
+attempt} allocated, never anything already reachable.
+
+The proxies themselves are subject to the same rule, and it is why settle exists
+(\cref{sec:lifecycle}): a proxy is reader-reachable while installed, so it may
+be reclaimed only once settle has rewritten every slot that named it, and then
+only after a grace period.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% RESOLVED -- do not add the "no re-link before a grace period" trap here.
+% It is MULTI-WRITER ONLY and belongs in the companion paper. Checked: rcu-
+% txn-list.h (the concurrent list) warns that a deleted node must not be re-
+% linked before a grace period, because "the deleting transaction may still
+% hold a parked proxy in that node's next slot, awaiting its settle. A plain
+% store into a proxied slot is then overwritten when that settle converts
+% the proxy, and the write is silently lost -- a permanently incoherent
+% edge." That hazard needs a PEER transaction holding an unsettled proxy.
+% Under exclusion the sole writer's transactions are sequential and settle
+% completes (lifecycle step 4) before the next begins, so no proxy of a
+% previous transaction survives into the next one. Confirmingly, rcu-txn-sw-
+% list.h carries no such warning: it mentions grace periods only for
+% reclaim. Stating it here would import a multi-writer hazard into a single-
+% writer paper and imply a restriction the sw engine does not have.
+% -----------------------------------------------------------------------
+
+% ===========================================================================
+\section{Limitations}
+\label{sec:limitations}
+
+The engine's limits divide cleanly in two, and the division is the useful part.
+Some are \emph{properties of the model} --- they cannot be violated, only
+disliked. The rest are \emph{contracts on the embedder} --- they can be
+violated, and violating them is expensive.
+
+\subsection{What holds unconditionally}
+\label{sec:unconditional}
+
+One thing is worth stating positively first, because it is the guarantee that is
+usually hardest to get in this design space and it costs nothing here.
+
+The engine is indifferent to \emph{slot-value} A-B-A. Resolution goes through
+the record's own status rather than through the slot's plain value, so the
+identity that matters is the descriptor's, not the value's. Any slot value may
+recur --- a next-pointer cycling $B \rightarrow X \rightarrow B$ with $B$ a live
+successor that is never freed, a counter revisiting a number, an embedder's own
+reuse --- and the recurrence is inert. \rcu prevents \emph{address} reuse, but
+not \emph{value} recurrence; this engine does not need it to.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Be precise about the scope of "unconditional" here, because it is easy to
+% overstate and the overstatement is load-bearing. The engine's own words
+% are "memory safety, which holds unconditionally here" -- and the sentence
+% is about SLOT VALUES. It is NOT a claim that memory safety survives a
+% violated contract. It cannot be: Sec. 7.2's tag contract, violated, makes
+% a reader follow a non-proxy value as a record address. Do not write
+% "memory safety is unconditional, atomicity is conditional" as a blanket --
+% it is wrong in the direction that flatters us, which is the worst
+% direction.
+% -----------------------------------------------------------------------
+
+\subsection{The contracts, and what violating them costs}
+\label{sec:contracts}
+
+The engine requires four things of its embedder. None is checked in a default
+build.
+
+\begin{description}
+\item[Writer exclusion.] The mechanism has no install CAS, no conflict
+  detection and no abort (\cref{sec:exclusion}). Two writers racing one slot
+  corrupt it.
+\item[Free tag bits.] Every value a transacted slot may legitimately hold must
+  satisfy \code{(value \& tag) != tag} (\cref{sec:tagcontract}).
+\item[Distinct slots, and no raw access.] A \pseudotxn's records must target
+  pairwise-distinct slots; every write to a transacted slot must go through the
+  engine and every read through its accessor.
+\item[Deferred descriptor reclaim.] A descriptor reachable through a slot is
+  reclaimed only after a grace period, because a reader may dereference it.
+\end{description}
+
+What a violation costs is worth stating exactly, because it is more than
+atomicity. A value that accidentally carries the tag pattern is
+indistinguishable from a proxy, and a reader will untag it and dereference it as
+a record: that is a wild pointer, not a torn read. Racing writers corrupt slots
+whose values readers then follow. \textbf{These contracts underwrite memory
+safety, not merely atomicity} --- and that is the honest shape of the safety
+argument.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This is the series' central honesty point and Sec. 1 should not oversell
+% around it. The July review of this engine concluded that every major
+% finding sat at the CONTRACT layer rather than the mechanism layer -- doc
+% text with API force steering embedders into corruption. That is a real
+% result about this class of design and worth saying: the mechanism is the
+% easy part.
+% -----------------------------------------------------------------------
+
+\subsection{Contracts the engine cannot check for free}
+\label{sec:checkability}
+
+The contracts of \cref{sec:contracts} are not equally checkable, and the engine
+is candid about which is which rather than uniformly optimistic.
+
+Exclusion has an opt-in runtime validator
+(\code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE}) that aborts on violation and costs
+nothing when off --- the handle does not even carry the owner field. It claims
+the handle (catching a \pseudotxn handed between threads) and the slot (where
+two racing writers actually collide).
+
+The tag contract has no such check, and cannot cheaply have one: verifying it
+would mean inspecting every value ever stored in a transacted slot, which is the
+per-write cost the design exists to avoid. It is discharged by the embedder's
+encoding, by construction or not at all.
+
+Slot-disjointness of composed edits (\cref{sec:swcomposition}) is likewise
+unchecked in this engine, and its violation is the quietest of all: the second
+edit records an old value that predates the first, and the commit publishes it.
+No abort, no assertion, no debug trap.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Frame the opt-in validator as the design position it is: the contract is
+% unenforceable at zero cost, so the engine offers a check that is free when
+% off rather than pretending the contract is safe or taxing everyone to
+% police it. That is the same trade as the rest of the paper -- pay nothing
+% by default, and be explicit about what that costs.
+% -----------------------------------------------------------------------
+
+\subsection{Properties of the model, not defects}
+\label{sec:modellimits}
+
+The remaining limits cannot be violated because they are not promises. They are
+what the model \emph{is}.
+
+\textbf{No reader snapshot.} A reader is not a \pseudotxn
+(\cref{sec:nonguarantees}); a traversal spanning slots may straddle a commit.
+An embedder needing a mutual snapshot layers its own versioning on top, as with
+any value-based \mcas. This is the deliberate weakening of
+\cref{sec:whyweakening}, not a shortfall.
+
+\textbf{Value-based, not stability-based.} A record's old is the value the slot
+must hold \emph{at} the commit point, not one it must have held throughout. An
+operation whose correctness requires \emph{detecting} an away-and-back change
+must carry its own version in the word. Under exclusion this has no teeth ---
+nothing else can change the slot --- which is why it surfaces here only through
+\cref{sec:swcomposition}: a stale recorded old is exactly a same-bracket edit
+this engine cannot see.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Good unification worth keeping: in the single-writer engine, "value-based
+% not stability-based" and "composition is slot-disjoint only" are THE SAME
+% limitation seen from two sides. Under exclusion the only thing that can
+% invalidate a recorded old is an earlier edit in your own bracket. In the
+% concurrent engine they separate, and that is where the guard/validate API
+% earns its place -- so the unification is a P1 observation, not a general
+% one.
+% -----------------------------------------------------------------------
+
+\textbf{Monotonicity is a property of the traversal, not only of the engine.}
+\Cref{prop:monotone} holds for a dependency-chained reader. One that hops
+without a chain --- re-reading a cached pointer, or comparing two
+independently-reached slots --- must supply its own acquire
+(\cref{sec:monotone}). The selector's own monotonicity is unconditional; what a
+reader's sequence inherits from it is not.
+
+% ===========================================================================
+\section{Variations and Alternatives}
+\label{sec:variations}
+
+% ---------------------------------------------------------------------------
+% THIS SECTION IS THE DEFENSIVE PAYLOAD. A patent claim can cover an obvious
+% variant of what is disclosed, so the design space NOT taken must be disclosed
+% and dated too. A normal paper cuts this; here it is load-bearing.
+%
+% RULE: every variant must be ENABLING -- described well enough that a person
+% skilled in the art could build it. A variant named but not explained
+% discloses nothing.
+%
+% Do NOT announce the defensive motive in the text. The section stands on its
+% academic merit (readers genuinely learn the trade-offs), and the disclosure
+% works regardless of stated intent. Announcing it invites hostility and buys
+% nothing. If Mathieu wants the motive stated, that is his call -- but the
+% default is silence.
+%
+% The MULTI-WRITER retired variants -- helping, stealing, the per-record install
+% latch, invisible writes, the k=1 Bloom filter, the flat budget, the dense-array
+% RYW overlay -- belong to P2. They were built, measured and removed, and that
+% falsification trail is P2's strongest asset. Do not spend it here.
+% ---------------------------------------------------------------------------
+
+The mechanism of \cref{sec:swmechanism} is one point in a design space. This
+section maps the space around it: the choices available at each decision, what
+each would cost, and why this engine chose as it did. Several of these
+alternatives are perfectly workable; the reasons for rejecting them are
+quantitative or contextual, not fundamental.
+
+\subsection{The selector}
+\label{sec:varselector}
+
+\paragraph{Boolean versus generation counter.} The selector here is a boolean
+written once, $0 \to 1$. A generation counter is the obvious alternative: each
+proxy records the generation at which its new value becomes current, and
+resolution compares the group's counter against it. That buys reusable groups
+--- a group could serve many successive transactions without reallocation ---
+and it is how clock-based schemes such as RLU decide visibility. It costs the
+write-once property, and with it the unconditional monotonicity of
+\cref{prop:monotone}: a counter that advances repeatedly makes ``never
+new-then-old'' a claim about a range rather than a single transition, and a
+reader must then compare rather than test. We chose the boolean because
+\cref{prop:monotone} is what lets embedders trade a snapshot for a fixed read
+order (\cref{sec:publishorder}), and a boolean makes it free.
+
+\paragraph{One word per group versus packed.} Each group here owns a full word.
+Selectors could instead be packed --- many groups' bits in one word, with each
+proxy carrying a bit index --- which shrinks the group to nothing but makes the
+selector word a contention point shared across unrelated transactions, and makes
+each flip a read-modify-write rather than a store. Under exclusion the
+read-modify-write is safe; under a concurrent engine it would not be.
+
+\paragraph{Write-once versus reusable.} A group here is used once and reclaimed.
+It could be reset and reused, which trades the reclamation cost for a
+quiescence problem: the reset must not overtake a reader still resolving a proxy
+of the previous use, so the reuse needs exactly the grace period the
+reclamation already pays.
+
+\subsection{The tag}
+\label{sec:vartag}
+
+\paragraph{Width, and the alignment it implies.} A one-bit tag needs only
+two-byte alignment of the record, which any pointer has. The four-bit tag this
+engine permits requires sixteen-byte alignment, which must be arranged
+deliberately (\cref{sec:alignment}). Wider tags are available at proportionally
+stricter alignment: an eight-bit tag would need 256-byte-aligned records, which
+is affordable for a small pool of proxies and wasteful for many. The width an
+embedder needs is set by its own encoding, not by the engine.
+
+\paragraph{Low bits versus high bits.} This engine takes tag bits from the low
+end, where alignment guarantees them. The high end is the alternative: on
+current 64-bit architectures the top bits of a virtual address are unused, and a
+tag can live there instead, leaving the low bits entirely to the embedder.
+The cost is portability --- the number of free high bits is
+architecture-dependent and can change --- so a high-bit scheme needs a runtime
+probe of the address space to establish its budget, and a fallback for
+architectures that offer fewer bits than it wants. An engine could offer both
+and let the embedder choose.
+
+\paragraph{Tagging versus a sentinel range.} Tagging is not the only way to make
+a proxy recognizable. An embedder could reserve a range of values --- a page of
+address space, say, or an unused numeric range --- and treat any value in it as
+a proxy handle. This costs no bits of the word, which is the one thing tagging
+does cost, and it is a real option for a slot whose bits are all spoken for. It
+costs a range check rather than a mask-and-compare on the read path, an
+allocator constrained to that range, and a carve-out from the data domain that
+the embedder must guarantee is never a legitimate value. For a bitmap
+(\cref{sec:nonpointer}) the carve-out is impossible --- every bit pattern is
+legitimate data --- which is precisely why the shift-left discipline exists.
+
+\subsection{Proxy placement and allocation}
+\label{sec:varproxy}
+
+\paragraph{One block versus many.} Proxies and their group are typically
+allocated as a single backing block with one \code{rcu\_head}, so a transaction
+costs one allocation and one deferred free. Individually allocated proxies are
+the alternative: they cost an allocation and a reclamation each, and they permit
+a transaction whose width is not known in advance to grow without moving what it
+has already built --- which is the problem \cref{sec:tagnotptr} solves the other
+way, by making a move safe.
+
+\paragraph{Referenced versus embedded.} A slot here points at a proxy. A proxy
+could instead be embedded in the target object, so the slot points at the object
+as usual and the object's header says whether an indirection is in flight ---
+which is what an object-header scheme does, and it is the design
+\cref{sec:whyweakening} rejects: it reintroduces per-element state, which is the
+cost this engine exists to avoid.
+
+\subsection{Settle}
+\label{sec:varsettle}
+
+\paragraph{Eager, lazy, or never.} This engine settles eagerly: after the flip,
+every slot is rewritten from the tagged proxy back to the direct target. Settle
+could be deferred, batched across transactions, or omitted entirely --- the
+proxies resolve correctly forever, so a never-settling engine is \emph{correct}.
+It is also unbounded: every read of that slot pays an indirection permanently,
+the proxies can never be reclaimed, and the structure accumulates a growing
+layer of resolved-but-still-present latches. Settle exists to make the cost
+transient, which is the whole thesis of \cref{sec:whyweakening}; an engine that
+never settled would have per-slot state after all, arrived at by a different
+road.
+
+\subsection{Reclamation}
+\label{sec:varreclaim}
+
+Proxies are reader-reachable while installed, so their reclamation needs a
+scheme that knows when readers have finished. \rcu is one; the others are the
+usual suspects and they are usable here. \code{synchronize\_rcu()} instead of
+\code{call\_rcu()} makes the writer wait rather than defer, which is simpler and
+serializes the writer against every reader in the system. Hazard pointers
+\citep{michael2004hazard} would let a proxy be freed as soon as no reader holds
+it, at the cost of a per-read store --- which is exactly the read-side charge
+this design refuses (\cref{sec:whyweakening}), so it would be a strange choice
+here while being a reasonable one elsewhere. Reference counting on the group
+would serialize readers on a shared counter.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This subsection matters more than it looks for disclosure purposes: it
+% covers the "same mechanism, different reclamation" variants. Keep the
+% reasoning attached to each -- "hazard pointers would work but cost a per-
+% read store" is enabling; "we use RCU" is not.
+% -----------------------------------------------------------------------
+
+\subsection{Non-pointer encodings}
+\label{sec:varencoding}
+
+\Cref{sec:nonpointer} stores integers shifted left by one. The alternatives are
+to carve a sentinel out of the value domain (impossible for a bitmap, viable for
+a counter that never reaches certain values), to keep the payload in a separate
+word from the transacted handle (which costs a word and an indirection but frees
+the payload entirely), or to widen the slot beyond a machine word and transact
+it with a double-width compare-and-swap where the hardware offers one --- which
+buys back the spent bit at the cost of portability and of the engine's
+word-sized-slot assumption.
+
+% ===========================================================================
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Publishing is not compare-and-swapping}
+\label{sec:relmcas}
+
+Multi-word compare-and-swap is the obvious neighbour and the wrong comparison,
+so it is worth separating carefully.
+
+Harris, Fraser and Pratt's practical \mcas \citep{harris2002mcas} makes $k$
+words change together under concurrent writers: a descriptor names the records,
+threads that meet it \emph{help} drive it, and RDCSS resolves the ordering
+hazard between installing a descriptor and reading it. Fraser's thesis and the
+journal generalization develop it into a lock-free toolkit
+\citep{fraser2004lockfreedom, fraser2007locks}; wait-free constructions follow
+\citep{sundell2011waitfreemcas, feldman2015waitfreemcas}; descriptor reuse
+\citep{arbelraviv2017descriptors} and lower-overhead \kcas
+\citep{guerraoui2020mcas} refine the cost.
+
+The \fliplatch is not one of these. It performs \emph{no compare-and-swap at
+all}: under exclusion there is nothing to compare against, no contender to lose
+a race to, and no helping to arrange. It solves the narrower problem of atomic
+multi-slot \emph{publication} --- making a prepared set of values visible at
+once to readers who are not writers --- rather than atomic multi-slot
+\emph{update} among competing writers.
+
+What it does inherit from that line is the shape: a descriptor of records plus a
+status word whose transition decides the outcome, and resolution routed through
+the status rather than through the slot's plain value. That shape is Harris's,
+and we claim none of it. The companion paper, which does contend, engages this
+work properly.
+
+\subsection{Transactional memory}
+\label{sec:relstm}
+
+Software transactional memory \citep{shavit1995stm, herlihy2003dstm} and its
+object-based descendants \citep{fraser2004lockfreedom} offer the strictly
+stronger contract this engine declines: a transaction is atomic \emph{and}
+isolated, so a reader's whole read set is mutually consistent. Opacity
+\citep{guerraoui2008opacity} names that reader-side guarantee precisely, and
+naming it is what lets us be precise about what we do not provide.
+
+\Cref{sec:fssense} argued that the divergence is not a matter of degree. STM
+means the database sense of \emph{transaction}, which bundles isolation into the
+word; we mean the journaling sense, which never has. The two are different
+contracts, not stronger and weaker versions of one.
+
+Transactional boosting \citep{herlihy2008boosting} is the closest relative on
+the composition axis: coarse abstract locks over cheap physical operations,
+rather than instrumented reads. It is the pattern a lock-plus-\fliplatch design
+converges on, and the companion paper takes it up.
+
+\subsection{Multi-pointer atomicity under RCU}
+\label{sec:relrcu}
+
+\rcu \citep{mckenney1998rcu, desnoyers2012urcu, mckenney2023perfbook} gives
+readers a free ride and gives writers one atomic pointer store. Extending it to
+several pointers at once is an old problem with two established answers, and
+\cref{tab:comparison} places both.
+
+\textbf{Existence structures} \citep{mckenney2015issaquah,
+mckenney2016beyondissaquah, mckenney2026perfbookcode} give each element a field
+naming an \emph{existence group}, and flip the group's state word to change the
+membership of every element in it at once. The mechanism is the closest prior
+art to this paper: it is a shared word whose single store switches a set's
+visibility to \rcu readers, followed by reclamation after a grace period. The
+technique has been public since at least January 2015 and was explained at
+length in 2016.
+
+\textbf{RLU} \citep{matveev2015rlu} gives each object a header able to name a
+newer copy, logs a writer's copies, and makes them visible by advancing a global
+clock. \textbf{MV-RLU} \citep{kim2019mvrlu} adds multi-versioning to relieve
+RLU's synchronous writeback. Both provide a \emph{coherent snapshot} --- which
+is strictly stronger than \cref{prop:monotone}, and must be said plainly: any
+comparison of throughput between this engine and RLU crosses guarantee classes.
+Against existence structures the classes match and the comparison is clean.
+
+What separates this work from both is where the cost is paid rather than what
+the mechanism does at the moment of commit. Existence needs an element to hang a
+field on; RLU needs an object to prepend a header to. Both are therefore
+permanent additions to the data readers traverse. A \pseudotxn puts its marker
+in the slot's own spare bits, which is why it can transact a bare bitmap word
+that is not an object at all (\cref{sec:nonpointer}), and why its cost vanishes
+when no mutation is in flight.
+
+\subsection{Patented prior art}
+\label{sec:relpatents}
+
+The atomic-move-under-\rcu problem has been the subject of a series of patents
+naming McKenney and assigned to IBM, and they are prior art whether or not any
+remains in force. Four are directly relevant, and their claims bound what this
+paper may claim.
+
+\citet{mckenney2008filerename926} (filed 2004) renames a file while permitting
+lock-free lookups by linking a \emph{temporary record} into the hash chain and
+removing it afterwards --- a transient object, erected for the mutation and gone
+after. Its readers, however, \emph{wait}: the claim recites that the temporary
+record ``causes the look-ups to wait'' until the rename completes.
+\citet{mckenney2010keyupdate851} (filed 2006) moves an element between lists by
+making it ``appear simultaneously'' in both under one key and then changing the
+key --- appear-in-both, belong-to-one, which is the existence notion in embryo.
+\citet{mckenney2018atomicmove907} (filed 2015) atomically updates a
+status-indicating entity to transfer an element's validity from an original to a
+copy. \citet{mckenney2019atomicmove638} (filed 2016) changes an existence
+group's state field ``using a single store operation'' so that, where there are
+plural elements, one set is deemed to exist and another deemed not to.
+
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% Cite the patents as PRIOR ART and stop there. Do not editorialise about
+% legal status. All ten in the bib are recorded as lapsed or expired as of
+% 2026-07-16, and six of those are fee-lapsed with term still running, which
+% under 37 CFR 1.378 can be reinstated -- so "lapsed" is a point-in-time
+% observation, not a fact about the future, and it is not this paper's
+% business either way. The citation's job is to date the disclosure, not to
+% assess enforceability. Saying less here is both safer and more correct.
+% -----------------------------------------------------------------------
+
+\subsection{What this paper claims}
+\label{sec:relclaims}
+
+Given the above, the claim has to be stated as a conjunction, because each
+ingredient separately is old.
+
+The \emph{flip} is not new: a single store switching a set's visibility to \rcu
+readers is \citet{mckenney2019atomicmove638} and was public at CppCon in 2016
+\citep{mckenney2016beyondissaquah}. The \emph{transient object} is not new: a
+per-mutation record, removed afterwards, is \citet{mckenney2008filerename926}
+from 2004. \emph{Pointer tagging} is not new; existence structures tag bit~0 of
+their own membership field. The \emph{descriptor-and-status shape} is Harris's
+\citep{harris2002mcas}.
+
+What we have not found in that prior art is the combination: a marker that is
+\textbf{transient} (so the structure's steady state is unchanged),
+\textbf{non-blocking for readers} (they resolve through it to old-or-new rather
+than waiting on it, unlike \citet{mckenney2008filerename926}), and
+\textbf{free of per-element state} (it lives in the slot's spare bits rather
+than in a field or header, unlike existence and RLU) --- together with the
+consequence that follows: because the marker is per-slot rather than per-object,
+a \pseudotxn can span slots whose encodings differ, which forces the per-record
+tag (\cref{sec:pertag}) and which we are likewise not aware of in prior work.
+% -----------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% "We have not found" and "we are not aware of" are the right register --
+% they are honest, and they are what a careful reader will believe. "Novel"
+% and "the first" are neither, and the prior-art sweep behind this section
+% (10 patents, plus the talks) is exactly what makes the weaker phrasing
+% credible rather than evasive. Do not let an editing pass strengthen these
+% into claims.
+% -----------------------------------------------------------------------
+
+% ===========================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+\rcu gives a writer one atomic act, and the limit is not academic. It is visible
+in the interface of a shipped container: Userspace \rcu's list maintains a
+backward chain that no reader is allowed to walk, and the missing reverse
+iterator is not an oversight but the thing that licenses the plain store to
+\code{prev} (\cref{sec:onestore}). Where an update needs two edges to move
+together, the remedies have been to copy a larger region, to wait out a grace
+period, or to withdraw the operation.
+
+We have described a fourth answer that leaves the bargain intact. A \pseudotxn
+is a frozen set of \record{slot}{old}{new} records made visible by one commit
+step; it does not add a phase to \rcu's build--publish--reclaim discipline but
+widens the middle one, so that a single store moves a set of slots rather than a
+single slot (\cref{sec:buildpublish}). The \fliplatch realizes it for a single
+writer with no compare-and-swap, no conflict detection and no abort: every proxy
+in a group names one shared selector word, and one release store switches the
+whole set (\cref{sec:fliplatch}). The marker that makes this possible rides in
+spare bits of the slot the reader had to load anyway, so it costs no per-element
+state and no additional load, and it is gone once the mutation settles
+(\cref{sec:tags}).
+
+The guarantee is deliberately weaker than transactional memory, and we have
+tried to be more precise about the weakness than about the strength. The write
+set is atomic; a reader is not a \pseudotxn, and a traversal spanning several
+slots may straddle a commit. There is no opacity and no multi-read snapshot.
+What a reader gets instead is monotonicity --- never new-then-old
+(\cref{sec:monotone}) --- and that middle ground is exploitable rather than
+merely tolerable: an embedder that commits in the reverse of its readers'
+traversal order gets old-prefix, new-suffix observations and needs no
+per-traversal snapshot at all (\cref{sec:publishorder}). The weakening is
+targeted. Isolation is paid for on the read side, and the read side is what \rcu
+exists to keep free.
+
+The costs are real and we have stated them where they fall rather than where
+they flatter. Exclusion is a precondition of the mechanism, not a caveat on it,
+and violating it corrupts silently (\cref{sec:exclusion}). Naming individual
+slots means a commit's width grows with the number of edges an operation
+re-points, which is the axis on which a design that collapses membership into a
+single object will win (\cref{sec:costcomparison}). The tag contract constrains
+every value a transacted slot may hold, and an embedder that breaks it does not
+get a torn read but a wild pointer (\cref{sec:tagcontract}).
+
+What we claim is a conjunction rather than a component. The marker is transient,
+non-blocking for readers, and free of per-element state; each of those exists
+separately in prior work, and we have not found them together, nor found the
+per-record tag that having them together forces (\cref{sec:related}). We have
+described the mechanism, and the variants we did not take
+(\cref{sec:variations}), in enough detail to be reimplemented from this paper
+alone --- a description that cannot be built from is not a disclosure.
+
+\paragraph{The rest of the series.} This paper is the \sw case, and it is
+deliberately the first: the \fliplatch is the model at its smallest, where a
+commit is one store and the hard parts are contracts rather than machinery. A
+companion paper covers the \mw engine, which attacks the same model with a
+multi-word compare-and-swap and pays --- in descriptors, in helping, in an abort
+path this paper has no need of --- for the exclusion it drops. The two share the
+model of \cref{sec:model} and the status vocabulary, so an embedder that
+outgrows exclusion changes which engine it links, not how it reasons. A third
+paper takes up the programming model the two engines share: the read policy that
+decides which loads must help, read-your-own-writes and the slot-coincidence
+hazard it exists to handle, and the declarations an embedder can make to trade
+generality for speed. A fourth reports measurements, including where this design
+loses and why the loss is the predicted consequence of commit width rather than
+a surprise.
+
+% ===========================================================================
+\section*{Availability}
+
+% ---------------------------------------------------------------------------
+% Pin the COMMIT, never the branch. urcu-txn-dev is a development tip and will
+% move; the disclosure is the tree as of this specific commit and nothing else.
+% For a defensive publication the dated, specific version IS the deliverable,
+% so a reader must be able to fetch exactly what this paper describes years
+% from now, without depending on where development happened to go next.
+% ---------------------------------------------------------------------------
+The engine described here is free software, distributed under
+\code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
+describes is present in commit
+\code{ec621268bba1f16711e992fa7320851d7a1a3205} (2026-07-14), on branch
+\code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
+commit hash, not the branch, identifies the disclosed version: the branch is a
+development tip and will move.
+
+Within that tree, the material of this paper is the following headers, all under
+\code{include/urcu/}:
+
+\begin{description}\setlength{\itemsep}{2pt}
+\item[\code{rcu-txn-sw.h}] The \fliplatch: flip groups, proxies, resolution, and
+      the four-step lifecycle of \cref{sec:lifecycle}. Its ordering note is the
+      source of \cref{sec:monotone} and \cref{sec:publishorder}.
+\item[\code{rcu-txn-sw-list.h}] The bidirectional list of \cref{sec:wrappers},
+      whose two chains stay mutually coherent.
+\item[\code{rcu-txn-sw-hlist.h}] The hash list.
+\item[\code{rcu-txn.h}] The shared model and status vocabulary of
+      \cref{sec:model}.
+\end{description}
+
+\noindent Two further headers are named here for orientation rather than as
+contributions of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
+companion paper, and \code{rcu-txn-bitmap.h} is a non-pointer encoding
+(\cref{sec:nonpointer}) written against that engine rather than this one.
+
+This paper is licensed CC BY 4.0. It is published to place the design, and the
+alternatives of \cref{sec:variations}, in the public record as prior art, so
+that they remain free for anyone to implement and use.
+
+\bibliographystyle{plainnat}
+\bibliography{../common/urcu-txn}
+
+\end{document}
