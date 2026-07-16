@@ -63,7 +63,19 @@ memory", "transactional boosting") and when contrasting with the general notion.
 - Keep "linearizable" scoped to the k-CAS write operation itself, never to a
   read+write pseudo-transaction.
 - A reader is **not** a transaction of any kind: each load resolves
-  independently, so a traversal may straddle a commit.
+  independently, so a traversal may straddle a commit. Write exactly that —
+  **never "a reader is not a pseudo-transaction"**, which parses just as
+  naturally as "not *merely* a pseudo-transaction (it gets a real one)", the
+  exact inverse of the claim. The `\pseudotxn` macro makes this drift
+  mechanical; it reached five places in P1 before being caught, and
+  `check-terms` now greps for it.
+- **"Isolation is a read-side cost" needs its precondition: *once you mutate in
+  place*.** Unqualified it is false, and we say why ourselves: copy-on-write is
+  one of RCU's three remedies, and a writer that path-copies and swaps a root
+  gives readers a fully isolated snapshot at *zero* read-side cost — persistent
+  data structures are the existence proof. The true claim is narrower and still
+  enough: isolation is charged to the reader by designs that mutate in place,
+  which is every design we compare against, ours included.
 - **Do not say "per-slot linearizability"** — it undersells. Because the status
   word is written once and never back, a *dependency-chained* reader observes a
   monotone sequence: **old…old, new…new, never new-then-old**. A reader may lag

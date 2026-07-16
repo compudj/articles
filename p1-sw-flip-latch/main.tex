@@ -45,17 +45,17 @@ walk ordinary, and a hash list.
 
 The guarantee is deliberately weaker than software transactional memory. The
 write set is atomic: every record resolves to its old value before the commit
-and to its new value after. But a reader is \emph{not} a \pseudotxn---each of
-its loads resolves independently, so a traversal spanning several slots may
+and to its new value after. But a reader is \emph{not} a transaction of any
+kind---each of its loads resolves independently, so a traversal spanning several slots may
 straddle a commit. There is no opacity and no multi-read snapshot; a reader gets
 monotonicity, never new-then-old.
 
-The weakening is the design. Isolation is paid for on the read side, in state
-attached to every element and work on every dereference---and the read side is
-what RCU exists to keep free. A \pseudotxn's marker instead rides in spare bits
-of the slot itself, the word the reader had to load anyway, so it adds no
-per-element state and no extra load, and vanishes when no mutation is in flight.
-The cost moves to the writer, in the width of a commit, and we say where.
+The weakening is the design. Where a structure is mutated in place, isolation is
+a read-side cost: state on every element, work on every dereference---and the
+read side is what RCU exists to keep free. A \pseudotxn's marker instead rides
+in spare bits of the slot itself, the word the reader loads anyway, so it adds
+no per-element state and no extra load, and vanishes when no mutation is in
+flight. The cost moves to the writer, in the width of a commit.
 \end{abstract}
 
 % ===========================================================================
@@ -100,7 +100,8 @@ bargain that makes \rcu worth using. Specifically:
 \item \textbf{A \pseudotxn model} (\cref{sec:model}): a frozen set of
       \record{slot}{old}{new} records made visible by one commit step. We state
       what it guarantees, and state what it does not before any evaluation ---
-      including the property that a reader is not a \pseudotxn, and the weaker
+      including the property that a reader is not a transaction of any kind, and
+      the weaker
       one that it does have: monotone resolution, never new-then-old
       (\cref{sec:monotone}).
 
@@ -594,10 +595,31 @@ boundary and what happens on the wrong side of it.
 We state the limits here, before any evaluation, because they are constitutive
 of the model rather than defects in it.
 
-\textbf{A reader is not a \pseudotxn.} It is a sequence of single-slot reads,
-each linearizing at its own access. A traversal spanning several slots may
-therefore \emph{straddle} a commit: it can observe the \pseudotxn in a slot it
-reads after the commit and not in one it read before.
+% ---------------------------------------------------------------------------
+% GUARDRAIL (do not delete in an editing pass).
+%
+% "a transaction of ANY KIND" -- never "a reader is not a \pseudotxn". This
+% paper said the latter in five places and it is a genuine defect, not a style
+% nit: "a reader is not a pseudo-transaction" parses just as naturally as "a
+% reader is not MERELY a pseudo-transaction (it gets a real one)", which is the
+% exact inverse of the claim and the most damaging misreading the paper admits.
+%
+% The drift is mechanical and WILL recur: the \pseudotxn macro is an inviting
+% substitution for the bare word "transaction", and here the word must stay
+% general precisely because the denial has to cover both classes at once. The
+% \pseudotxn is a WRITER-side object; denying that a reader is one is nearly
+% vacuous. The real claim is that the reader gets no transactional treatment
+% whatsoever -- no bracket, no read set, no atomicity across loads.
+%
+% README's framing rule states it correctly; match it verbatim.
+% ---------------------------------------------------------------------------
+\textbf{A reader is not a transaction of any kind.} It is a sequence of
+single-slot reads, each linearizing at its own access. There is no bracket, no
+read set, and nothing that begins or commits on the read side --- the \pseudotxn
+is the writer's object, and a reader meets it only one slot at a time. A
+traversal spanning several slots may therefore \emph{straddle} a commit: it can
+observe the \pseudotxn in a slot it reads after the commit and not in one it
+read before.
 \Cref{prop:notearing} still holds throughout --- no slot and no instant is torn
 --- but a reader's several reads are simply not a mutual snapshot.
 
@@ -789,14 +811,65 @@ nothing: no lock, no barrier, no write to shared state. Every design that adds
 multi-pointer atomicity on top of \rcu must decide what to charge that reader,
 and the answer is what separates them (\cref{tab:comparison}).
 
-\paragraph{Isolation is paid for on the read side.} A snapshot is a claim about
-what a reader observes, so only the reader can establish it. RLU establishes it
-by giving every object a header that can name a newer copy, and by having
-readers consult that machinery when a writer's copies might be relevant to them.
-Existence structures establish per-element membership by giving every element a
-field that can name a group, and having readers load it. In both cases the
-mechanism must be reachable \emph{from the reader}, which is precisely why it
-must live in, or hang off, the elements themselves.
+% ---------------------------------------------------------------------------
+% GUARDRAIL (do not delete in an editing pass).
+%
+% The "only once you mutate in place" qualifier is load-bearing, not hedging.
+% An earlier draft asserted flatly that "isolation is paid for on the read side"
+% and argued it from "a snapshot is a claim about what a reader observes, so
+% only the reader can establish it".
+%
+% That premise is FALSE, and this paper of all papers cannot afford it: Sec. 1
+% already names copy-on-write as one of RCU's three remedies. A writer that
+% path-copies and swaps a root gives readers a fully isolated immutable
+% snapshot at ZERO read-side cost -- the reader establishes nothing. Persistent
+% data structures are the existence proof, and RCU's own build/publish/reclaim
+% is the same trick in the small. The unqualified claim contradicts our own
+% Sec. 1 and a reviewer who knows persistent structures spots it immediately.
+%
+% The true claim is narrower and still sufficient: isolation is a read-side
+% charge for designs that mutate IN PLACE, which is the regime every row of
+% tab:comparison occupies, ours included. Do not "tighten" this back into the
+% unqualified form -- it reads punchier and it is wrong.
+% ---------------------------------------------------------------------------
+\paragraph{Isolation is a read-side cost only once you mutate in place.} The
+claim needs its precondition stated, because without it the claim is false and
+this paper has already said why. There is a way to give readers a snapshot for
+nothing, and \rcu uses it: copy. A writer that builds a new version where
+readers cannot reach it and then swaps one pointer hands every reader an
+immutable structure. The reader establishes nothing, validates nothing, and
+still sees a coherent view of everything reachable from the root it loaded.
+Persistent data structures make this the entire design, and \rcu's
+build--publish--reclaim discipline (\cref{sec:buildpublish}) is the same idea in
+the small --- which is exactly why an \rcu reader gets a coherent view of a
+\emph{node} for free.
+
+What copying does not do is scale to the update, and that is where this paper
+began (\cref{sec:onestore}). When a change spans several words, copying a region
+large enough to make it one pointer swap means paying for that region --- in
+allocation, in footprint, and in reclamation --- on every update. The
+alternative is to mutate in place.
+
+Mutating in place is what ends the free lunch, and it is the regime every design
+in \cref{tab:comparison} occupies, this one included. A reader can now arrive
+while the structure is between states. Any property it must observe about a
+mutation in flight has become a claim about what \emph{that reader} sees, and
+only the reader can establish it. RLU establishes a snapshot by giving every
+object a header that can name a newer copy, and having readers consult that
+machinery when a writer's copies might be relevant to them; MV-RLU adds a
+version chain for the reader to walk; STM has the reader log its reads and
+validate them. Existence structures do not establish a snapshot at all --- their
+guarantee is per-element --- but they pay in the same coin, giving every element
+a field that can name a group and having readers load it. The property differs
+and the mechanism differs; the location does not. It must be reachable
+\emph{from the reader}, which is precisely why it lives in, or hangs off, the
+elements themselves.
+
+So there are two ways to spare the reader, and this design takes the second. It
+declines to copy, because the cost of copying is what made the operation
+expensive in the first place. And it declines to hand readers isolation, because
+in a structure mutated in place isolation is a charge on the reader --- and the
+reader is the one party \rcu exists to keep free.
 
 \paragraph{Every other design adds a load; this one adds none.} The read-path
 costs are ordered, and the ordering is structural rather than a matter of
@@ -1593,7 +1666,7 @@ No abort, no assertion, no debug trap.
 The remaining limits cannot be violated because they are not promises. They are
 what the model \emph{is}.
 
-\textbf{No reader snapshot.} A reader is not a \pseudotxn
+\textbf{No reader snapshot.} A reader is not a transaction of any kind
 (\cref{sec:nonguarantees}); a traversal spanning slots may straddle a commit.
 An embedder needing a mutual snapshot layers its own versioning on top, as with
 any value-based \mcas. This is the deliberate weakening of
@@ -1959,15 +2032,17 @@ state and no additional load, and it is gone once the mutation settles
 
 The guarantee is deliberately weaker than transactional memory, and we have
 tried to be more precise about the weakness than about the strength. The write
-set is atomic; a reader is not a \pseudotxn, and a traversal spanning several
+set is atomic; a reader is not a transaction of any kind, and a traversal
+spanning several
 slots may straddle a commit. There is no opacity and no multi-read snapshot.
 What a reader gets instead is monotonicity --- never new-then-old
 (\cref{sec:monotone}) --- and that middle ground is exploitable rather than
 merely tolerable: an embedder that commits in the reverse of its readers'
 traversal order gets old-prefix, new-suffix observations and needs no
 per-traversal snapshot at all (\cref{sec:publishorder}). The weakening is
-targeted. Isolation is paid for on the read side, and the read side is what \rcu
-exists to keep free.
+targeted. Short of copying the structure outright --- which is the cost that
+made the operation expensive to begin with --- isolation is a charge on the
+reader, and the reader is what \rcu exists to keep free.
 
 The costs are real and we have stated them where they fall rather than where
 they flatter. Exclusion is a precondition of the mechanism, not a caveat on it,

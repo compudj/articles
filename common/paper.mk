@@ -168,7 +168,16 @@ check-refs:
 check-terms:
 	@# Whole lines, not grep -o matches: -o prints only the matched word, which
 	@# strips the leading '%' and makes the comment filter below a no-op.
-	@hits=$$(grep -niE 'serializab|opacity|[^-]causal|per-slot lineariz' $(PAPER).tex 2>/dev/null | grep -viE '^[0-9]+:[[:space:]]*%' | cut -c1-100 || true); \
+	@# "reader is not a \pseudotxn" is a real defect, not a style nit: it parses
+	@# equally well as "not MERELY a pseudo-transaction (it gets a real one)",
+	@# the exact inverse of the claim. The rule is "not a transaction of any
+	@# kind". The \pseudotxn macro makes this drift mechanical -- it happened in
+	@# five places at once -- so it is checked rather than left to vigilance.
+	@# The windowed .{0,12} is deliberate: the phrase appears both bare and
+	@# wrapped ("reader is \emph{not} a \pseudotxn"), and a regex anchored on
+	@# "not a" silently misses the wrapped form -- which is exactly how the
+	@# first version of this check passed while the defect was still present.
+	@hits=$$(grep -niE 'serializab|opacity|[^-]causal|per-slot lineariz|reader is .{0,12}not.{0,2} a .{0,2}pseudotxn' $(PAPER).tex 2>/dev/null | grep -viE '^[0-9]+:[[:space:]]*%' | cut -c1-100 || true); \
 	if [ -n "$$hits" ]; then \
 		echo "=== TERMINOLOGY: review each -- must be deliberate (see README framing rule):"; \
 		printf "%s\n" "$$hits" | sed 's/^/    /'; \
