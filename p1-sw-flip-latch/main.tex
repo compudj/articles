@@ -113,16 +113,18 @@ bargain that makes \rcu worth using. Specifically:
 
 \item \textbf{A per-record tag scheme} (\cref{sec:tags}): the marker lives in
       spare bits of the slot rather than in per-element state, which is what
-      makes the reader's cost zero. Because a \pseudotxn may span structures
+      takes the reader's added loads to zero --- the test is on a register the
+      reader already holds, and costs it only a predicted branch. Because a
+      \pseudotxn may span structures
       whose encodings differ, the tag must travel with the record rather than be
       fixed per translation unit. Slots need not hold pointers: a shifted
       integer or a bitmap word is transacted the same way.
 
 \item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
       list whose two chains stay mutually coherent --- so the reverse walk
-      \code{rculist} declines to offer becomes ordinary --- and a hash list. We
-      also give the boundary: composition is legal only across slot-disjoint
-      edits, and we say what happens when it is not.
+      \code{rculist} declines to offer becomes ordinary --- and a hash list,
+      with the boundary: composition is legal only across slot-disjoint edits,
+      and silently commits stale pointers when it is not.
 
 \item \textbf{The design space we did not take} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
@@ -136,7 +138,7 @@ attacks the same model with a multi-word compare-and-swap and pays for
 contention detection with machinery this one does not need. The two share the
 model of \cref{sec:model} and the status vocabulary, deliberately: an embedder
 written against one migrates to the other without rewriting its commit handling.
-Where a property here holds only under exclusion, we say so.
+Properties that hold only under exclusion are marked where they appear.
 
 \subsection{Where the cost goes}
 \label{sec:costcomparison}
@@ -149,48 +151,58 @@ on the reader's path. \Cref{tab:comparison} places this engine against them.
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}l l c l l@{}}
+\begin{tabular}{@{}l l c c l l@{}}
 \toprule
- & \textbf{Per-element} & \textbf{Extra} & \textbf{Reader} & \textbf{Publish} \\
- & \textbf{state} & \textbf{loads} & \textbf{guarantee} & \textbf{step} \\
+ & \textbf{Per-element} & \textbf{Extra} & \textbf{Extra} & \textbf{Reader} & \textbf{Publish} \\
+ & \textbf{state} & \textbf{loads} & \textbf{branches} & \textbf{guarantee} & \textbf{step} \\
 \midrule
 Existence~\citep{mckenney2016beyondissaquah}
   & \code{eh\_egi} field
+  & 1
   & 1
   & per-element
   & group state \\
 RLU~\citep{matveev2015rlu}
   & object header
   & 1
+  & 1
   & snapshot
   & clock bump \\
 MV-RLU~\citep{kim2019mvrlu}
   & header $+$ versions
   & $\geq 2$
+  & $\geq 3$
   & snapshot
   & clock bump \\
 \midrule
 \textbf{This work}
   & \textbf{none}
   & \textbf{0}
+  & 1
   & never new-then-old
   & one store \\
 \bottomrule
 \end{tabular}
-\caption{Where each design pays for multi-pointer atomicity. Read-path counts
-are additional \emph{memory references} per dereference in the common case, over
-and above the load the reader must issue anyway; both existence and RLU do more
-work while a mutation is in flight. A \pseudotxn issues none, because its marker
-rides in the value \code{v} that \code{rcu\_dereference} already returned. The
-first column is the unconditional cost: existence and RLU attach state to every
-element for as long as the structure lives, whereas a \pseudotxn attaches
-nothing and confines its state to the mutation. Existence's load is an
-\emph{acquire}; RLU's is a plain load from its per-thread state. Ours is zero
-because the marker rides in \code{v} itself, not because the check is cheap.
-MV-RLU is the one entry whose count is not a constant: its dereference reads the
-object header unconditionally --- it has no counterpart to RLU's pure-reader
-bypass --- and then walks a version chain whose length the reader does not
-control, so $\geq 2$ is a floor rather than a typical case.}
+\caption{Where each design pays for multi-pointer atomicity, on the read-side
+fast path, per dereference. \emph{Extra loads} counts additional memory
+references over and above the load the reader must issue anyway; \emph{extra
+branches} counts conditional branches. Every design tests something, this one
+included --- the honest difference is in the loads column, not the branches
+column. Existence's load is an \emph{acquire} of a per-element field; RLU's is a
+plain load from its per-thread state. A \pseudotxn's is absent because its
+marker rides in the value \code{v} that \code{rcu\_dereference} already
+returned, so its test is arithmetic on a register the reader already holds ---
+but the test is still a branch, and \textbf{0} in the loads column means zero
+loads, not zero instructions. All three single-branch entries are predicted
+branches, statically hinted in their respective sources, and each costs a
+branch-predictor entry. The first column is the unconditional cost, and is where
+the designs differ permanently: existence and RLU attach state to every element
+for as long as the structure lives, whereas a \pseudotxn attaches nothing and
+confines its state to the mutation. MV-RLU is the one entry whose counts are not
+constants: its dereference reads the object header unconditionally --- it has no
+counterpart to RLU's pure-reader bypass --- and then may walk a version chain
+whose length the reader does not control, so its figures are floors rather than
+typical cases.}
 \label{tab:comparison}
 \end{table}
 
@@ -254,6 +266,25 @@ control, so $\geq 2$ is a floor rather than a typical case.}
 %      the cell is a floor, not a typical case. That is why it reads ">= 2"
 %      rather than a number.
 %
+% BRANCH COLUMN -- from the same sources quoted above, all fast paths:
+%   existence  if (likely(!egi)) return 1;                     -> 1, hinted
+%   RLU        if (rlu_likely(self->is_check_locks == 0))      -> 1, hinted
+%   MV-RLU     if (unlikely(!obj)) / is_obj_actual() inside
+%              get_act_obj() / if (unlikely(p_copy))           -> >= 3, + loop
+%   this work  urcu_txn_sw_list_resolve(), rcu-txn-sw-list.h:
+%                 uintptr_t v = (uintptr_t) ptr;
+%                 if (caa_unlikely(v & URCU_TXN_SW_LIST_PROXY_TAG)) {...}
+%                 return ptr;                                  -> 1, hinted
+%
+% The point of carrying this column at all: EVERY design branches, ours
+% included, so the branch is NOT where the comparison is decided and claiming
+% otherwise would be unfair in our favour. The difference is that our test's
+% operand is already in a register while everyone else must load theirs first.
+% Being scrupulous here strengthens the argument rather than weakening it --
+% do not drop the column to make the row look cleaner. Note also that our 1 is
+% deliberately NOT bolded: bold marks where this design wins, and it does not
+% win here.
+%
 % Deliberately NOT claimed: mvrlu_deref also does self->num_act_obj++ and
 % self->num_deref++ (per-thread STORES on the read path). Those read like
 % statistics counters and may be compiled out in a production build; we did not
@@ -294,17 +325,37 @@ it is stated on shipped code rather than in the abstract.
 \label{sec:rcu}
 
 \rcu~\citep{mckenney1998rcu,desnoyers2012urcu} divides a mutation between two
-parties and gives each of them a different bargain. A reader brackets its
-traversal in \code{rcu\_read\_lock()} and \code{rcu\_read\_unlock()}. On the
-common implementations these are not locks at all: they exclude nothing, they
-contend with nothing, and in the userspace library's \QSBR mode they compile to
-nothing at all. What a reader gets in exchange for that non-cost is narrow but
-sufficient: any object it reaches during the bracket remains allocated until the
-bracket ends.
+parties and gives each of them a different bargain. A reader delimits its
+traversal with \code{rcu\_read\_lock()} and \code{rcu\_read\_unlock()}, marking an
+\rcu \emph{read-side critical section}. On the
+common implementations these are not locks at all: they exclude nothing and
+contend with nothing, and in the userspace library's \QSBR mode
+\code{rcu\_read\_lock()} is an empty function --- a debug assertion and nothing
+else. What a reader gets in exchange is narrow but sufficient: any object it
+reaches inside the critical section remains allocated until that section ends.
+
+That is not magic, and it is worth saying where the cost went rather than
+leaving an empty function to look like a free lunch. \QSBR buys its empty read
+lock by moving the reader's obligation out of the critical section and onto the
+thread: a
+registered thread must periodically call \code{rcu\_quiescent\_state()} to
+announce that it holds no \rcu-protected references, and must call
+\code{rcu\_thread\_offline()} before blocking for any length of time. The
+announcement is cheap --- it compares the global grace-period counter against
+the thread's own and returns immediately when they agree --- but somebody has to
+make it, and the writer's grace period cannot end until every registered thread
+has. So the cost is not eliminated; it is amortized across a whole thread's
+worth of read-side critical sections and relocated to a point the application
+chooses.
+The price is structural rather than instruction-level: the application must
+\emph{have} such points and must be written to reach them promptly, which is why
+\QSBR is at once the fastest flavour and the most intrusive to adopt. The other
+flavours make the opposite trade, paying a little inside the critical section so
+the application owes nothing between them.
 
 That promise is kept by the writer, not by the reader, and it is kept by
 waiting. A \emph{grace period} is an interval that every pre-existing read-side
-bracket has been observed to leave. Once one elapses, no reader can still hold a
+critical section has been observed to leave. Once one elapses, no reader can still hold a
 reference obtained before it began, so anything unlinked before it began is
 unreachable and may be freed. The writer waits synchronously
 (\code{synchronize\_rcu()}) or defers a callback (\code{call\_rcu()}); either
@@ -614,9 +665,11 @@ of the model rather than defects in it.
 % README's framing rule states it correctly; match it verbatim.
 % ---------------------------------------------------------------------------
 \textbf{A reader is not a transaction of any kind.} It is a sequence of
-single-slot reads, each linearizing at its own access. There is no bracket, no
-read set, and nothing that begins or commits on the read side --- the \pseudotxn
-is the writer's object, and a reader meets it only one slot at a time. A
+single-slot reads, each linearizing at its own access. It does have an \rcu
+read-side critical section --- but a critical section is not a transaction. It
+keeps reachable objects alive; it does not make the loads inside it a unit.
+There is no read set and nothing that begins or commits on the read side: the
+\pseudotxn is the writer's object, and a reader meets it one slot at a time. A
 traversal spanning several slots may therefore \emph{straddle} a commit: it can
 observe the \pseudotxn in a slot it reads after the commit and not in one it
 read before.
@@ -787,7 +840,7 @@ $E \rightarrow parent$ \emph{from the value that load returned}. The second load
 depends on the first. The fixed-read-order idiom is therefore not something that
 must be reconciled with the dependency-chaining requirement of
 \cref{sec:monotone} --- it \emph{is} a dependency-chained descent, which is why
-it is safe as stated and why it costs the reader nothing.
+it is safe as stated and why it costs the reader no barrier.
 
 The limits should be equally clear. This is an embedder's discipline, not an
 engine guarantee: the engine cannot know a structure's traversal order, so
@@ -871,23 +924,42 @@ expensive in the first place. And it declines to hand readers isolation, because
 in a structure mutated in place isolation is a charge on the reader --- and the
 reader is the one party \rcu exists to keep free.
 
-\paragraph{Every other design adds a load; this one adds none.} The read-path
-costs are ordered, and the ordering is structural rather than a matter of
-constant factors. Existence's fast path is one acquire load of a per-element
-field. RLU's fast path, for a thread with no writes of its own, never touches
-the object header --- but it still loads a flag from its per-thread state, once per
-dereference. Neither is expensive; both are memory references.
+\paragraph{Every design tests something; only this one reaches the test for
+free.} The difference is structural rather than a matter of constant factors,
+but it is narrower than "some designs check the read path and this one does
+not". Every row of \cref{tab:comparison} checks it, this one included. What
+differs is what the check costs to reach its operand.
 
-A \pseudotxn issues none. Its marker occupies tag bits of the slot, so
-recognizing it is
+Existence's fast path is one acquire load of a per-element field, then a branch
+on it. RLU's fast path, for a thread with no writes of its own, never touches
+the object header --- but it still loads a flag from its per-thread state, once
+per dereference, and branches on that. MV-RLU reads the object header
+unconditionally and branches, then may walk a version chain. None of these loads
+is expensive in isolation; all of them are memory references, and in each case
+the branch cannot resolve until its load does.
+
+A \pseudotxn's marker occupies tag bits of the slot, so recognizing it is
 \begin{center}
 \code{((uintptr\_t) v \& tag) == tag}
 \end{center}
 where \code{v} is the value the reader's \code{rcu\_dereference} already
-returned. That is arithmetic on a register the reader was obliged to hold
-anyway: no additional load, no additional cache line, and a branch that is not
-taken in the absence of an in-flight commit. The marker rides the dereference
-the reader had to perform regardless.
+returned. That is a mask and a test on a register the reader was obliged to hold
+anyway: no additional load and no additional cache line.
+
+It is not free, and the residue is worth naming rather than rounding away. The
+test is a conditional branch --- a couple of instructions, and one entry in the
+branch predictor. It is hinted unlikely and is correctly predicted not-taken
+whenever no commit is in flight, which is to say almost always; but a predicted
+branch is not a free branch, and a reader in a tight traversal pays it on every
+hop. So \cref{tab:comparison}'s \textbf{0} is zero \emph{loads}, not zero
+instructions.
+
+That is the honest shape of the claim, and it is still the shape we want: the
+branch is common to every design in the table, so it is not where the comparison
+is decided. What separates this design is that its test operates on a value the
+reader already had, while every other design must first go and fetch the thing
+it will test --- from a per-element field, a per-thread flag, or an object
+header. The marker rides the dereference the reader had to perform regardless.
 
 \paragraph{The unconditional cost is space.} Instruction counts are the smaller
 half of the argument, because the state is the part that cannot be made
@@ -909,13 +981,13 @@ it are byte-for-byte what they would be with no engine present.
 % we already had to retract. Cross-reference the evaluation paper.
 % -----------------------------------------------------------------------
 
-\paragraph{A pseudo-transaction charges the reader nothing.} The engine adds no
-per-element state at all. Its marker lives in tag bits of the slot itself ---
+\paragraph{A pseudo-transaction charges the reader no memory.} The engine adds
+no per-element state at all. Its marker lives in tag bits of the slot itself ---
 the very word the reader had to load in order to proceed --- so recognizing it
-costs no additional load, no additional line, and a branch that is not taken
-except in the presence of an in-flight commit. And because the marker is
-transient, the structure a reader traverses in the steady state is
-byte-for-byte the structure it would traverse with no engine present.
+costs no additional load and no additional line, only the predicted branch
+accounted for above. And because the marker is transient, the structure a reader
+traverses in the steady state is byte-for-byte the structure it would traverse
+with no engine present.
 
 \paragraph{The cost moves to the write side.} This is not a free lunch, and the
 evaluation must not pretend otherwise. Where existence collapses an element's
@@ -950,8 +1022,7 @@ an honest description of the trade only if it travels with what the charge
 bought. A reader who needs a snapshot cannot take this engine and economize ---
 they need a different engine. The comparison holds where the guarantee classes
 match, as they do against existence structures (\cref{sec:costcomparison}); a
-comparison against RLU crosses classes and we say so wherever we make one
-(\cref{sec:related}).
+comparison against RLU crosses them (\cref{sec:related}).
 
 % ---------------------------------------------------------------------------
 % GUARDRAIL (do not delete in an editing pass).
@@ -1369,7 +1440,8 @@ ABIs.
 The tag is the whole of the engine's presence in a reader's world. There is no
 header, no side table, no per-element field --- the marker occupies bits of a
 word the structure already had and the reader already loads. That is why
-\cref{tab:comparison}'s last row reads zero, and it is why the structure a
+\cref{tab:comparison}'s last row reads zero in the loads column, and it is why
+the structure a
 reader traverses in the steady state is byte-for-byte the one it would traverse
 with no engine linked at all.
 

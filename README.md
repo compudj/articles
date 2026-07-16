@@ -91,6 +91,34 @@ memory", "transactional boosting") and when contrasting with the general notion.
 - Memory safety is unconditional. **Atomicity is conditional** on embedder
   contracts that are only opt-in checkable. Say so.
 
+**Say "read-side critical section", not "read-side bracket".** It is the term
+McKenney and the urcu source use ("Exit an RCU read-side critical section"); a
+private synonym just makes the reader translate. Keep "bracket" for the
+*writer's* `init..commit` transaction bracket, which is a different thing and is
+what the engine's own docs call it. Note the distinction this buys in §3.4: a
+reader *does* have a critical section — it keeps objects alive — but a critical
+section is not a transaction, because it does not make the loads inside it a
+unit.
+
+**Read-side cost claims are about *loads*, not instructions.** The tag test is a
+mask on a register plus one predicted branch: no load, but not free. Every
+design in Table 1 branches — existence, RLU, MV-RLU, and this one — so the
+branch is *not* where the comparison is decided, and implying otherwise is
+unfair in our favour. What is ours alone is that the operand is already in a
+register while everyone else must load theirs first. Say "no extra load", never
+"charges the reader nothing".
+
+**Do not append pledges of honesty to sentences.** "…and we say where", "…and we
+say so", "…and we say what happens when it is not" — the paper *demonstrates*
+that it names its costs; announcing it is weaker than doing it, and it reads as
+defensive. Usually the pledge is redundant too: "the cost moves to the writer,
+in the width of a commit, and we say where" had already said where. Either state
+the fact (`silently commits stale pointers when it is not`), state the
+convention impersonally (`properties that hold only under exclusion are marked
+where they appear`), or just `\cref` the section that handles it. This is a
+recurring tic, caught twice on review; bare "we" is fine where it does real work
+("we describe", "we have not found", "this is why we say *pseudo-transaction*").
+
 Overclaiming here is the single most damaging error available to this series —
 it is what a reviewer punishes and what makes a defensive disclosure weaker,
 not stronger.
