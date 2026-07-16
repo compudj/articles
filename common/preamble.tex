@@ -1,0 +1,88 @@
+% Shared preamble for the urcu-txn paper series.
+% Included by each paper's main.tex AFTER \documentclass.
+%
+% Deliberately targets what arXiv's AutoTeX accepts:
+%   - pdflatex (arXiv default is TeX Live 2025, matching our local install)
+%   - natbib + bibtex, with the generated .bbl committed alongside the source
+%     (biblatex .bbl is version-locked to the biblatex/biber pair; natbib's
+%     is not, so natbib is the lower-risk path even though arXiv now runs
+%     both backends)
+%   - pgfplots reading CSV directly, so plot data ships inside the submission
+%     and no external plotting toolchain is needed to rebuild a figure
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{xspace}
+\usepackage{xcolor}
+
+% This series is dense with long, unbreakable C identifiers
+% (cds_list_for_each_entry_reverse, -DURCU_TXN_SW_EXCL_VALIDATE), which TeX
+% cannot hyphenate and will happily shove into the margin. emergencystretch
+% lets it loosen interword spacing as a last resort instead.
+%
+% Why not hyphenate typewriter text (\usepackage[htt]{hyphenat}): a hyphen
+% inside a C identifier is ambiguous -- the reader cannot tell whether it is
+% part of the name. A slightly loose line is a much cheaper defect than an
+% identifier the reader has to guess at, in a paper whose point is enablement.
+\setlength{\emergencystretch}{3em}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{siunitx}
+
+\usepackage{tikz}
+% positioning: `above=2mm of foo`. Without it TikZ parses "of" as a math
+% operator and dies with an opaque PGF Math Error rather than a missing-library
+% message, so load it up front.
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\usepackage{listings}
+
+\usepackage[numbers,sort&compress]{natbib}
+
+% hyperref late, cleveref last.
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+\usepackage{cleveref}
+
+% ---------------------------------------------------------------------------
+% C listings style, for the API and pseudocode excerpts. Enablement is the
+% point of a defensive publication, so code excerpts are first-class content
+% and must stay legible in print.
+% ---------------------------------------------------------------------------
+\lstdefinestyle{c}{
+  language=C,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{gray!70!black},
+  stringstyle=\color{black},
+  numbers=none,
+  frame=none,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  captionpos=b,
+  morekeywords={uint64_t,uintptr_t,bool,struct,static,inline,_Atomic},
+}
+\lstset{style=c}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{invariant}{Invariant}
+\theoremstyle{remark}
+\newtheorem{property}{Property}

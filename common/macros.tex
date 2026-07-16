@@ -1,0 +1,89 @@
+% Shared macros for the urcu-txn paper series.
+% Included by each paper's main.tex via \input{../common/macros}.
+%
+% Keep this class-agnostic: nothing here may assume `article`, so that a paper
+% can be retargeted to acmart/IEEEtran by changing only its own preamble.
+
+% ---------------------------------------------------------------------------
+% Terminology.
+%
+% These exist so the series says the same thing the same way every time, and so
+% that a terminology decision is changed in one place. The guarantee wording is
+% load-bearing: this engine is NOT STM and is NOT serializable. See
+% \pseudotxn below and the note in README.md.
+% ---------------------------------------------------------------------------
+\newcommand{\pseudotxn}{pseudo-transaction\xspace}
+\newcommand{\pseudotxns}{pseudo-transactions\xspace}
+\newcommand{\mcas}{MCAS\xspace}
+\newcommand{\kcas}{$k$-CAS\xspace}
+\newcommand{\rcu}{RCU\xspace}
+\newcommand{\QSBR}{QSBR\xspace}
+\newcommand{\urcu}{userspace RCU\xspace}
+\newcommand{\sw}{single-writer\xspace}
+\newcommand{\mw}{multi-writer\xspace}
+\newcommand{\fliplatch}{flip-latch\xspace}
+\newcommand{\ryw}{read-your-own-writes\xspace}
+
+% Engine identifiers.
+\newcommand{\urcutxn}{\texttt{urcu-txn}\xspace}
+\newcommand{\rcumcas}{\texttt{rcu-mcas}\xspace}
+\newcommand{\rcutxnsw}{\texttt{rcu-txn-sw}\xspace}
+
+% ---------------------------------------------------------------------------
+% Code and identifiers.
+% ---------------------------------------------------------------------------
+% \code offers TeX no place to break, and this series is dense with identifiers
+% long enough to overflow a line on their own (cds_list_for_each_entry_reverse,
+% -DURCU_TXN_SW_EXCL_VALIDATE). Two of them in one sentence is enough to push
+% text into the margin no matter how the surrounding prose is stretched.
+%
+% Since every such identifier already writes its underscores as \_, redefining
+% \_ locally gives TeX a legal breakpoint after each one -- silently, with NO
+% hyphen. That last part is the whole reason not to reach for hyphenat's [htt]
+% option instead: a hyphen inside a C identifier is ambiguous, and the reader
+% cannot tell whether it belongs to the name. For a paper whose purpose is
+% enablement, an identifier someone has to guess at is a real defect; a slightly
+% loose line is not.
+%
+% Scoped to \texttt's own group, so \_ keeps its normal meaning everywhere else.
+%
+% \let, not \renewcommand, and \DeclareRobustCommand, not \newcommand: \code is
+% used inside \caption, which is a MOVING argument (written to the .aux and
+% re-read). A fragile \code expands there and the \renewcommand form dies with
+% "Argument of \caption@ydblarg has an extra }" -- a fatal error whose message
+% names neither \code nor the caption it came from.
+\newcommand{\codeunderscore}{\textunderscore\allowbreak}
+\DeclareRobustCommand{\code}[1]{\texttt{\let\_\codeunderscore #1}}
+\DeclareRobustCommand{\fn}[1]{\code{#1()}}
+
+% A record in a transaction's write set: {slot, old, new}.
+\newcommand{\record}[3]{$\{#1,\,#2 \rightarrow #3\}$}
+% An edit on one slot, old to new.
+\newcommand{\edit}[2]{$#1 \rightarrow #2$}
+
+% Transaction status values.
+\newcommand{\UNDECIDED}{\textsc{undecided}\xspace}
+\newcommand{\SUCCEEDED}{\textsc{succeeded}\xspace}
+\newcommand{\FAILED}{\textsc{failed}\xspace}
+\newcommand{\ABORT}{\textsc{abort}\xspace}
+
+% ---------------------------------------------------------------------------
+% Editorial markers. Define \draftmode in the preamble to make these visible;
+% they vanish in a submission build. Never ship with \draftmode set.
+% ---------------------------------------------------------------------------
+\newif\ifdraftmode
+\draftmodefalse
+
+% These use \color/\bfseries SWITCHES inside a group rather than
+% \textcolor{}{}/\textbf{}, whose arguments are short: an editorial note
+% spanning a blank line would otherwise die with "Paragraph ended before
+% \@textcolor was complete". Notes routinely span paragraphs, so the switch
+% form is the only one that survives real use.
+\newcommand{\marker}[3]{\ifdraftmode{\color{#1}\bfseries[#2: #3]}\fi}
+
+\newcommand{\TODO}[1]{\marker{red}{TODO}{#1}}
+\newcommand{\NOTE}[1]{\marker{blue}{NOTE}{#1}}
+% Claims needing a citation before submission.
+\newcommand{\NEEDCITE}[1]{\marker{orange}{CITE}{#1}}
+% Numbers currently sourced from source comments rather than a reproducible run.
+\newcommand{\UNVERIFIED}[1]{\marker{purple}{UNVERIFIED}{#1}}

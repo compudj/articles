@@ -1,0 +1,1367 @@
+% ===========================================================================
+% urcu-txn.bib -- shared bibliography for the urcu-txn paper series.
+%
+% Referenced by every paper in this repository as \bibliography{../common/urcu-txn}
+% (make arxiv rewrites the path to \bibliography{urcu-txn} when flattening the
+% submission tree). Style: natbib + bibtex, plainnat.
+%
+% VERIFICATION POLICY
+% -------------------
+% Every entry below was checked against a primary or authoritative source
+% before being added. Entries whose BibTeX was exported from DBLP carry a
+% "verified:" comment naming the DBLP record. Entries not in DBLP (theses,
+% technical reports, web documents) carry a comment naming the source that
+% was actually fetched and read. Nothing here is reconstructed from memory.
+%
+% UNVERIFIED ENTRIES: none.
+%
+% Two entries are worth calling out as *not* DBLP-backed, though both were
+% verified against primary sources:
+%   - mckenney1998rcu   : PDCS'98 is not indexed by DBLP. Title, authors and
+%                         author order were read off the authors' own proof PDF;
+%                         the page range (509--518) was taken from the reference
+%                         list of desnoyers2012urcu, which cites it directly.
+%   - baskins2002judy / silverstein2002judymanual : Judy was never published as
+%                         a paper. Both documents were fetched and read.
+%
+% CONVENTIONS
+% -----------
+%   - Keys are <firstauthor><year><shorttopic>, all lowercase.
+%   - DOIs are recorded lowercase, matching the resolver URL.
+%   - Sections below mirror the areas the series draws on.
+%   - The PATENTS / PRIOR ART section at the end of this file records granted
+%     U.S. patents rather than literature. Each entry carries its filing and
+%     grant dates, assignee, term-expiration date and legal status as read off
+%     the public record, plus a plain-language summary of claim 1. Status
+%     fields are point-in-time observations, not legal conclusions -- see the
+%     section preamble for the caveats that apply to them.
+%   - Never put a bare at-sign in a comment -- not in an email address, and not
+%     when naming an entry type in prose. BibTeX scans for the at-sign even
+%     inside comment lines and tries to parse what follows as an entry type,
+%     emitting "immediately follows an entry type" errors and skipping input.
+%     Write email addresses as "user at host", and name entry types without the
+%     sigil ("a misc entry"). This matters more than it looks: paper.mk runs
+%     bibtex with a leading '-', so such errors do NOT fail the build -- they
+%     can silently drop entries. Keep this file bibtex-clean; a run over this
+%     file must report zero error messages.
+% ===========================================================================
+
+
+% ===== MCAS / k-CAS / DESCRIPTORS =====
+
+% verified: dblp.org/rec/conf/wdag/HarrisFP02
+% This is also the paper that introduces RDCSS (restricted double-compare
+% single-swap), used as the building block for the MCAS construction; there is
+% no separate RDCSS publication to cite.
+@inproceedings{harris2002mcas,
+  author       = {Timothy L. Harris and
+                  Keir Fraser and
+                  Ian A. Pratt},
+  editor       = {Dahlia Malkhi},
+  title        = {A Practical Multi-word Compare-and-Swap Operation},
+  booktitle    = {Distributed Computing, 16th International Conference, {DISC} 2002,
+                  Toulouse, France, October 28-30, 2002, Proceedings},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {2508},
+  pages        = {265--279},
+  publisher    = {Springer},
+  year         = {2002},
+  doi          = {10.1007/3-540-36108-1\_18},
+  url          = {https://doi.org/10.1007/3-540-36108-1\_18}
+}
+
+% verified: dblp.org/rec/phd/ethos/Fraser04, cross-checked against the
+% University of Cambridge Computer Laboratory technical report page
+% (https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.html), which states the
+% report is based on a dissertation submitted September 2003 to King's College,
+% Cambridge, and was issued as UCAM-CL-TR-579 in February 2004.
+% This thesis contains OSTM (object-based software transactional memory).
+@phdthesis{fraser2004lockfreedom,
+  author       = {Keir Fraser},
+  title        = {Practical Lock-Freedom},
+  school       = {University of Cambridge, Computer Laboratory},
+  year         = {2004},
+  month        = feb,
+  note         = {Technical Report UCAM-CL-TR-579; dissertation submitted September 2003},
+  url          = {https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf}
+}
+
+% verified: dblp.org/rec/journals/tocs/FraserH07
+% Journal generalisation of harris2002mcas and fraser2004lockfreedom; covers
+% MCAS, OSTM and lock-free list/skip-list constructions. TOCS 25(2), article 5.
+@article{fraser2007locks,
+  author       = {Keir Fraser and
+                  Tim Harris},
+  title        = {Concurrent Programming Without Locks},
+  journal      = {{ACM} Transactions on Computer Systems},
+  volume       = {25},
+  number       = {2},
+  pages        = {5},
+  year         = {2007},
+  doi          = {10.1145/1233307.1233309},
+  url          = {https://doi.org/10.1145/1233307.1233309}
+}
+
+% verified: dblp.org/rec/journals/ijpp/Sundell11
+% Earliest of the two wait-free MCAS results cited here; conference version was
+% PDPTA 2009, pp. 494--500.
+@article{sundell2011waitfreemcas,
+  author       = {H{\aa}kan Sundell},
+  title        = {Wait-Free Multi-Word Compare-and-Swap Using Greedy Helping and Grabbing},
+  journal      = {International Journal of Parallel Programming},
+  volume       = {39},
+  number       = {6},
+  pages        = {694--716},
+  year         = {2011},
+  doi          = {10.1007/s10766-011-0167-4},
+  url          = {https://doi.org/10.1007/s10766-011-0167-4}
+}
+
+% verified: dblp.org/rec/journals/ijpp/FeldmanLD15
+% This is the "Feldman et al. multi-word CAS" work AND a wait-free k-CAS
+% result -- one paper, not two.
+@article{feldman2015waitfreemcas,
+  author       = {Steven D. Feldman and
+                  Pierre LaBorde and
+                  Damian Dechev},
+  title        = {A Wait-Free Multi-Word Compare-and-Swap Operation},
+  journal      = {International Journal of Parallel Programming},
+  volume       = {43},
+  number       = {4},
+  pages        = {572--596},
+  year         = {2015},
+  doi          = {10.1007/s10766-014-0308-7},
+  url          = {https://doi.org/10.1007/s10766-014-0308-7}
+}
+
+% verified: dblp.org/rec/conf/wdag/Arbel-Raviv017
+% Descriptor reuse rather than recycling. Preprint: arXiv:1708.01797.
+@inproceedings{arbelraviv2017descriptors,
+  author       = {Maya Arbel{-}Raviv and
+                  Trevor Brown},
+  editor       = {Andr{\'{e}}a W. Richa},
+  title        = {Reuse, Don't Recycle: Transforming Lock-Free Algorithms That Throw
+                  Away Descriptors},
+  booktitle    = {31st International Symposium on Distributed Computing, {DISC} 2017,
+                  Vienna, Austria, October 16-20, 2017},
+  series       = {LIPIcs},
+  volume       = {91},
+  pages        = {4:1--4:16},
+  publisher    = {Schloss Dagstuhl - Leibniz-Zentrum f{\"{u}}r Informatik},
+  year         = {2017},
+  doi          = {10.4230/LIPIcs.DISC.2017.4},
+  url          = {https://doi.org/10.4230/LIPIcs.DISC.2017.4}
+}
+
+% verified: dblp.org/rec/conf/wdag/GuerraouiKMZ20
+% Not in the original request, but this is the current reference point for
+% low-overhead k-CAS and the natural baseline for a sole-driver MCAS engine.
+% Preprint: arXiv:2008.02527.
+@inproceedings{guerraoui2020mcas,
+  author       = {Rachid Guerraoui and
+                  Alex Kogan and
+                  Virendra J. Marathe and
+                  Igor Zablotchi},
+  editor       = {Hagit Attiya},
+  title        = {Efficient Multi-Word Compare and Swap},
+  booktitle    = {34th International Symposium on Distributed Computing, {DISC} 2020,
+                  Virtual Conference, October 12-16, 2020},
+  series       = {LIPIcs},
+  volume       = {179},
+  pages        = {4:1--4:19},
+  publisher    = {Schloss Dagstuhl - Leibniz-Zentrum f{\"{u}}r Informatik},
+  year         = {2020},
+  doi          = {10.4230/LIPIcs.DISC.2020.4},
+  url          = {https://doi.org/10.4230/LIPIcs.DISC.2020.4}
+}
+
+
+% ===== RCU =====
+
+% verified: not indexed by DBLP (PDCS'98 has no DBLP coverage).
+%   - Title, author list and author order (McKenney first, Slingwine second)
+%     read from the authors' proof PDF:
+%     http://www.rdrop.com/~paulmck/scalability/paper/rclockpdcsproof.pdf
+%   - Venue, location, month and pages (509--518) taken from the reference list
+%     of desnoyers2012urcu, which cites this paper as reference [12]:
+%     https://www.efficios.com/pub/rcu/urcu-supp.pdf
+@inproceedings{mckenney1998rcu,
+  author       = {Paul E. McKenney and
+                  John D. Slingwine},
+  title        = {Read-Copy Update: Using Execution History to Solve Concurrency
+                  Problems},
+  booktitle    = {Parallel and Distributed Computing and Systems},
+  address      = {Las Vegas, NV, USA},
+  pages        = {509--518},
+  year         = {1998},
+  month        = oct,
+  url          = {http://www.rdrop.com/~paulmck/scalability/paper/rclockpdcsproof.pdf}
+}
+
+% verified: dblp.org/rec/journals/tpds/DesnoyersMSDW12
+@article{desnoyers2012urcu,
+  author       = {Mathieu Desnoyers and
+                  Paul E. McKenney and
+                  Alan S. Stern and
+                  Michel R. Dagenais and
+                  Jonathan Walpole},
+  title        = {User-Level Implementations of Read-Copy Update},
+  journal      = {{IEEE} Transactions on Parallel and Distributed Systems},
+  volume       = {23},
+  number       = {2},
+  pages        = {375--382},
+  year         = {2012},
+  doi          = {10.1109/TPDS.2011.159},
+  url          = {https://doi.org/10.1109/TPDS.2011.159}
+}
+
+% verified: arXiv API record for 1701.00854 (primary category cs.DC).
+% DBLP's record (journals/corr/McKenney17) pins the original v1 title
+% "(v2017.01.02a)"; the arXiv listing has moved on to v6, "Release v2023.06.11a",
+% updated 2023-06-12. Cited here at the current release rather than v1.
+@misc{mckenney2023perfbook,
+  author       = {Paul E. McKenney},
+  title        = {Is Parallel Programming Hard, And, If So, What Can You Do About It?
+                  (Release v2023.06.11a)},
+  year         = {2023},
+  eprint       = {1701.00854},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.DC},
+  howpublished = {arXiv:1701.00854},
+  url          = {https://arxiv.org/abs/1701.00854}
+}
+
+% verified: dblp.org/rec/journals/jpdc/HartMBW07
+% Note the venue is JPDC, not a conference; the third author's indexed name is
+% Angela Demke Brown.
+@article{hart2007reclamation,
+  author       = {Thomas E. Hart and
+                  Paul E. McKenney and
+                  Angela Demke Brown and
+                  Jonathan Walpole},
+  title        = {Performance of Memory Reclamation for Lockless Synchronization},
+  journal      = {Journal of Parallel and Distributed Computing},
+  volume       = {67},
+  number       = {12},
+  pages        = {1270--1285},
+  year         = {2007},
+  doi          = {10.1016/j.jpdc.2007.04.010},
+  url          = {https://doi.org/10.1016/j.jpdc.2007.04.010}
+}
+
+% verified: dblp.org/rec/journals/tpds/Michael04
+@article{michael2004hazard,
+  author       = {Maged M. Michael},
+  title        = {Hazard Pointers: Safe Memory Reclamation for Lock-Free Objects},
+  journal      = {{IEEE} Transactions on Parallel and Distributed Systems},
+  volume       = {15},
+  number       = {6},
+  pages        = {491--504},
+  year         = {2004},
+  doi          = {10.1109/TPDS.2004.8},
+  url          = {https://doi.org/10.1109/TPDS.2004.8}
+}
+
+
+% ===== STM / TRANSACTIONAL MEMORY =====
+
+% verified: dblp.org/rec/conf/podc/ShavitT95
+% Journal version: Distributed Computing 10(2):99--116, 1997,
+% doi:10.1007/s004460050028 (dblp.org/rec/journals/dc/ShavitT97).
+@inproceedings{shavit1995stm,
+  author       = {Nir Shavit and
+                  Dan Touitou},
+  editor       = {James H. Anderson},
+  title        = {Software Transactional Memory},
+  booktitle    = {Proceedings of the Fourteenth Annual {ACM} Symposium on Principles
+                  of Distributed Computing, {PODC} 1995, Ottawa, Ontario, Canada,
+                  August 20-23, 1995},
+  pages        = {204--213},
+  publisher    = {{ACM}},
+  year         = {1995},
+  doi          = {10.1145/224964.224987},
+  url          = {https://doi.org/10.1145/224964.224987}
+}
+
+% verified: dblp.org/rec/conf/podc/HerlihyLMS03
+% DSTM. Fourth author is indexed as "William N. Scherer III".
+@inproceedings{herlihy2003dstm,
+  author       = {Maurice Herlihy and
+                  Victor Luchangco and
+                  Mark Moir and
+                  William N. Scherer III},
+  editor       = {Elizabeth Borowsky and
+                  Sergio Rajsbaum},
+  title        = {Software Transactional Memory for Dynamic-Sized Data Structures},
+  booktitle    = {Proceedings of the Twenty-Second {ACM} Symposium on Principles of
+                  Distributed Computing, {PODC} 2003, Boston, Massachusetts, USA,
+                  July 13-16, 2003},
+  pages        = {92--101},
+  publisher    = {{ACM}},
+  year         = {2003},
+  doi          = {10.1145/872035.872048},
+  url          = {https://doi.org/10.1145/872035.872048}
+}
+
+% verified: dblp.org/rec/conf/ppopp/GuerraouiK08
+% This is the opacity paper. Cite it when stating what this engine does NOT
+% provide -- see the series framing rule.
+@inproceedings{guerraoui2008opacity,
+  author       = {Rachid Guerraoui and
+                  Michal Kapalka},
+  editor       = {Siddhartha Chatterjee and
+                  Michael L. Scott},
+  title        = {On the Correctness of Transactional Memory},
+  booktitle    = {Proceedings of the 13th {ACM} {SIGPLAN} Symposium on Principles and
+                  Practice of Parallel Programming, {PPoPP} 2008, Salt Lake City, UT,
+                  USA, February 20-23, 2008},
+  pages        = {175--184},
+  publisher    = {{ACM}},
+  year         = {2008},
+  doi          = {10.1145/1345206.1345233},
+  url          = {https://doi.org/10.1145/1345206.1345233}
+}
+
+% verified: dblp.org/rec/conf/spaa/GuerraouiK08
+% Distinct from guerraoui2008opacity: same authors, same year, different venue.
+@inproceedings{guerraoui2008obstructionfree,
+  author       = {Rachid Guerraoui and
+                  Michal Kapalka},
+  editor       = {Friedhelm Meyer auf der Heide and
+                  Nir Shavit},
+  title        = {On Obstruction-Free Transactions},
+  booktitle    = {{SPAA} 2008: Proceedings of the 20th Annual {ACM} Symposium on
+                  Parallelism in Algorithms and Architectures, Munich, Germany,
+                  June 14-16, 2008},
+  pages        = {304--313},
+  publisher    = {{ACM}},
+  year         = {2008},
+  doi          = {10.1145/1378533.1378587},
+  url          = {https://doi.org/10.1145/1378533.1378587}
+}
+
+% verified: dblp.org/rec/conf/ppopp/HerlihyK08
+@inproceedings{herlihy2008boosting,
+  author       = {Maurice Herlihy and
+                  Eric Koskinen},
+  editor       = {Siddhartha Chatterjee and
+                  Michael L. Scott},
+  title        = {Transactional Boosting: A Methodology for Highly-Concurrent
+                  Transactional Objects},
+  booktitle    = {Proceedings of the 13th {ACM} {SIGPLAN} Symposium on Principles and
+                  Practice of Parallel Programming, {PPoPP} 2008, Salt Lake City, UT,
+                  USA, February 20-23, 2008},
+  pages        = {207--216},
+  publisher    = {{ACM}},
+  year         = {2008},
+  doi          = {10.1145/1345206.1345237},
+  url          = {https://doi.org/10.1145/1345206.1345237}
+}
+
+
+% ===== CORRECTNESS / PROGRESS =====
+
+% verified: dblp.org/rec/journals/toplas/HerlihyW90
+@article{herlihy1990linearizability,
+  author       = {Maurice Herlihy and
+                  Jeannette M. Wing},
+  title        = {Linearizability: A Correctness Condition for Concurrent Objects},
+  journal      = {{ACM} Transactions on Programming Languages and Systems},
+  volume       = {12},
+  number       = {3},
+  pages        = {463--492},
+  year         = {1990},
+  doi          = {10.1145/78969.78972},
+  url          = {https://doi.org/10.1145/78969.78972}
+}
+
+% verified: dblp.org/rec/journals/toplas/Herlihy91
+% Earlier conference form: "Impossibility and Universality Results for Wait-Free
+% Synchronization", PODC 1988, pp. 276--290, doi:10.1145/62546.62593.
+@article{herlihy1991waitfree,
+  author       = {Maurice Herlihy},
+  title        = {Wait-Free Synchronization},
+  journal      = {{ACM} Transactions on Programming Languages and Systems},
+  volume       = {13},
+  number       = {1},
+  pages        = {124--149},
+  year         = {1991},
+  doi          = {10.1145/114005.102808},
+  url          = {https://doi.org/10.1145/114005.102808}
+}
+
+
+% ===== RLU =====
+
+% verified: dblp.org/rec/conf/sosp/MatveevSFM15
+@inproceedings{matveev2015rlu,
+  author       = {Alexander Matveev and
+                  Nir Shavit and
+                  Pascal Felber and
+                  Patrick Marlier},
+  editor       = {Ethan L. Miller and
+                  Steven Hand},
+  title        = {Read-Log-Update: A Lightweight Synchronization Mechanism for
+                  Concurrent Programming},
+  booktitle    = {Proceedings of the 25th Symposium on Operating Systems Principles,
+                  {SOSP} 2015, Monterey, CA, USA, October 4-7, 2015},
+  pages        = {168--183},
+  publisher    = {{ACM}},
+  year         = {2015},
+  doi          = {10.1145/2815400.2815406},
+  url          = {https://doi.org/10.1145/2815400.2815406}
+}
+% verified: dblp.org/rec/conf/asplos/KimMKRM19
+% The multi-versioned successor to RLU, addressing RLU's synchronous writeback:
+% RLU quiesces writers to reclaim old versions, which serialises the write side
+% under churn. MV-RLU keeps multiple versions and reclaims them concurrently.
+%
+% Relevance: RLU and MV-RLU attack the same problem as this engine -- atomic
+% multi-pointer update with concurrent readers -- and both provide a COHERENT
+% SNAPSHOT, which is strictly stronger than what a pseudo-transaction gives.
+% They buy it the same way existence structures do: per-object metadata (the RLU
+% header) plus a check on every rlu_dereference(). Any comparison against RLU is
+% therefore across guarantee classes and must say so in the text; the comparison
+% against existence structures is class-matched and needs no such asterisk.
+% MV-RLU specifically is the arm a reviewer will ask about, since it relieves
+% precisely the writeback bottleneck that our RLU-defer numbers exercise.
+@inproceedings{kim2019mvrlu,
+  author       = {Jaeho Kim and
+                  Ajit Mathew and
+                  Sanidhya Kashyap and
+                  Madhava Krishnan Ramanathan and
+                  Changwoo Min},
+  editor       = {Iris Bahar and
+                  Maurice Herlihy and
+                  Emmett Witchel and
+                  Alvin R. Lebeck},
+  title        = {{MV-RLU:} Scaling Read-Log-Update with Multi-Versioning},
+  booktitle    = {Proceedings of the Twenty-Fourth International Conference on Architectural
+                  Support for Programming Languages and Operating Systems, {ASPLOS}
+                  2019, Providence, RI, USA, April 13-17, 2019},
+  pages        = {779--792},
+  publisher    = {{ACM}},
+  year         = {2019},
+  doi          = {10.1145/3297858.3304040},
+  url          = {https://doi.org/10.1145/3297858.3304040}
+}
+
+
+
+% ===== LOCKS =====
+
+% verified: dblp.org/rec/journals/tocs/Mellor-CrummeyS91
+% The MCS lock paper. TOCS 9(1):21--65.
+@article{mellorcrummey1991mcs,
+  author       = {John M. Mellor{-}Crummey and
+                  Michael L. Scott},
+  title        = {Algorithms for Scalable Synchronization on Shared-Memory
+                  Multiprocessors},
+  journal      = {{ACM} Transactions on Computer Systems},
+  volume       = {9},
+  number       = {1},
+  pages        = {21--65},
+  year         = {1991},
+  doi          = {10.1145/103727.103729},
+  url          = {https://doi.org/10.1145/103727.103729}
+}
+
+% verified: dblp.org/rec/conf/ppopp/CalciuDLLMS13
+% This IS the C-RW-WP paper: the writer-preference cohort reader-writer lock is
+% named and given in pseudo-code as Figure 5 of this paper, alongside its
+% siblings C-RW-NP (neutral) and C-RW-RP (reader preference). Confirmed against
+% the authors' PDF: https://cs.brown.edu/~irina/papers/ppopp13.pdf
+@inproceedings{calciu2013numarwlocks,
+  author       = {Irina Calciu and
+                  David Dice and
+                  Yossi Lev and
+                  Victor Luchangco and
+                  Virendra J. Marathe and
+                  Nir Shavit},
+  editor       = {Alex Nicolau and
+                  Xiaowei Shen and
+                  Saman P. Amarasinghe and
+                  Richard W. Vuduc},
+  title        = {{NUMA}-Aware Reader-Writer Locks},
+  booktitle    = {{ACM} {SIGPLAN} Symposium on Principles and Practice of Parallel
+                  Programming, PPoPP '13, Shenzhen, China, February 23-27, 2013},
+  pages        = {157--166},
+  publisher    = {{ACM}},
+  year         = {2013},
+  doi          = {10.1145/2442516.2442532},
+  url          = {https://doi.org/10.1145/2442516.2442532}
+}
+
+
+% ===== DATA STRUCTURES =====
+
+% verified: dblp.org/rec/conf/icde/LeisK013
+@inproceedings{leis2013art,
+  author       = {Viktor Leis and
+                  Alfons Kemper and
+                  Thomas Neumann},
+  editor       = {Christian S. Jensen and
+                  Christopher M. Jermaine and
+                  Xiaofang Zhou},
+  title        = {The Adaptive Radix Tree: {ARTful} Indexing for Main-Memory Databases},
+  booktitle    = {29th {IEEE} International Conference on Data Engineering, {ICDE} 2013,
+                  Brisbane, Australia, April 8-12, 2013},
+  pages        = {38--49},
+  publisher    = {{IEEE} Computer Society},
+  year         = {2013},
+  doi          = {10.1109/ICDE.2013.6544812},
+  url          = {https://doi.org/10.1109/ICDE.2013.6544812}
+}
+
+% verified: dblp.org/rec/conf/damon/LeisSK016
+% ART-OLC *and* ART-ROWEX are BOTH from this single paper -- there is no
+% separate ROWEX publication. Confirmed against the authors' PDF
+% (https://db.in.tum.de/~leis/papers/artsync.pdf), whose abstract reads:
+% "We synchronize the Adaptive Radix Tree (ART) using two such protocols,
+%  Optimistic Lock Coupling and Read-Optimized Write EXclusion (ROWEX)."
+@inproceedings{leis2016artsync,
+  author       = {Viktor Leis and
+                  Florian Scheibner and
+                  Alfons Kemper and
+                  Thomas Neumann},
+  title        = {The {ART} of Practical Synchronization},
+  booktitle    = {Proceedings of the 12th International Workshop on Data Management
+                  on New Hardware, DaMoN 2016, San Francisco, CA, USA, June 27, 2016},
+  pages        = {3:1--3:8},
+  publisher    = {{ACM}},
+  year         = {2016},
+  doi          = {10.1145/2933349.2933352},
+  url          = {https://doi.org/10.1145/2933349.2933352}
+}
+
+% verified: dblp.org/rec/conf/eurosys/MaoKM12
+% Masstree.
+@inproceedings{mao2012masstree,
+  author       = {Yandong Mao and
+                  Eddie Kohler and
+                  Robert Tappan Morris},
+  editor       = {Pascal Felber and
+                  Frank Bellosa and
+                  Herbert Bos},
+  title        = {Cache Craftiness for Fast Multicore Key-Value Storage},
+  booktitle    = {European Conference on Computer Systems, Proceedings of the Seventh
+                  EuroSys Conference 2012, EuroSys '12, Bern, Switzerland,
+                  April 10-13, 2012},
+  pages        = {183--196},
+  publisher    = {{ACM}},
+  year         = {2012},
+  doi          = {10.1145/2168836.2168855},
+  url          = {https://doi.org/10.1145/2168836.2168855}
+}
+
+% verified: dblp.org/rec/conf/eurosys/WuNJ19
+% CAUTION: the arXiv:1805.02200 metadata carries an author-supplied DOI of
+% 10.1145/1810479.1810540, which belongs to an unrelated 2010 paper. The DOI
+% below is the real EuroSys 2019 one, from DBLP and the ACM DL.
+@inproceedings{wu2019wormhole,
+  author       = {Xingbo Wu and
+                  Fan Ni and
+                  Song Jiang},
+  editor       = {George Candea and
+                  Robbert van Renesse and
+                  Christof Fetzer},
+  title        = {Wormhole: A Fast Ordered Index for In-Memory Data Management},
+  booktitle    = {Proceedings of the Fourteenth EuroSys Conference 2019, Dresden,
+                  Germany, March 25-28, 2019},
+  pages        = {18:1--18:16},
+  publisher    = {{ACM}},
+  year         = {2019},
+  doi          = {10.1145/3302424.3303955},
+  url          = {https://doi.org/10.1145/3302424.3303955},
+  note         = {Preprint: arXiv:1805.02200}
+}
+
+% verified: dblp.org/rec/conf/sigmod/BinnaZPSL18
+@inproceedings{binna2018hot,
+  author       = {Robert Binna and
+                  Eva Zangerle and
+                  Martin Pichl and
+                  G{\"{u}}nther Specht and
+                  Viktor Leis},
+  editor       = {Gautam Das and
+                  Christopher M. Jermaine and
+                  Philip A. Bernstein},
+  title        = {{HOT:} A Height Optimized Trie Index for Main-Memory Database Systems},
+  booktitle    = {Proceedings of the 2018 International Conference on Management of
+                  Data, {SIGMOD} Conference 2018, Houston, TX, USA, June 10-15, 2018},
+  pages        = {521--534},
+  publisher    = {{ACM}},
+  year         = {2018},
+  doi          = {10.1145/3183713.3196896},
+  url          = {https://doi.org/10.1145/3183713.3196896}
+}
+
+% verified: dblp.org/rec/conf/sosp/Zeitak021
+% Preprint: arXiv:2201.09331 (2022, i.e. postdates the SOSP version).
+% Note: this Morrison (Adam) is unrelated to the PATRICIA Morrison (Donald R.).
+@inproceedings{zeitak2021cuckootrie,
+  author       = {Adar Zeitak and
+                  Adam Morrison},
+  editor       = {Robbert van Renesse and
+                  Nickolai Zeldovich},
+  title        = {Cuckoo Trie: Exploiting Memory-Level Parallelism for Efficient
+                  {DRAM} Indexing},
+  booktitle    = {{SOSP} '21: {ACM} {SIGOPS} 28th Symposium on Operating Systems
+                  Principles, Virtual Event / Koblenz, Germany, October 26-29, 2021},
+  pages        = {147--162},
+  publisher    = {{ACM}},
+  year         = {2021},
+  doi          = {10.1145/3477132.3483551},
+  url          = {https://doi.org/10.1145/3477132.3483551}
+}
+
+% verified: dblp.org/rec/journals/cacm/Pugh90
+% DBLP indexes the author as "William W. Pugh". Earlier conference version:
+% WADS 1989, pp. 437--449, doi:10.1007/3-540-51542-9_36.
+@article{pugh1990skiplists,
+  author       = {William Pugh},
+  title        = {Skip Lists: A Probabilistic Alternative to Balanced Trees},
+  journal      = {Communications of the {ACM}},
+  volume       = {33},
+  number       = {6},
+  pages        = {668--676},
+  year         = {1990},
+  doi          = {10.1145/78973.78977},
+  url          = {https://doi.org/10.1145/78973.78977}
+}
+
+% verified: dblp.org/rec/journals/jacm/Morrison68
+@article{morrison1968patricia,
+  author       = {Donald R. Morrison},
+  title        = {{PATRICIA} --- Practical Algorithm To Retrieve Information Coded
+                  in Alphanumeric},
+  journal      = {Journal of the {ACM}},
+  volume       = {15},
+  number       = {4},
+  pages        = {514--534},
+  year         = {1968},
+  doi          = {10.1145/321479.321481},
+  url          = {https://doi.org/10.1145/321479.321481}
+}
+
+% verified: fetched and read https://judy.sourceforge.net/doc/10minutes.htm
+% Header reads: "A 10-MINUTE DESCRIPTION OF HOW JUDY ARRAYS WORK AND WHY THEY
+% ARE SO FAST", Doug Baskins (doug at sourcejudy.com), "October 16, 2001, Revised
+% July 2002". This is the best Baskins-authored citable reference: Judy was
+% never published as a peer-reviewed paper.
+@misc{baskins2002judy,
+  author       = {Doug Baskins},
+  title        = {A 10-Minute Description of How Judy Arrays Work and Why They Are
+                  So Fast},
+  year         = {2002},
+  month        = jul,
+  note         = {Originally October 2001, revised July 2002. Accessed 2026-07-16},
+  url          = {https://judy.sourceforge.net/doc/10minutes.htm}
+}
+
+% verified: fetched https://judy.sourceforge.net/application/shop_interm.pdf and
+% read its title page, which states: "Judy IV Shop Manual / Original author:
+% Alan Silverstein, ajs at fc.hp.com / Last update: 020131 / Quick public excerpts
+% created 020805". The document is marked "HP INTERNAL USE ONLY" and is the
+% public-excerpt release dated 2002-08-05.
+% NOTE: Doug Baskins invented Judy, but this manual is Silverstein's, not his.
+% Cite this for implementation detail; cite baskins2002judy for the idea.
+@techreport{silverstein2002judymanual,
+  author       = {Alan Silverstein},
+  title        = {Judy {IV} Shop Manual},
+  institution  = {Hewlett-Packard},
+  year         = {2002},
+  month        = aug,
+  note         = {Public excerpts released 2002-08-05. Accessed 2026-07-16},
+  url          = {https://judy.sourceforge.net/application/shop_interm.pdf}
+}
+
+% verified: fetched https://dotat.at/prog/qp/tinytocs.pdf and read it. The PDF
+% footer reads "Volume 4 of Tiny Transactions on Computer Science"; the byline
+% is "Tony Finch, University of Cambridge, dot at dotat.at". Mirror:
+% https://tinytocs.ece.utexas.edu/papers/tinytocs4_paper_finch.pdf
+% NOTE: this is a real peer-reviewed (if very short) publication, not a blog
+% post, so it is cited as an article entry rather than misc. Finch's longer prose
+% write-up lives at https://dotat.at/prog/qp/ if a URL cite is also wanted.
+@article{finch2016qptrie,
+  author       = {Tony Finch},
+  title        = {{QP} Tries Are Smaller and Faster Than Crit-Bit Trees},
+  journal      = {Tiny Transactions on Computer Science},
+  volume       = {4},
+  year         = {2016},
+  url          = {https://dotat.at/prog/qp/tinytocs.pdf}
+}
+
+% verified: dblp.org/rec/conf/acsc/AskitisS07
+% No DOI is registered for this paper; the CRPIT abstract page is the canonical
+% landing page. Follow-on journal work by the same authors: "Engineering
+% scalable, cache and space efficient tries for strings", VLDB J. 19(5):633--660,
+% 2010, doi:10.1007/s00778-010-0183-9.
+@inproceedings{askitis2007hattrie,
+  author       = {Nikolas Askitis and
+                  Ranjan Sinha},
+  editor       = {Gillian Dobbie},
+  title        = {{HAT}-Trie: A Cache-Conscious Trie-Based Data Structure for Strings},
+  booktitle    = {Computer Science 2007, Proceedings of the Thirtieth Australasian
+                  Computer Science Conference {(ACSC} 2007), Ballarat, Victoria,
+                  Australia, January 30 - February 2, 2007},
+  series       = {{CRPIT}},
+  volume       = {62},
+  pages        = {97--105},
+  publisher    = {Australian Computer Society},
+  year         = {2007},
+  url          = {http://crpit.scem.westernsydney.edu.au/abstracts/CRPITV62Askitis.html}
+}
+
+
+% ===== BLOOM FILTERS =====
+
+% verified: dblp.org/rec/journals/cacm/Bloom70
+@article{bloom1970filter,
+  author       = {Burton H. Bloom},
+  title        = {Space/Time Trade-offs in Hash Coding with Allowable Errors},
+  journal      = {Communications of the {ACM}},
+  volume       = {13},
+  number       = {7},
+  pages        = {422--426},
+  year         = {1970},
+  doi          = {10.1145/362686.362692},
+  url          = {https://doi.org/10.1145/362686.362692}
+}
+
+% verified: dblp.org/rec/conf/esa/KirschM06
+% ESA 2006 and RSA 2008 are BOTH real: ESA is the conference version, RSA the
+% extended journal version. Prefer kirsch2008lesshashing unless specifically
+% citing the conference.
+@inproceedings{kirsch2006lesshashing,
+  author       = {Adam Kirsch and
+                  Michael Mitzenmacher},
+  editor       = {Yossi Azar and
+                  Thomas Erlebach},
+  title        = {Less Hashing, Same Performance: Building a Better Bloom Filter},
+  booktitle    = {Algorithms - {ESA} 2006, 14th Annual European Symposium, Zurich,
+                  Switzerland, September 11-13, 2006, Proceedings},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {4168},
+  pages        = {456--467},
+  publisher    = {Springer},
+  year         = {2006},
+  doi          = {10.1007/11841036\_42},
+  url          = {https://doi.org/10.1007/11841036\_42}
+}
+
+% verified: dblp.org/rec/journals/rsa/KirschM08
+% Journal version of kirsch2006lesshashing.
+@article{kirsch2008lesshashing,
+  author       = {Adam Kirsch and
+                  Michael Mitzenmacher},
+  title        = {Less Hashing, Same Performance: Building a Better Bloom Filter},
+  journal      = {Random Structures \& Algorithms},
+  volume       = {33},
+  number       = {2},
+  pages        = {187--218},
+  year         = {2008},
+  doi          = {10.1002/rsa.20208},
+  url          = {https://doi.org/10.1002/rsa.20208}
+}
+
+
+% ===== MEMORY MODELS =====
+
+% verified: dblp.org/rec/conf/popl/BattyOSSW11
+% NOTE the title spelling is "Mathematizing" (-z-), not "Mathematising".
+% This is the standard citable formalisation of the C11/C++11 memory model.
+@inproceedings{batty2011cppconcurrency,
+  author       = {Mark Batty and
+                  Scott Owens and
+                  Susmit Sarkar and
+                  Peter Sewell and
+                  Tjark Weber},
+  editor       = {Thomas Ball and
+                  Mooly Sagiv},
+  title        = {Mathematizing {C++} Concurrency},
+  booktitle    = {Proceedings of the 38th {ACM} {SIGPLAN-SIGACT} Symposium on
+                  Principles of Programming Languages, {POPL} 2011, Austin, TX, USA,
+                  January 26-28, 2011},
+  pages        = {55--66},
+  publisher    = {{ACM}},
+  year         = {2011},
+  doi          = {10.1145/1926385.1926394},
+  url          = {https://doi.org/10.1145/1926385.1926394}
+}
+
+% verified: dblp.org/rec/conf/pldi/BoehmA08
+% Not in the original request, but the usual companion cite to
+% batty2011cppconcurrency: the rationale paper for the same memory model.
+@inproceedings{boehm2008memorymodel,
+  author       = {Hans{-}Juergen Boehm and
+                  Sarita V. Adve},
+  editor       = {Rajiv Gupta and
+                  Saman P. Amarasinghe},
+  title        = {Foundations of the {C++} Concurrency Memory Model},
+  booktitle    = {Proceedings of the {ACM} {SIGPLAN} 2008 Conference on Programming
+                  Language Design and Implementation, {PLDI} 2008, Tucson, AZ, USA,
+                  June 7-13, 2008},
+  pages        = {68--78},
+  publisher    = {{ACM}},
+  year         = {2008},
+  doi          = {10.1145/1375581.1375591},
+  url          = {https://doi.org/10.1145/1375581.1375591}
+}
+
+
+% ===== PATENTS / PRIOR ART =====
+%
+% VERIFICATION: every entry below was read off the Google Patents record for
+% the patent in question (patents.google.com/patent/US.../en), fetched
+% 2026-07-16. For each patent the title, inventor list, assignee (original and
+% current), filing date, priority date, grant date, the dated
+% "Anticipated expiration" / "Adjusted expiration" legal-status event, and the
+% current legal-status string were taken from that page's structured metadata.
+% Claim 1 was read from the claims section of the same page. Nothing here is
+% reconstructed from memory, and no field is inferred.
+%
+% HOW TO READ THE STATUS FIELD -- CAVEATS
+% ---------------------------------------
+% All ten patents below currently read "Expired - Fee Related" on Google
+% Patents. That string deserves several qualifications:
+%
+%   1. It is not a primary source. Google Patents mirrors USPTO data; the
+%      authoritative records are USPTO Patent Center / PEDS and the Official
+%      Gazette. Maintenance-fee and reinstatement data reach the mirror with a
+%      lag, so a status string can be stale in both directions.
+%   2. "Expired - Fee Related" means a maintenance fee (due at 3.5, 7.5 and
+%      11.5 years post-grant) went unpaid. It is not always terminal: under
+%      35 U.S.C. 41(c) and 37 C.F.R. 1.378 a lapsed patent can be reinstated
+%      if the delay is shown to have been unintentional. A petition filed
+%      within two years of the lapse is routinely granted; later petitions
+%      require an additional showing. Reinstatement restores the patent for
+%      the remainder of its term, subject to intervening-rights protection for
+%      parties who relied on the lapse (35 U.S.C. 41(c)(2)).
+%   3. Consequently a fee-lapsed patent whose term has NOT yet run is in a
+%      different position from one whose term HAS run. Term expiry is
+%      irreversible; fee lapse may not be. Four of the entries below
+%      (US 7,426,511; US 7,814,082; US 7,873,612; US 7,987,166) have passed
+%      their expiration date as of 2026-07-16 and are spent on both counts.
+%      The other six carry expiration dates from 2029 to 2038 and are lapsed
+%      only for non-payment of fees.
+%   4. The expiration dates recorded here are the "anticipated" or "adjusted"
+%      dates computed by the mirror. They fold in patent term adjustment but
+%      are estimates: terminal disclaimers, further adjustment and the fee
+%      lapse itself can move the true date.
+%
+% These notes describe the public record only. They are not legal advice and
+% carry no opinion on scope, validity or infringement.
+%
+% FAMILY STRUCTURE
+% ----------------
+% The ten patents fall into four families:
+%   - generation-number / cyclic search: US 7,426,511 -> US 7,814,082
+%     (continuation), then US 7,953,778 (parallel updaters), then
+%     US 8,874,535 -> US 9,081,803 (generation-number element).
+%   - atomic move via status-indicating entity: US 9,910,907 -> US 9,910,908
+%     (continuation), then US 10,452,638 (existence headers, separate
+%     priority).
+%   - atomic list move: US 7,873,612, a divisional of application
+%     Ser. No. 10/995,657 (published US 2006/0112121 A1). The divisional
+%     relationship is quoted from the "CROSS REFERENCE TO RELATED
+%     APPLICATIONS" paragraph of US 7,873,612 itself, which describes the
+%     parent as copending as of the 2007 divisional filing. The parent
+%     application appears not to have issued -- no granted patent was found
+%     for Ser. No. 10/995,657, and secondary indexing reports it abandoned --
+%     but that disposition was NOT confirmed against the parent's own record,
+%     which was unreachable at the time of writing. Treat it as unverified.
+%   - atomic file rename: US 7,987,166, a continuation of
+%     Ser. No. 10/813,470, granted as U.S. Patent No. 7,349,926. The parent's
+%     own record was not reachable at the time of writing and is therefore not
+%     given an entry here; the continuation relationship is quoted from the
+%     "RELATED APPLICATIONS" paragraph of US 7,987,166 itself.
+%
+% LEADS RESOLVED 2026-07-16 (entries added below)
+% ----------------------------------------------
+% Both patents that the earlier sweep could not reach (Google Patents was
+% returning HTTP 503) have since been verified and are now recorded as
+% mckenney2008filerename926 and mckenney2010keyupdate851.
+%
+% Source note: Google Patents was still 503 at the retry, and Justia 403s.
+% USPTO's own PDF endpoint (image-ppubs.uspto.gov) serves these as SCANNED
+% IMAGES with no text layer, so pdftotext yields nothing and there is no OCR
+% on this machine. Bibliographic fields and claim 1 were therefore read from
+% freepatentsonline.com, cross-checked against the application serial numbers
+% quoted in the continuation's own text (which independently confirms
+% 7,349,926's Ser. No. 10/813,470 and its 2004-03-30 filing date).
+% Inventor lists: FPO renders these as "McKenney et al." and the full list
+% could not be extracted; 7,349,926's inventors are taken from its own
+% continuation US 7,987,166, which is DBLP-independent but verified.
+% The sweep itself covered 96 patents naming Paul E. McKenney as inventor. A
+% full-text search for "existence group" returned exactly two hits
+% (US 9,910,907 and US 10,452,638) and for "existence structure" exactly one
+% (US 9,910,907), so the existence-group vocabulary appears confined to that
+% single family rather than being spread across the portfolio.
+
+
+% --- Family: generation number / consistent cyclic search ---
+
+% CLAIM 1 (method). An updater publishes a new version of a group data element
+% without locks or atomic instructions, as follows: create the new element;
+% stamp it with a new generation number distinct from the group's global
+% generation number; link the new element to its prior version and the prior
+% version back to it (a two-way version link); splice the new element into the
+% group so readers can reach it; then update the group's single global
+% generation number to the new value; free the prior version and its version
+% links after a grace period. A reader stamps its search with the current
+% global generation number and, on reaching an element whose generation number
+% differs, walks the version links to the version matching its own stamp.
+% Relevance: the global generation number is a single shared word whose update
+% is what makes the new versions current for subsequent readers -- the nearest
+% pre-2015 McKenney analogue of a flip-latch. It differs from a status-word
+% flip in that readers do not test a boolean existence bit; they compare
+% generation numbers and traverse version links to reach a correct version, so
+% old and new versions coexist and are both reachable.
+@misc{mckenney2008cyclicsearch511,
+  author       = {Paul E. McKenney},
+  title        = {Efficient Support of Consistent Cyclic Search with
+                  Read-Copy-Update},
+  howpublished = {U.S. Patent No. 7,426,511},
+  year         = {2008},
+  note         = {Filed 2004-03-08 (priority 2004-03-08); granted 2008-09-16;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2025-11-28;
+                  status: Expired - Fee Related (term also run) as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US7426511B2/en}
+}
+
+% CLAIM 1 (system / means-plus-function). Continuation of US 7,426,511,
+% claiming the same generation-number update sequence as a data processing
+% system: means for generating the new element, means for assigning the new
+% generation number, means for establishing the two version links, means for
+% linking the element into the group, means for updating the global generation
+% number, and means for freeing the prior version after a grace period.
+% Substantively the apparatus counterpart of US 7,426,511 claim 1; note that
+% this claim omits the "having a different generation number" qualifier that
+% appears in the parent's version-link limitation.
+@misc{mckenney2010cyclicsearch082,
+  author       = {Paul E. McKenney},
+  title        = {Efficient Support of Consistent Cyclic Search with
+                  Read-Copy-Update},
+  howpublished = {U.S. Patent No. 7,814,082},
+  year         = {2010},
+  note         = {Filed 2008-03-18 (continuation; priority 2004-03-08);
+                  granted 2010-10-12;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2024-11-25;
+                  status: Expired - Fee Related (term also run) as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US7814082B2/en}
+}
+
+% CLAIM 1 (method). Extends the generation-number scheme to two or more
+% concurrent updaters. Each updater's new elements get one new generation
+% number; generation numbers are handed out in the order updaters begin their
+% updates. Each updater establishes the two version links and the group links
+% for its elements. The single global generation number is then advanced so
+% that, once every updater has finished, it equals the number belonging to the
+% last updater to have begun -- i.e. the commit point is deferred until the
+% consecutive prefix of updaters has completed, so no reader can observe a
+% partially published later update. Prior versions and links are freed after a
+% grace period.
+% Relevance: this is the closest of the generation-number family to a
+% many-writer commit protocol: it is a rule for ordering and gating the flip of
+% one shared word so that a set of independently prepared element versions
+% becomes current in one step.
+@misc{mckenney2011cyclicparallel778,
+  author       = {Paul E. McKenney and
+                  Jonathan Walpole},
+  title        = {Efficient Support of Consistent Cyclic Search with Read-Copy
+                  Update and Parallel Updates},
+  howpublished = {U.S. Patent No. 7,953,778},
+  year         = {2011},
+  note         = {Filed 2008-05-20 (priority 2008-05-20); granted 2011-05-31;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2029-07-19;
+                  status: Expired - Fee Related as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US7953778B2/en}
+}
+
+% CLAIM 1 (system). The generation-number scheme again, but with the global
+% generation number held in a named "generation number element" that the
+% group's header pointer references and that in turn references, or forms part
+% of, one of the data elements. Claim 1 recites a closed group of four
+% permitted representations: (1) a pointer to a data element whose ADDRESS
+% encodes the generation number; (2) a struct holding both a pointer and a
+% generation-number variable; (3) a data element that itself carries a
+% generation-number field; (4) a pointer-forwarding entity holding a pointer
+% and a generation-number variable. Prior versions and any prior generation
+% number element are freed after a grace period.
+% Relevance: the contribution over US 7,426,511 is representational -- it makes
+% the pointer-plus-generation pair a single word that one store can swing,
+% which is what lets the group's current version set change in one update.
+@misc{mckenney2014rcucyclic535,
+  author       = {Paul E. McKenney},
+  title        = {Performance of {RCU}-Based Searches and Updates of Cyclic
+                  Data Structures},
+  howpublished = {U.S. Patent No. 8,874,535},
+  year         = {2014},
+  note         = {Filed 2012-10-16 (priority 2012-10-16); granted 2014-10-28;
+                  assignee International Business Machines Corp.;
+                  anticipated expiration 2032-10-16;
+                  status: Expired - Fee Related as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US8874535B2/en}
+}
+
+% CLAIM 1 (method). The method counterpart of US 8,874,535, filed as its
+% continuation. Same sequence -- new elements, new generation number, two
+% version links per element, group links, then update of the global generation
+% number via a generation number element referenced by the group's header
+% pointer, then grace-period-deferred freeing of prior versions and of any
+% prior generation number element. The difference from US 8,874,535 claim 1 is
+% that this claim does NOT recite the closed group of four representations for
+% the generation number element, making it the broader of the two.
+@misc{mckenney2015rcucyclic803,
+  author       = {Paul E. McKenney},
+  title        = {Performance of {RCU}-Based Searches and Updates of Cyclic
+                  Data Structures},
+  howpublished = {U.S. Patent No. 9,081,803},
+  year         = {2015},
+  note         = {Filed 2013-02-22 (continuation; priority 2012-10-16);
+                  granted 2015-07-14;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2033-02-07;
+                  status: Expired - Fee Related as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US9081803B2/en}
+}
+
+
+% --- Family: atomic move via a status-indicating entity ---
+
+% CLAIM 1 (system). Atomically moves a data element between linked data
+% structures without delaying lockless readers. A "status-indicating entity" is
+% allocated and associated with the element so that lockless readers can reach
+% it from the element. The element is copied (or a pointer to it is copied) to
+% make a copy element; the same status-indicating entity is associated with the
+% copy; the copy is linked into the second structure. The entity initially
+% tells readers the original "has validity" in the first structure and the copy
+% "has no validity" in the second. The entity is then ATOMICALLY UPDATED so
+% that the original has no validity and the copy has validity. The original is
+% unlinked and freed after readers can no longer reference it; the entity is
+% disassociated and likewise freed.
+% Dependent claims matter here: claim 3 recites that the status-indicating
+% entity is either an "existence group structure" or an "allegiance structure";
+% claim 4 recites an outgoing existence structure (referenced by the original)
+% and an incoming existence structure (referenced by the copy), switched
+% together; claim 5 recites that the switch is an atomic update of an
+% "existence switch" that selects between two or more existence arrays whose
+% elements each store an existence indicator.
+% Relevance: this is the single closest prior art to a status-word flip that
+% changes reader-visible existence. Claim 1 itself is scoped to one element and
+% its copy; the set-at-once reading lives in claim 5's existence arrays and,
+% more explicitly, in US 10,452,638 claim 2.
+@misc{mckenney2018atomicmove907,
+  author       = {Paul E. McKenney},
+  title        = {Atomically Moving Data Elements Between or Within Linked Data
+                  Structures},
+  howpublished = {U.S. Patent No. 9,910,907},
+  year         = {2018},
+  note         = {Filed 2015-01-29 (priority 2015-01-29); granted 2018-03-06;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2036-05-09;
+                  status: Expired - Fee Related as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US9910907B2/en}
+}
+
+% CLAIM 1 (method). Continuation of US 9,910,907; claim 1 is the method
+% counterpart of that patent's system claim 1, with the same limitations in the
+% same order (allocate and associate the status-indicating entity, copy the
+% element, associate the entity with the copy, link the copy into the second
+% structure, atomically update the entity to swap validity from original to
+% copy, unlink and defer-free the original, disassociate and defer-free the
+% entity). Dependent claims 3-5 again recite the existence group structure, the
+% incoming/outgoing existence structures, and the existence switch selecting
+% between existence arrays.
+% NOTE: the title really does read "Atomical moving ..." on the granted patent;
+% that is a USPTO typographical error, not a transcription slip here. The title
+% is reproduced as granted.
+@misc{mckenney2018atomicmove908,
+  author       = {Paul E. McKenney},
+  title        = {Atomical Moving Data Elements Between or Within Linked Data
+                  Structures},
+  howpublished = {U.S. Patent No. 9,910,908},
+  year         = {2018},
+  note         = {Filed 2015-08-20 (continuation; priority 2015-01-29);
+                  granted 2018-03-06;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2035-09-21;
+                  status: Expired - Fee Related as of 2026-07-16;
+                  title reproduced as granted, including the "Atomical" typo},
+  url          = {https://patents.google.com/patent/US9910908B2/en}
+}
+
+% CLAIM 1 (method). Atomic move under RCU where the structures themselves have
+% no atomic-move support. Each element is wrapped in an "atomic-move wrapper"
+% carrying an "existence header" whose STATUS FIELD marks it permanent (a
+% settled member), outgoing (about to be removed), or incoming (about to be
+% added). Every existence header references an "existence group" holding an
+% "existence group state field" with two states: in the first state, elements
+% with outgoing headers are deemed to exist and those with incoming headers are
+% deemed not to exist; in the second state, the reverse. An element being added
+% gets an incoming header and is linked in; an element being removed gets an
+% outgoing header. The state field is then changed from the first state to the
+% second USING A SINGLE STORE OPERATION, which simultaneously grants existence
+% to the incoming element and revokes it from the outgoing one. Afterwards
+% incoming headers are promoted to permanent, outgoing elements are unlinked,
+% and the existence group -- plus any removed element's wrapper -- is freed
+% after an RCU grace period.
+% Claim 2 is the important one for the set-at-once reading, and is quoted here
+% because no other claim in this corpus states it as plainly: where there are
+% "plural data elements that are members of one or more RCU-protected linked
+% data structures", "changing the state of the existence group state field
+% causes a first set of the data elements having incoming existence headers to
+% be deemed to exist and a second set of the data elements having outgoing
+% existence headers to be deemed to not exist."
+% Claim 3 recites that the existence group maintains a list of outgoing headers
+% and a list of incoming headers; claim 4 recites the post-flip cleanup walk
+% over both lists; claim 5 recites a BACKOUT performed "prior to and in lieu of"
+% the flip, which reverts every header in both lists -- i.e. an abort path for
+% a prepared-but-uncommitted set.
+% Relevance: closest prior art to a single-word flip that changes the existence
+% of a SET of elements at once, and the only member of this corpus that also
+% recites a prepared set plus commit-or-abort. It is descriptor-shaped, but the
+% records are existence headers keyed to elements, not {slot, old, new}
+% address triples, and there is no compare against an expected old value.
+@misc{mckenney2019atomicmove638,
+  author       = {Paul E. McKenney},
+  title        = {Atomically Moving Data Elements Between or Within Linked Data
+                  Structures Having No Support for Atomic Moves},
+  howpublished = {U.S. Patent No. 10,452,638},
+  year         = {2019},
+  note         = {Filed 2016-12-14 (priority 2016-12-14); granted 2019-10-22;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2038-04-11;
+                  status: Expired - Fee Related as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US10452638B2/en}
+}
+
+
+% --- Found by inventor/assignee sweep; not in the original list ---
+
+% CLAIM 1 (method) -- READER SIDE, not writer side. Claim 1 covers a lookup of
+% a target element that may concurrently be moved from a first list to a
+% second: the reader traverses the second list and, on meeting a PLACEHOLDER
+% element standing in for the target (the specification calls it a
+% "birthstone"), waits until the placeholder says the move is done and then
+% returns lookup failure so the caller can retry. Dependent claims add a
+% traversal counter that falls back to locking past a computed maximum
+% (claim 2), detection of a reader being dragged from one list to the other
+% (claim 3), placeholder reference counting (claim 4), and the choice of
+% blocking or spinning on a global or per-element lock (claim 5).
+% Relevance: an atomic move between RCU-protected lists, and therefore prior
+% art to idea (c) predating the 2015 family by a decade. But the mechanism is
+% the opposite of a flip-latch: readers BLOCK on a per-element placeholder and
+% retry, rather than testing one shared word that is flipped once. No shared
+% status word, no set-at-once visibility change, no non-blocking reader.
+% Divisional of Ser. No. 10/995,657 (published US 2006/0112121 A1); see the
+% FAMILY STRUCTURE note above for the limits of what was confirmed about the
+% parent application's disposition.
+@misc{mckenney2011listmove612,
+  author       = {Paul E. McKenney and
+                  Orran Y. Krieger and
+                  Dipankar Sarma and
+                  Maneesh Soni},
+  title        = {Atomically Moving List Elements Between Lists Using Read-Copy
+                  Update},
+  howpublished = {U.S. Patent No. 7,873,612},
+  year         = {2011},
+  note         = {Filed 2007-10-11 (divisional of Ser. No. 10/995,657;
+                  priority 2004-11-23); granted 2011-01-18;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2026-01-11;
+                  status: Expired - Fee Related (term also run) as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US7873612B2/en}
+}
+
+% CLAIM 1 (method) -- again reader side. Renaming a file while permitting
+% lock-free lookups, using a TEMPORARY RECORD that lookups resolve to while the
+% rename is in flight. The claimed lookup walks the records of the containing
+% construct (claim 4: a hash chain or a sub-directory) and: falls back to
+% locking if it has traversed more than a predetermined maximum; returns
+% failure on revisiting a record; keeps going on a non-match; on matching a
+% TEMPORARY record, waits for it to be removed and restarts the lookup; on
+% matching the real record, returns it. Claim 3 states the atomicity property
+% sought: once a lookup of the old name must fail, any later lookup of the new
+% name must succeed, and vice versa.
+% Relevance: the file-system instance of idea (c), with the earliest priority
+% date in this corpus (2004-03-30). Mechanism is again placeholder-and-wait,
+% not a status-word flip. Continuation of Ser. No. 10/813,470, granted as
+% U.S. Patent No. 7,349,926.
+@misc{mckenney2011filemove166,
+  author       = {Paul E. McKenney and
+                  Dipankar Sarma and
+                  Maneesh Soni},
+  title        = {Atomic Renaming and Moving of Data Files While Permitting
+                  Lock-Free Look-Ups},
+  howpublished = {U.S. Patent No. 7,987,166},
+  year         = {2011},
+  note         = {Filed 2007-04-22 (continuation of Ser. No. 10/813,470,
+                  U.S. Patent No. 7,349,926; priority 2004-03-30);
+                  granted 2011-07-26;
+                  assignee International Business Machines Corp.;
+                  adjusted expiration 2026-04-07;
+                  status: Expired - Fee Related (term also run) as of 2026-07-16},
+  url          = {https://patents.google.com/patent/US7987166B2/en}
+}
+
+% ---------------------------------------------------------------------------
+% verified 2026-07-16 via freepatentsonline.com/7349926.html (Google Patents
+% 503; USPTO PDF is a scanned image with no text layer). Filing date and
+% Ser. No. independently corroborated by the continuation US 7,987,166.
+%
+% Claim 1: renaming a data file while permitting lock-free look-ups, by
+% creating a TEMPORARY RECORD within the hash chain, linked so it points to the
+% same before/after records as the file's own record; the file record is
+% renamed; the temporary record is then removed. Critically: "while the
+% temporary record exists within the hash chain, look-ups of the data file
+% resolve to the temporary record, such that the temporary record causes the
+% look-ups to WAIT until the record for the data file has been renamed and the
+% temporary record removed."
+%
+% Relevance: the earliest-priority member of the atomic-move lineage
+% (2004-03-30). Important for P1's novelty claim: this DOES use a transient,
+% removed-afterwards object in the structure -- so "the descriptor is temporary"
+% is NOT by itself distinguishing. The distinction is the reader contract:
+% here readers BLOCK on the transient object; a pseudo-transaction reader
+% resolves through it to old-or-new and never waits.
+@misc{mckenney2008filerename926,
+  author       = {Paul E. McKenney and
+                  Dipankar Sarma and
+                  Maneesh Soni},
+  title        = {Atomic Renaming and Moving of Data Files While Permitting
+                  Lock-Free Look-Ups},
+  howpublished = {U.S. Patent No. 7,349,926},
+  year         = {2008},
+  note         = {Application Ser. No. 10/813,470, filed 2004-03-30; granted
+                  2008-03-25; assignee International Business Machines Corp.;
+                  parent of U.S. Patent No. 7,987,166. Inventor list taken from
+                  the continuation; FPO renders it as ``McKenney et al.''},
+  url          = {https://www.freepatentsonline.com/7349926.html}
+}
+
+% ---------------------------------------------------------------------------
+% verified 2026-07-16 via freepatentsonline.com/7668851.html.
+%
+% Claim 1: moving a shared list element from a first list to a second by
+% "making said list element appear SIMULTANEOUSLY in said first list and said
+% second list under a first key", changing the key, then "making said list
+% element appear only in said second list under said second key" -- implemented
+% by copying the element, cross-linking the lists, updating the copy's key, and
+% uncross-linking. Claim 2 scopes the lists to hash-table buckets.
+%
+% Relevance: idea (c), and the conceptual ancestor of the existence approach --
+% "appear simultaneously in both, belong to one" is the existence/allegiance
+% notion in embryo, six years before the 2015 family. NOT close to idea (a):
+% there is no shared state word and no single-store flip; membership is changed
+% by physical cross-linking and key update, not by flipping a status field.
+@misc{mckenney2010keyupdate851,
+  author       = {Paul E. McKenney},
+  title        = {Lockless Hash Table Lookups While Performing Key Update on
+                  Hash Table Element},
+  howpublished = {U.S. Patent No. 7,668,851},
+  year         = {2010},
+  note         = {Application Ser. No. 11/564,568, filed 2006-11-29; granted
+                  2010-02-23; assignee International Business Machines Corp.
+                  FPO renders the inventor list as ``McKenney et al.''; the
+                  full list is unconfirmed},
+  url          = {https://www.freepatentsonline.com/7668851.html}
+}
+
+% ===== McKENNEY TALKS: THE PUBLIC EXPOSITION OF THE EXISTENCE APPROACH =====
+%
+% These two decks are the substantive public explanation of existence-based
+% updates. They matter more than they look: the CppCon deck alone mentions
+% "existence" 137 times across 112 slides -- more than perfbook gives it -- and
+% they are readable in a way patent claim language is not. Cite these when
+% EXPLAINING the approach; cite the patents when dating it.
+%
+% Verified 2026-07-16: both PDFs read directly (title slides quoted below); both
+% URLs return HTTP 200. Note the two decks live in DIFFERENT directories on the
+% site -- .../scalability/paper/ vs .../RCU/ -- which is not a typo.
+% Mirrored at www2.rdrop.com/~paulmck/ with the same filenames.
+%
+% Disclosure timeline these establish (relevant to Sec. 9):
+%   2014-06-05  Issaquah Challenge named (PSU CS501, "But What About Updates?");
+%               neither this deck nor the 2013 ones mention "existence" -- checked.
+%   2015-01-16  LCA: existence-based updates named and explained (98 mentions).
+%   2015-01-29  US 9,910,907 filed -- 13 days later.
+%   2016-09-19  CppCon: the fullest exposition (137 mentions).
+%   2016-12-14  US 10,452,638 filed -- ~3 months later.
+
+% Title slide reads: "High-Performance and Scalable Updates: The Issaquah
+% Challenge / Paul E. McKenney, IBM Distinguished Engineer, Linux Technology
+% Center / linux.conf.au, Auckland, New Zealand, January 16, 2015". 92 slides.
+% Slide 2 lists "Existence-based updates" as a named technique -- this is the
+% earliest dated public naming of it that this sweep found.
+@misc{mckenney2015issaquah,
+  author       = {Paul E. McKenney},
+  title        = {High-Performance and Scalable Updates: The {Issaquah}
+                  Challenge},
+  howpublished = {Presented at linux.conf.au, Auckland, New Zealand},
+  year         = {2015},
+  month        = jan,
+  note         = {92 slides; presented 2015-01-16. Copyright IBM Corporation},
+  url          = {http://www.rdrop.com/users/paulmck/scalability/paper/Updates.2015.01.16b.LCA.pdf}
+}
+
+% Title slide reads: "Beyond the Issaquah Challenge: High-Performance Scalable
+% Complex Updates / Paul E. McKenney, IBM Distinguished Engineer, Linux
+% Technology Center / CPPCON, September 19, 2016". 112 slides.
+% The fullest public exposition of the existence approach; its "Special Case for
+% Parallel Updates" and "Complex-Update Solutions" sections are where the flip
+% mechanism is explained in prose rather than claim language.
+@misc{mckenney2016beyondissaquah,
+  author       = {Paul E. McKenney},
+  title        = {Beyond the {Issaquah} Challenge: High-Performance Scalable
+                  Complex Updates},
+  howpublished = {Presented at CppCon, Bellevue, WA, USA},
+  year         = {2016},
+  month        = sep,
+  note         = {112 slides; presented 2016-09-19. Copyright IBM Corporation},
+  url          = {http://www.rdrop.com/users/paulmck/RCU/Updates.2016.09.19i.CPPCON.pdf}
+}
+
+% ===== SOFTWARE ARTIFACTS USED AS BASELINES =====
+%
+% The baselines are CODE, not papers, and both were locally modified. Citing
+% only the book or only the SOSP paper would imply an unmodified upstream
+% baseline, which is not what ran. Both trees carry a PROVENANCE.txt recording
+% the upstream commit, the import date, and every local patch; the evaluation's
+% methodology section must state the modifications, because at least two of them
+% (rotating every resident key; seeding the skiplist PRNG) changed measured
+% headline results.
+
+% Provenance recorded in perfbook/PROVENANCE.txt of the benchmark tree.
+% GPL-2.0; vendored source only (Paul's historical .dat/.eps result artifacts
+% dropped). Local patches documented there and marked "LOCAL PATCH" in-source.
+@misc{mckenney2026perfbookcode,
+  author       = {Paul E. McKenney},
+  title        = {perfbook {CodeSamples}: supporting code for
+                  ``Is Parallel Programming Hard, And, If So, What Can You Do
+                  About It?''},
+  howpublished = {Git repository},
+  year         = {2026},
+  note         = {GPL-2.0. \code{CodeSamples/datastruct/} vendored at upstream
+                  commit a1d3bc7e (2026-06-28), imported 2026-07-08; local
+                  patches recorded in the vendored tree's PROVENANCE.txt},
+  url          = {https://git.kernel.org/pub/scm/linux/kernel/git/paulmck/perfbook.git}
+}
+
+% Provenance recorded in third_party/rlu/PROVENANCE.txt of the benchmark tree.
+% Reference implementation accompanying matveev2015rlu.
+@misc{rlusync2026code,
+  author       = {Alexander Matveev and Nir Shavit and Pascal Felber and
+                  Patrick Marlier},
+  title        = {{RLU}: reference implementation of Read-Log-Update},
+  howpublished = {Git repository},
+  year         = {2026},
+  note         = {MIT. Vendored at commit ae47f5b, 2026-06-30. Local patch:
+                  RLU\_MAX\_THREADS and RLU\_MAX\_WRITE\_SET\_BUFFER\_SIZE
+                  wrapped in \code{\#ifndef} to be -D overridable},
+  url          = {https://github.com/rlu-sync/rlu}
+}
