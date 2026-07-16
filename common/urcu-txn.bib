@@ -1365,3 +1365,42 @@
                   wrapped in \code{\#ifndef} to be -D overridable},
   url          = {https://github.com/rlu-sync/rlu}
 }
+
+% ---------------------------------------------------------------------------
+% Linux kernel rculist -- the primary evidence for Sec. 2.3. The kernel, not
+% liburcu, is the most widely deployed RCU implementation, and its list has the
+% same two-edge asymmetry. Verified in linux-next, tag next-20260226.
+%
+% NOTE: no bare "at" sign anywhere above -- see this file's header. BibTeX reads
+% one as the start of an entry and then dies with "I was expecting a { or a (",
+% pointing at the NEXT line. It cost a build to rediscover that here.
+% ---------------------------------------------------------------------------
+@misc{linux2026rculist,
+  author       = {{Linux kernel contributors}},
+  title        = {\code{include/linux/rculist.h} and \code{include/linux/list.h}},
+  howpublished = {Linux kernel source},
+  year         = {2026},
+  note         = {GPL-2.0. Read at \code{linux-next} tag \code{next-20260226}.
+                  \code{\_\_list\_del()} writes the back edge
+                  \code{next->prev} with a plain store and the forward edge
+                  with \code{WRITE\_ONCE()}; \code{\_\_list\_add\_rcu()}
+                  publishes the forward edge with
+                  \code{rcu\_assign\_pointer()} and then writes
+                  \code{next->prev} plainly, after the node is reachable},
+  url          = {https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git}
+}
+
+@misc{brauner2024listbidir,
+  author       = {Christian Brauner},
+  title        = {\code{rculist}: add \code{list\_bidir\_\{del,prev\}\_rcu()}},
+  howpublished = {Linux kernel commit \code{67d676bb135c}},
+  year         = {2024},
+  month        = dec,
+  note         = {Suggested-by and Reviewed-by Paul E.\ McKenney; Reviewed-by
+                  Jeff Layton. Adds a delete primitive that does not poison
+                  \code{prev}, plus an accessor for it. Sole in-tree caller as
+                  of \code{next-20260226} is
+                  \code{\_\_ns\_tree\_adjoined\_rcu()} in
+                  \code{kernel/nstree.c}, which takes one adjacency hop},
+  url          = {https://lore.kernel.org/r/20241213-work-mount-rbtree-lockless-v3-4-6e3cdaf9b280}
+}

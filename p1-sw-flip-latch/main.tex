@@ -30,11 +30,10 @@ Read-copy-update (RCU) makes a \emph{single} pointer store atomic with respect
 to concurrent readers, and readers pay nothing for it. This works only when an
 update is expressible as one store. Updates that must change several
 words coherently---a doubly-linked list's back edge, a skip list's tower---fall
-back to copying a larger region, to a grace-period drain, or to omitting the
-operation. Userspace RCU's list does the last: it ships no RCU-safe reverse
-iterator, because
-\code{cds\_list\_del\_rcu()} publishes its forward edge atomically and its back
-edge with a plain assignment.
+back to copying a larger region, a grace-period drain, or omitting the
+operation. Linux's list does the last: it ships no RCU-safe reverse iterator,
+because \code{\_\_list\_del()} publishes its forward edge with a marked store
+and its back edge with a plain assignment. Userspace RCU's is identical.
 
 We describe an RCU \pseudotxn: a frozen set of \record{slot}{old}{new} records
 made visible by one commit step, together with a \sw realization---the
@@ -77,18 +76,21 @@ period so nobody spans the inconsistent window, and pay to wait; or decline the
 operation.
 
 \Cref{sec:rculistgap} looks at a library that took the third option, and it is
-the cleanest evidence available that the problem is real. Userspace \rcu's
-doubly-linked list publishes only its forward chain: in
-\code{cds\_list\_del\_rcu()} the forward edge is committed by an atomic store,
-while the back edge is a plain assignment --- no release, and correspondingly
-the \code{prev} pointers are never \code{rcu\_dereference}d. The consequence is
-not a subtle ordering nit but a semantic one: a removed node survives as a ghost
-until its grace period elapses, so a reverse walker can keep stepping onto nodes
-the forward chain has already dropped. The \code{prev} view trails the
-\code{next} view. There is no barrier that fixes this, because the two chains
-are changed by two stores and nothing makes them one event. So the library ships
-forward iterators and no RCU-safe reverse walk. Nobody has to be persuaded the
-gap matters: the missing API is the argument.
+the cleanest evidence available that the problem is real, and it is not confined
+to a niche library. Linux's \rcu list --- the most widely deployed there is ---
+publishes only its forward chain: \code{\_\_list\_del()} commits the forward
+edge with \code{WRITE\_ONCE()} and writes the back edge with a plain
+assignment, and \code{\_\_list\_add\_rcu()} writes it \emph{after} the release
+that publishes the node. Userspace \rcu's list has the identical shape. The
+consequence is not a subtle ordering nit but a semantic one: the two chains are
+changed by two stores and nothing makes them one event, so there is an interval
+in which they describe different lists --- and a removed node survives as a
+ghost until its grace period elapses, so the \code{prev} view can trail the
+\code{next} view by that long. No barrier fixes either problem. So both
+libraries ship forward iterators and no \rcu-safe reverse walk, and Linux goes
+further, poisoning the back pointer in \code{list\_del\_rcu()} so it cannot be
+followed at all. Nobody has to be persuaded the gap matters: the missing API is
+the argument.
 
 \subsection*{Contributions}
 
@@ -417,53 +419,87 @@ store moves.
 
 An update that must re-point two edges coherently has no atomic act to express
 itself with, and the consequence is not hypothetical. It is visible in the
-interface of the most widely deployed \rcu container there is.
+doubly-linked list of the most widely deployed \rcu implementation there is: the
+one in the Linux kernel~\citep{linux2026rculist}.
 
-Userspace \rcu ships a circular doubly-linked list in two variants. The plain
-one, \code{<urcu/list.h>}, iterates in both directions:
-\code{cds\_list\_for\_each\_prev()},
-\code{cds\_list\_for\_each\_prev\_safe()}, and
-\code{cds\_list\_for\_each\_entry\_reverse()} are all part of its interface. The
-\rcu one, \code{<urcu/rculist.h>}, ships exactly two iterators ---
-\code{cds\_list\_for\_each\_rcu()} and
-\code{cds\_list\_for\_each\_entry\_rcu()} --- and both walk forward. There is no
-\rcu-safe reverse walk, and this is not because the backward chain is missing.
-Every node still has a \code{prev} pointer and every writer still maintains it,
-on \code{add}, on \code{del}, and on \code{replace}. The chain is there, it is
-correct, and a reader may not read it.
-
-The reason is one line. In \code{cds\_list\_del\_rcu()}, unlinking a node
-\code{E} between \code{P} and \code{N} re-points two edges:
+Removing a node \code{E} from between \code{P} and \code{N} re-points two
+reader-visible edges, and the kernel writes each with a different kind of store:
 
 \begin{lstlisting}
-/* unlink E, which sits between P and N */
-elem->next->prev = elem->prev;                 /* N->prev: E -> P */
-uatomic_store(&elem->prev->next, elem->next);  /* P->next: E -> N */
+static inline void __list_del(struct list_head *prev, struct list_head *next)
+{
+        next->prev = prev;              /* N->prev: E -> P   plain store  */
+        WRITE_ONCE(prev->next, next);   /* P->next: E -> N   marked store */
+}
 \end{lstlisting}
 
-The forward edge is written with \code{uatomic\_store()}: indivisible, safe for
-a concurrent reader to load. The back edge is written with a bare \code{=}, to a
-node that readers can reach at that very moment. Under the C11 model a plain
-store racing with a concurrent load is a data race and the behaviour is
-undefined --- so that line is sound \emph{only because no reader is permitted to
-read \code{prev}}. The missing iterator is not an oversight or a gap someone
-neglected to fill. It is load-bearing. The library declines the operation, and
-in exchange the write side gets to be cheap.
+The forward edge gets \code{WRITE\_ONCE()}. The back edge gets a bare \code{=},
+to a node readers can reach at that very moment. Userspace \rcu's
+\code{cds\_list\_del\_rcu()} has the identical shape, down to the ordering of
+the two lines. And the asymmetry is not an accident of the delete path ---
+\code{\_\_list\_add\_rcu()} makes it starker still:
 
-It is tempting to conclude that the omission is a mere ordering bug: publish
-\code{prev} with \code{rcu\_assign\_pointer()}, read it with
-\code{rcu\_dereference()}, and the reverse walk falls out. It does not, and
-seeing why is the point of this subsection. Suppose both edges were properly
+\begin{lstlisting}
+new->next = next;                              /* private: unreachable */
+new->prev = prev;                              /* private: unreachable */
+rcu_assign_pointer(list_next_rcu(prev), new);  /* release: publishes new */
+next->prev = new;                              /* plain store, AFTER publish */
+\end{lstlisting}
+
+The forward edge is published with a release, and the back edge is written
+\emph{afterwards}, with a plain store, to a node that is already reachable.
+Between those two lines there is an interval in which \code{prev->next == new}
+while \code{next->prev == prev}: the forward chain contains the new node and the
+backward chain skips it. This needs no weak-memory argument --- it is plain
+program order, so the window is real on \emph{every} architecture.
+
+The kernel is candid about the consequence. \code{list\_del\_rcu()} does not
+merely leave the back pointer unmaintained; it destroys it,
+\code{entry->prev = LIST\_POISON2}, and the \rcu list ships forward iterators
+only. Userspace \rcu draws the same line by omission: its plain list offers
+\code{cds\_list\_for\_each\_prev()} and
+\code{cds\_list\_for\_each\_entry\_reverse()}, and its \rcu list offers neither.
+The backward chain exists in both libraries and every writer maintains it. A
+reader may not walk it.
+
+\paragraph{The kernel's narrow exception proves the rule.} In December 2024 the
+kernel gained a way to read a \code{prev} pointer under
+\rcu~\citep{brauner2024listbidir}: \code{list\_bidir\_del\_rcu()}, which skips
+the poisoning, plus \code{list\_bidir\_prev\_rcu()}, an accessor. It was
+suggested and reviewed by McKenney himself, so it is a considered answer rather
+than an oversight being patched --- and it is worth being precise about what it
+does and does not deliver, because it is the closest thing to a counterexample
+this paper has.
+
+It does not make the two chains agree. \code{\_\_list\_del()} still writes the
+back edge with a plain store, and nothing orders that store against the forward
+edge's \code{WRITE\_ONCE()}; \code{\_\_list\_add\_rcu()} still writes it after
+the release. What the patch buys is that a deleted node keeps its own \code{prev}
+instead of having it poisoned, so a reader standing on a ghost can step backward
+out of it. That is a genuinely useful thing and it is not a coherent reverse
+walk. Consistent with that, the kernel added no reverse iterator, and the API
+costs a whole-list mode: \code{list\_del\_rcu()} and \code{list\_bidir\_del\_rcu()}
+may not be used on the same list. Its sole in-tree caller as of
+\code{next-20260226}, \code{\_\_ns\_tree\_adjoined\_rcu()} in
+\code{kernel/nstree.c}, takes exactly one adjacency hop --- \code{prev}
+\emph{or} \code{next} --- and never compares the two directions against each
+other. It never needs coherence, so it never meets its absence.
+
+\paragraph{Ordering is not what is missing.} It is tempting to read all of this
+as an ordering bug: publish \code{prev} with \code{rcu\_assign\_pointer()}, read
+it with \code{rcu\_dereference()}, and the reverse walk falls out. It does not,
+and seeing why is the point of this subsection. Suppose both edges were properly
 published. They are still \emph{two} release stores, hence two publication
 instants, and a reader that arrives between them sees \code{P->next == N} while
 \code{N->prev == E}. The forward chain has dropped \code{E}; the backward chain
 still contains it. Neither view is corrupt and neither is torn. They simply
 describe different lists, and a reader that walks forward and then hops backward
---- the operation the reverse iterator exists to serve --- gets an answer no
+--- the operation a reverse iterator exists to serve --- gets an answer no
 sequential list could ever produce.
 
-Ordering does not fix this because ordering is not what is missing. What is
-missing is \emph{atomicity across two slots}, and \rcu has no way to ask for it.
+What is missing is \emph{atomicity across two slots}, and \rcu has no way to ask
+for it. That is why the fix has to be a mechanism rather than a barrier, and it
+is why two libraries, independently, chose to withhold the operation instead.
 
 There is a second, subtler failure that survives even careful ordering, and it
 is specific to \rcu. An unlinked node is a ghost: it must remain allocated for a
