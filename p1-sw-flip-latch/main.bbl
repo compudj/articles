@@ -1,4 +1,4 @@
-\begin{thebibliography}{28}
+\begin{thebibliography}{29}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -126,6 +126,14 @@ Maurice Herlihy and Eric Koskinen.
   February 20-23, 2008}, pages 207--216. {ACM}, 2008.
 \newblock \doi{10.1145/1345206.1345237}.
 \newblock URL \url{https://doi.org/10.1145/1345206.1345237}.
+
+\bibitem[Herlihy and Wing(1990)]{herlihy1990linearizability}
+Maurice Herlihy and Jeannette~M. Wing.
+\newblock Linearizability: A correctness condition for concurrent objects.
+\newblock \emph{{ACM} Transactions on Programming Languages and Systems},
+  12\penalty0 (3):\penalty0 463--492, 1990.
+\newblock \doi{10.1145/78969.78972}.
+\newblock URL \url{https://doi.org/10.1145/78969.78972}.
 
 \bibitem[Herlihy et~al.(2003)Herlihy, Luchangco, Moir, and
   III]{herlihy2003dstm}

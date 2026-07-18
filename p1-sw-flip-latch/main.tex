@@ -635,12 +635,24 @@ either a value that resolves to $o$ or one that resolves to $n$, and never
 anything else.
 \end{property}
 
-\begin{property}[Single linearization point]
+\begin{property}[The commit linearizes at one point]
 \label{prop:lp}
-A committed \pseudotxn is linearizable, and its linearization point is the
-commit step. The steps that stage the set beforehand and that tidy up
-afterwards change no observable value, so neither is a linearization point.
+The commit is a linearizable \emph{write operation}: it takes effect atomically
+at a single instant, the commit step, which is its lone linearization
+point~\citep{herlihy1990linearizability}. The staging that precedes it and the
+tidying that follows change no observable value, so neither is a linearization
+point.
 \end{property}
+
+The scope of \cref{prop:lp} is the write, and only the write --- and the
+distinction is the reason for the \emph{pseudo-} prefix, not pedantry. A single-slot
+read is itself a linearizable operation, taking effect at its own load. What is
+\emph{not} a linearizable operation is a reader's traversal of several slots: it
+is a sequence of loads, not one operation, so it has no linearization point of
+its own and may straddle the commit (\cref{sec:nonguarantees}). Saying the write
+linearizes is therefore a precise and limited claim. It is not the claim that a
+combined read-and-write transaction is linearizable, and still less that it is
+serializable --- neither holds, and neither is asserted anywhere in this paper.
 
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).

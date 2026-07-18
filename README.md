@@ -61,7 +61,15 @@ memory", "transactional boosting") and when contrasting with the general notion.
 
 - Never write "serializable" or "opacity".
 - Keep "linearizable" scoped to the k-CAS write operation itself, never to a
-  read+write pseudo-transaction.
+  read+write pseudo-transaction. The defensible claim (Property 3, and the
+  engine's own "this linearizes the *write*") is: **the commit is a linearizable
+  write, with one linearization point at the commit step** — cite Herlihy & Wing
+  1990. Two things are *also* true and worth saying so the scope is unmistakable:
+  a single-slot read is itself linearizable (one atomic load), and a reader's
+  multi-slot *traversal* is not one operation and has no linearization point at
+  all. Never phrase it as "a committed pseudo-transaction is linearizable" — that
+  reads as the whole read+write object and is the overclaim the prefix exists to
+  prevent.
 - A reader is **not** a transaction of any kind: each load resolves
   independently, so a traversal may straddle a commit. Write exactly that —
   **never "a reader is not a pseudo-transaction"**, which parses just as
