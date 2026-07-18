@@ -117,10 +117,8 @@ bargain that makes \rcu worth using. Specifically:
       spare bits of the slot rather than in per-element state, which is what
       takes the reader's added loads to zero --- the test is on a register the
       reader already holds, and costs it only a predicted branch. Because a
-      \pseudotxn may span structures
-      whose encodings differ, the tag must travel with the record rather than be
-      fixed per translation unit. Slots need not hold pointers: a shifted
-      integer or a bitmap word is transacted the same way.
+      \pseudotxn may span structures whose pointers are tagged differently, the
+      tag must travel with the record rather than be fixed per translation unit.
 
 \item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
       list whose two chains stay mutually coherent --- so the reverse walk
@@ -131,8 +129,8 @@ bargain that makes \rcu worth using. Specifically:
 
 \item \textbf{The design space we did not take} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
-      policies, reclamation schemes and non-pointer encodings, with the cost of
-      each alternative rather than only the name of it.
+      policies, and reclamation schemes, with the cost of each alternative
+      rather than only the name of it.
 \end{itemize}
 
 \paragraph{Scope.} This paper covers the \sw case, where writers are mutually
@@ -1024,13 +1022,11 @@ unconditionally and branches, then may walk a version chain. None of these loads
 is expensive in isolation; all of them are memory references, and in each case
 the branch cannot resolve until its load does.
 
-A \pseudotxn's marker occupies tag bits of the slot. For a pointer slot those
-bits cost nothing: a pointer to an aligned object leaves its low bits clear by
-construction, so every pointer-shaped slot already wastes them, and the marker
-uses only what alignment left idle (\cref{sec:alignment} sets out how many). A
-slot holding a non-pointer has no such waste to spend, so there the marker is not
-free --- a counter or a bitmap word gives up one bit, carrying 63 on a 64-bit
-word rather than 64 (\cref{sec:nonpointer}). Recognizing the marker is then
+A \pseudotxn's marker occupies tag bits of the slot, and those bits cost nothing
+to occupy: a pointer to an aligned object leaves its low bits clear by
+construction, so every transacted slot already wastes them, and the marker uses
+only what alignment left idle (\cref{sec:alignment} sets out how many).
+Recognizing the marker is then
 \begin{center}
 \code{((uintptr\_t) v \& tag) == tag}
 \end{center}
@@ -1322,7 +1318,7 @@ obligations with the structure that embeds it.
       its readers recognize one --- a spare low or high bit, or a reserved type
       code in an already-tagged pointer --- and routes resolution through the
       engine's accessor. \Cref{sec:tags} takes this up: it is where the engine's
-      zero-added-state claim is actually cashed.
+      zero-added-state claim is made concrete.
 \item \textbf{Allocation.} Proxies and the group are the embedder's to allocate,
       with whatever alignment its tagging scheme demands --- often as a single
       backing block with one \code{rcu\_head}.
@@ -1345,9 +1341,9 @@ obligations with the structure that embeds it.
 \label{sec:tags}
 
 \Cref{sec:whyweakening} claimed that this engine adds no per-element state and
-costs the reader no additional load. This section is where that claim is
-cashed, and where its price is stated: the engine has nowhere of its own to put
-the marker, so it must borrow bits from the embedder's pointer encoding.
+costs the reader no additional load. This section substantiates that claim, and
+states what it costs in return: the engine has nowhere of its own to put the
+marker, so it must borrow bits from the embedder's pointer encoding.
 
 \subsection{The tag contract}
 \label{sec:tagcontract}
@@ -1374,88 +1370,6 @@ writer that made it. And every read must resolve through the engine's accessor,
 since a bare load of a parked slot yields a tagged record address rather than a
 value.
 
-\subsection{Slots need not hold pointers}
-\label{sec:nonpointer}
-
-Nothing in \cref{sec:tagcontract} mentions pointers. The contract constrains
-\emph{values}, and the engine transacts \emph{words} --- what a word means is
-the embedder's business. A transacted slot may hold any word-sized value that
-keeps the tag bits clear.
-
-For integers the discipline is to store them shifted left by one, so bit~0 stays
-clear and a word carries one bit fewer than its width --- 63 data bits on a
-64-bit word. A bitmap is the limiting case: it is \emph{all} data, with no
-spare bits of its own to donate, so it spends bit~0 as the tag and lays logical
-bit $i$ at physical bit $i+1$. Nothing about the engine changes, and no sentinel
-value has to be carved out of the data range. A zero-filled region is a valid
-empty bitmap --- all bits clear, bit~0 clear --- so \code{calloc}'d or
-demand-zero storage needs no initialization.
-
-This matters beyond generality, and it is the sharpest form of the argument in
-\cref{sec:whyweakening}. A design that attaches metadata to elements needs an
-\emph{element} to attach it to. A bare word of bitmap is not an object: it has
-no header to prepend and no field to add, so making it transactable under such a
-scheme means wrapping it in one --- paying an object's worth of metadata to
-transact a word's worth of data. This engine spends one bit.
-
-The transacted bitmap is also the plainest case for the composition of
-\cref{sec:swcomposition}. Because 63~logical bits share one physical word,
-flipping two different bits records two edits on the \emph{same} slot; they
-compose into one commit only because the recording store fuses same-slot edits
-rather than appending them. The bitmap is where read-your-own-writes stops being
-a list-specific convenience and becomes the general rule.
-% -----------------------------------------------------------------------
-% NOTE (drafting; retained deliberately -- see README framing rule).
-% State this carefully. The fair version is about GRANULARITY, not a claim
-% that RLU/existence "cannot" do it: you can always wrap a word in a struct
-% and give the struct a header. The point is that the wrapping IS the cost,
-% and it is ~100% overhead for a bare data word, whereas the tag is one bit.
-% Do not overstate into "impossible" -- it is trivially refutable and the
-% honest version is already strong.
-% -----------------------------------------------------------------------
-
-\subsection{One commit, two tag widths}
-\label{sec:mixedtags}
-
-The bitmap of \cref{sec:nonpointer} keeps its tag as narrow as possible ---
-bit~0 alone --- for a reason that is not frugality. It is so that a bitmap word
-can share a commit with pointer slots that need a \emph{wider} tag.
-
-That is \cref{sec:pertag}'s argument in the concrete: an occupancy bit flipping
-atomically with the child-pointer store it accompanies, where the bitmap word is
-tagged with bit~0 and the pointer slot is tagged with a reserved nibble because
-its own encoding has already spent the low bits. One \pseudotxn, two tag widths,
-resolved per record. A per-translation-unit tag could not express it.
-% -----------------------------------------------------------------------
-% NOTE (drafting; retained deliberately -- see README framing rule).
-% This is the worked example Sec. 5.2 needed and it costs nothing: it is
-% statable entirely in terms of a bitmap and a typed pointer, with no
-% dependency on the deferred consumer. Use it INSTEAD of the fractal trie,
-% not alongside.
-% -----------------------------------------------------------------------
-
-% -----------------------------------------------------------------------
-% NOTE (drafting; retained deliberately -- see README framing rule).
-% RESOLVED (pinned cefb0414): the single-writer bitmap wrapper now exists,
-% include/urcu/rcu-txn-sw-bitmap.h. Both questions the old PENDING note flagged
-% are answered in source: (1) it keeps the narrow bit-0 tag (so Sec. 5.3's
-% mixed-width example holds -- a bit-0 bitmap word composing with a
-% nibble-tagged pointer in one commit); (2) rank()/select() read across several
-% words and are per-word HINTS, not snapshots -- they hold no proxy and resolve
-% each word against its own moment, so a multi-word scan can straddle a commit.
-% That is the general "a reader is not a transaction" property (Sec. 3.4), not a
-% bitmap-specific caveat, and needs no separate treatment. The MCAS twin offers
-% a guarded multi-word snapshot; the sw engine deliberately does not.
-% -----------------------------------------------------------------------
-% -----------------------------------------------------------------------
-% NOTE (drafting; retained deliberately -- see README framing rule).
-% Be explicit that this is the cost side of the Sec. 3.7 bargain. We pay no
-% space and no load; we pay in a CONTRACT the embedder must honour and the
-% engine cannot check for free. That is the same shape as the exclusion
-% precondition (Sec. 4.3) and the same shape as the series' honesty point:
-% memory safety unconditional, atomicity conditional. Sec. 7 collects these.
-% -----------------------------------------------------------------------
-
 \subsection{Why the tag cannot be fixed}
 \label{sec:pertag}
 
@@ -1475,10 +1389,11 @@ That alone would argue for a per-embedder tag, which a compile-time constant
 could supply. What forces the tag \emph{per record} is cross-structure
 atomicity. One \pseudotxn may span structures with different encodings: the
 whole point of \cref{prop:crossstructure} is that a single commit can publish a
-node into one structure and splice it into another. Those slots have different
-free bits, so \emph{one transaction needs two tags at once}. A
-per-translation-unit macro cannot express that; the tag has to travel with the
-record. \Cref{sec:mixedtags} gives the concrete case.
+node into one structure and splice it into another --- one tagging a single bit,
+the other a reserved nibble because its own pointers already spend the low bits.
+Those slots have different free bits, so \emph{one transaction needs two tags at
+once}. A per-translation-unit macro cannot express that; the tag has to travel
+with the record.
 
 So each record carries its own \code{proxy\_tag}, supplied when the record is
 added, and heterogeneous slots share one engine, each resolved through its own
@@ -1662,7 +1577,7 @@ nonetheless recorded into the flip transaction, for two reasons that have
 nothing to do with reader visibility. A mutation becomes all-or-nothing under an
 allocation failure. And it composes: through the \code{*\_prepare} forms, a
 single-edge hlist edit can be folded into a larger cross-structure flip ---
-which is \cref{prop:crossstructure} being cashed, and the reason even an
+which is \cref{prop:crossstructure} put to work, and the reason even an
 operation that needs no atomicity for its own sake is still expressed as a
 \pseudotxn.
 
@@ -1705,10 +1620,12 @@ two.
 \emph{Declaring a write set disjoint is a promise the engine keeps you to.}
 Read-your-own-writes costs a find per recorded edit, which an embedder whose
 slots are distinct \emph{by construction} can skip by declaring the handle
-disjoint. The declaration is a contract on slot \emph{addresses}: a bitmap, whose
-63~logical bits share one word, satisfies it only for edits the caller knows
-fall in distinct words. Break the promise and the fused reconciliation is
-skipped, the earlier same-slot edit is lost, and the commit reports success ---
+disjoint. The declaration is a contract on slot \emph{addresses}, not on the
+logical items an edit names: two edits the caller believes distinct can still
+land on one slot --- the adjacent deletes above both re-point \code{P->next} ---
+so it is safe only where the write set is disjoint by construction, not merely
+expected to be. Break the promise and the fused reconciliation is skipped, the
+earlier same-slot edit is lost, and the commit reports success ---
 which is why a debug build
 (\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT}) traps a violated declaration, and why
 the declaration should be made only where disjointness is structural rather than
@@ -2030,9 +1947,7 @@ a proxy handle. This costs no bits of the word, which is the one thing tagging
 does cost, and it is a real option for a slot whose bits are all spoken for. It
 costs a range check rather than a mask-and-compare on the read path, an
 allocator constrained to that range, and a carve-out from the data domain that
-the embedder must guarantee is never a legitimate value. For a bitmap
-(\cref{sec:nonpointer}) the carve-out is impossible --- every bit pattern is
-legitimate data --- which is precisely why the shift-left discipline exists.
+the embedder must guarantee is never a legitimate value.
 
 \subsection{Proxy placement and allocation}
 \label{sec:varproxy}
@@ -2086,18 +2001,6 @@ would serialize readers on a shared counter.
 % reasoning attached to each -- "hazard pointers would work but cost a per-
 % read store" is enabling; "we use RCU" is not.
 % -----------------------------------------------------------------------
-
-\subsection{Non-pointer encodings}
-\label{sec:varencoding}
-
-\Cref{sec:nonpointer} stores integers shifted left by one. The alternatives are
-to carve a sentinel out of the value domain (impossible for a bitmap, viable for
-a counter that never reaches certain values), to keep the payload in a separate
-word from the transacted handle (which costs a word and an indirection but frees
-the payload entirely), or to widen the slot beyond a machine word and transact
-it with a double-width compare-and-swap where the hardware offers one --- which
-buys back the spent bit at the cost of portability and of the engine's
-word-sized-slot assumption.
 
 % ===========================================================================
 \section{Related Work}
@@ -2181,9 +2084,8 @@ What separates this work from both is where the cost is paid rather than what
 the mechanism does at the moment of commit. Existence needs an element to hang a
 field on; RLU needs an object to prepend a header to. Both are therefore
 permanent additions to the data readers traverse. A \pseudotxn puts its marker
-in the slot's own spare bits, which is why it can transact a bare bitmap word
-that is not an object at all (\cref{sec:nonpointer}), and why its cost vanishes
-when no mutation is in flight.
+in the slot's own spare bits, so it adds no per-element field and no header at
+all, and its cost vanishes when no mutation is in flight.
 
 \subsection{Patented prior art}
 \label{sec:relpatents}
@@ -2352,15 +2254,14 @@ Within that tree, the material of this paper is the following headers, all under
 \item[\code{rcu-txn-sw-list.h}] The bidirectional list of \cref{sec:wrappers},
       whose two chains stay mutually coherent.
 \item[\code{rcu-txn-sw-hlist.h}] The hash list.
-\item[\code{rcu-txn-sw-bitmap.h}] The transacted bitmap of
-      \cref{sec:nonpointer}: a word of 63 logical bits, tag at bit~0.
 \item[\code{rcu-txn.h}] The shared model and status vocabulary of
       \cref{sec:model}.
 \end{description}
 
-\noindent One further header is named here for orientation rather than as a
-contribution of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
-companion paper.
+\noindent Two further headers are named here for orientation rather than as
+contributions of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
+companion paper, and \code{rcu-txn-sw-bitmap.h} applies the same tag contract to
+a non-pointer word --- outside this paper's pointer-focused scope.
 
 This paper is licensed CC BY 4.0. It is published to place the design, and the
 alternatives of \cref{sec:variations}, in the public record as prior art, so

@@ -52,6 +52,15 @@ academic paper in three ways, and the difference shapes every document here:
   ("Single-bit latch"). **Deliberately kept out of P1** — a full enabling
   disclosure is stronger prior art than a hint, and P1 stays neutral on read-side
   progress class (§7.4). Could stand alone or anchor the DLM-hybrid paper.
+- **Non-pointer transacted slots** (deferred with the above). The tag contract
+  constrains *values*, not pointers, so a counter or bitmap word can be
+  transacted by spending one payload bit. Cut from P1 (2026-07-17): **P1 is
+  pointers-only**. The one genuinely useful non-pointer application is a
+  **sequence counter** (Mathieu), which pairs naturally with the seqcount-latch
+  paper above. Note the trap that forced the cut: a "bitmap bit flips atomically
+  with an accompanying pointer" example is *writer*-atomic (one commit) but gives
+  readers no cross-slot snapshot — they read slot-by-slot — so consuming the pair
+  needs a seqcount or recompaction. That belongs in the seqcount paper, not P1.
 
 The Fractal Trie proper is **deferred** — work still heavily in progress.
 
