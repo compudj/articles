@@ -1649,8 +1649,10 @@ merely observed.
 % NOTE and in the Sec. 10 P2 hook). It is now FALSE: BOTH engines have RYW, so
 % RYW is part of the SHARED programming model (P3), not P2's differentiator.
 % What still distinguishes the concurrent engine is the machinery exclusion
-% removes -- the install CAS, conflict detection, abort, helping -- for MULTIPLE
-% writers. RYW is orthogonal to that and now lives on both sides.
+% removes -- the install CAS, conflict detection, abort -- for MULTIPLE writers
+% (helping/stealing were built and REMOVED; see the retired-variants note, and
+% do not reintroduce them as current MW machinery). RYW is orthogonal to that
+% and now lives on both sides.
 % -----------------------------------------------------------------------
 
 \subsection{Composing with reclamation}
@@ -1837,9 +1839,9 @@ not a shortfall.
 \textbf{Value-based, not stability-based.} A record's old is the value the slot
 must hold \emph{at} the commit point, not one it must have held throughout. An
 operation whose correctness requires \emph{detecting} an away-and-back change
-must carry its own version in the word. Under exclusion this has no teeth. The
-one thing that could invalidate a recorded old --- an earlier edit in the
-writer's own bracket --- is exactly what read-your-own-writes reconciles
+must carry its own version in the word. Under exclusion the requirement does not
+arise: the one thing that could invalidate a recorded old --- an earlier edit in
+the writer's own bracket --- is exactly what read-your-own-writes reconciles
 (\cref{sec:swcomposition}), and nothing outside the bracket can change the slot
 at all. The distinction earns its keep only where writers are concurrent and a
 peer can move a slot away and back between a read and the commit; under
@@ -1938,8 +1940,9 @@ embedder needs is set by its own encoding, not by the engine.
 
 \paragraph{Low bits versus high bits.} This engine takes tag bits from the low
 end, where alignment guarantees them. The high end is the alternative: on
-current 64-bit architectures the top bits of a virtual address are unused, and a
-tag can live there instead, leaving the low bits entirely to the embedder.
+\emph{most} current 64-bit architectures the top bits of a virtual address are
+unused --- though not all, s390x being an exception --- and a tag can live there
+instead, leaving the low bits entirely to the embedder.
 The cost is portability --- the number of free high bits is
 architecture-dependent and can change --- so a high-bit scheme needs a runtime
 probe of the address space to establish its budget, and a fallback for
@@ -1951,16 +1954,20 @@ a proxy recognizable. An embedder could reserve a range of values --- a page of
 address space, say, or an unused numeric range --- and treat any value in it as
 a proxy handle. This costs no bits of the word, which is the one thing tagging
 does cost, and it is a real option for a slot whose bits are all spoken for. It
-costs a range check rather than a mask-and-compare on the read path, an
-allocator constrained to that range, and a carve-out from the data domain that
-the embedder must guarantee is never a legitimate value.
+costs a heavier check on the read path --- typically two inequality comparisons
+to bracket the value against the reserved range, where the tag is a single
+mask-and-compare --- plus an allocator constrained to that range, and a carve-out
+from the data domain that the embedder must guarantee is never a legitimate
+value.
 
 \subsection{Proxy placement and allocation}
 \label{sec:varproxy}
 
-\paragraph{One block versus many.} Proxies and their group are typically
-allocated as a single backing block with one \code{rcu\_head}, so a transaction
-costs one allocation and one deferred free. Individually allocated proxies are
+\paragraph{One block versus many.} A proxy is a record in its installed form
+(\cref{sec:fliplatch}): the tagged object a slot points at while the transaction
+is live. Proxies and their group are typically allocated as a single backing
+block with one \code{rcu\_head}, so a transaction costs one allocation and one
+deferred free. Individually allocated proxies are
 the alternative: they cost an allocation and a reclamation each, and they permit
 a transaction whose width is not known in advance to grow without moving what it
 has already built --- which is the problem \cref{sec:tagnotptr} solves the other
@@ -2217,17 +2224,12 @@ alone --- a description that cannot be built from is not a disclosure.
 \paragraph{The rest of the series.} This paper is the \sw case, and it is
 deliberately the first: the \fliplatch is the model at its smallest, where a
 commit is one store and the hard parts are contracts rather than machinery. A
-companion paper covers the \mw engine, which attacks the same model with a
-multi-word compare-and-swap and pays --- in descriptors, in helping, in an abort
-path this paper has no need of --- for the exclusion it drops. The two share the
-model of \cref{sec:model} and the status vocabulary, so an embedder that
-outgrows exclusion changes which engine it links, not how it reasons. A third
-paper takes up the programming model the two engines share: the read policy that
-decides which loads must help, read-your-own-writes and the slot-coincidence
-hazard it exists to handle, and the declarations an embedder can make to trade
-generality for speed. A fourth reports measurements, including where this design
-loses and why the loss is the predicted consequence of commit width rather than
-a surprise.
+companion paper takes up the \mw engine, which realizes the same model for
+concurrent writers, paying in machinery this paper has no need of for the
+exclusion it drops. Because the two share the model of \cref{sec:model} and the
+status vocabulary, an embedder that outgrows exclusion changes which engine it
+links, not how it reasons. The programming model the two engines share, and the
+evaluation, follow in their own papers.
 
 % ===========================================================================
 \section*{Availability}
@@ -2260,14 +2262,16 @@ Within that tree, the material of this paper is the following headers, all under
 \item[\code{rcu-txn-sw-list.h}] The bidirectional list of \cref{sec:wrappers},
       whose two chains stay mutually coherent.
 \item[\code{rcu-txn-sw-hlist.h}] The hash list.
-\item[\code{rcu-txn.h}] The shared model and status vocabulary of
-      \cref{sec:model}.
+\item[\code{rcu-txn-status.h}] The commit-status enum
+      (\cref{sec:model}) that both front-ends return, so an embedder tests a
+      commit the same way whichever engine it drives.
 \end{description}
 
-\noindent Two further headers are named here for orientation rather than as
+\noindent Three further headers are named here for orientation rather than as
 contributions of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
-companion paper, and \code{rcu-txn-sw-bitmap.h} applies the same tag contract to
-a non-pointer word --- outside this paper's pointer-focused scope.
+companion paper, \code{rcu-txn.h} is its transaction front-end, and
+\code{rcu-txn-sw-bitmap.h} applies the same tag contract to a non-pointer word
+--- outside this paper's pointer-focused scope.
 
 This paper is licensed CC BY 4.0. It is published to place the design, and the
 alternatives of \cref{sec:variations}, in the public record as prior art, so
