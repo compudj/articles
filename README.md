@@ -35,23 +35,15 @@ academic paper in three ways, and the difference shapes every document here:
   Fractal Trie reaches existence-like behaviour (commit width = number of
   *nodes*, not edges). A design document exists.
 - **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
-  userspace on the txn engine; experiment in
-  `/home/efficios/git/efficios-trie-benchmark/experiment`.
-  - *Candidate novelty (Mathieu's flag, framing his to finalize):* a **"host"
-    vs "shell"** split that gives a dentry **inline names** *and* keeps a
-    **stable address as node identity** (so no recompaction/relocation). The
-    tension it resolves — as I understand it, to be confirmed — is that inline
-    variable-length names normally force a node to move when the name changes,
-    which would break address-as-identity; separating a fixed-identity host from
-    a name-carrying shell decouples the two. No design doc yet
-    (`design/rcu-txn-use-cases.md` only touches dentry in passing).
-  - *Candidate novelty (Mathieu's flag):* **per-node seqcounts** sampled by a
-    reader **on the way down and again on the way up** a path walk, to detect a
-    directory **move** that raced the walk. Gives the same guarantee as a
-    seqlock but **without the global, writer-non-scaling** seqlock — moves are
-    detected locally, so unrelated writers do not contend on one counter. (*cf.*,
-    my inference: this replaces the Linux kernel's global `rename_lock` seqlock
-    used in RCU path walk with a scalable per-node scheme — confirm the framing.)
+  userspace on the txn engine — *"can urcu-txn dissolve `rename_lock`?"*.
+  Landed + stress-validated (S3 results on 2×96-core EPYC). Full novelty
+  inventory in [`candidates/dcache.md`](candidates/dcache.md); design note is
+  `efficios-trie-benchmark/experiments/dcache/rename-shell-transition.md`.
+  Headline novelties: the **host/shell** split (inline names + stable-address
+  identity, no recompaction) and the **per-node move-detection generation** (a
+  scalable replacement for the global `rename_lock`), plus a lock-free
+  cross-dir loop check via `load_validate`. Depends on P2/P3 (uses the MW
+  engine + programming model), so it slots after them despite already existing.
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
   (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
   per grace period per node, with a copy-on-write overflow escape, makes a
