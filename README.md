@@ -37,6 +37,14 @@ academic paper in three ways, and the difference shapes every document here:
 - **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
   userspace on the txn engine; experiment in
   `/home/efficios/git/efficios-trie-benchmark/experiment`.
+  - *Candidate novelty (Mathieu's flag, framing his to finalize):* a **"host"
+    vs "shell"** split that gives a dentry **inline names** *and* keeps a
+    **stable address as node identity** (so no recompaction/relocation). The
+    tension it resolves — as I understand it, to be confirmed — is that inline
+    variable-length names normally force a node to move when the name changes,
+    which would break address-as-identity; separating a fixed-identity host from
+    a name-carrying shell decouples the two. No design doc yet
+    (`design/rcu-txn-use-cases.md` only touches dentry in passing).
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
   (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
   per grace period per node, with a copy-on-write overflow escape, makes a
