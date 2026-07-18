@@ -23,10 +23,10 @@ academic paper in three ways, and the difference shapes every document here:
 
 | # | Directory | Topic | Status |
 |---|-----------|-------|--------|
-| 1 | `p1-sw-flip-latch/` | RCU pseudo-transactions + the single-writer flip-latch | **drafted, complete prose; pinned cefb0414** |
-| 2 | `p2-sole-driver-mcas/` | Sole-driver MCAS: the multi-writer engine | not started |
-| 3 | `p3-programming-model/` | Read policy, guards, conflict/aging, wrappers | not started |
-| 4 | `p4-evaluation/` | Evaluation | not started |
+| 1 | `p1-sw-flip-latch/` | RCU pseudo-transactions + the single-writer flip-latch | **drafted, complete prose; pinned b5767298** |
+| 2 | `p2-sole-driver-mcas/` | Sole-driver MCAS: the MW engine + the RCU-forwarding tombstone | **scoped** ([`SCOPE.md`](p2-sole-driver-mcas/SCOPE.md)) |
+| 3 | `p3-programming-model/` | Read-*set* validation: read policy, guards, conflict/aging declarations | not started |
+| 4 | `p4-evaluation/` | Comprehensive comparative evaluation (see fork below) | not started |
 
 **Candidate further papers** (queued, not scheduled):
 
@@ -44,6 +44,9 @@ academic paper in three ways, and the difference shapes every document here:
   scalable replacement for the global `rename_lock`), plus a lock-free
   cross-dir loop check via `load_validate`. Depends on P2/P3 (uses the MW
   engine + programming model), so it slots after them despite already existing.
+  **A standalone application paper, not P4's evaluation:** its novelties (host/shell,
+  move-detection generation) are first-class contributions, not benchmark datapoints —
+  though its 2×96-core scaling result is a headline workload P4 can cite.
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
   (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
   per grace period per node, with a copy-on-write overflow escape, makes a
@@ -62,7 +65,16 @@ academic paper in three ways, and the difference shapes every document here:
   readers no cross-slot snapshot — they read slot-by-slot — so consuming the pair
   needs a seqcount or recompaction. That belongs in the seqcount paper, not P1.
 
-The Fractal Trie proper is **deferred** — work still heavily in progress.
+**Candidate order** (all post-P3; dependency/readiness, not a commitment): **dcache**
+first — it already exists (landed + validated), the most writeable and the strongest
+application result; the **seqcount-latch** (+ non-pointer slots) is independent and
+slots in whenever its novelty check clears; **DLM-hybrid** then the **Fractal Trie**
+are the deeper structural line.
+
+The Fractal Trie proper is **deferred** — work still heavily in progress. It is the
+capstone of that line and carries the engine-specific *wide-node* freeze-on-free
+packing (the unified proxy/tombstone/`nr_child` state word, recompact-on-insert); the
+general RCU-forwarding tombstone itself is claimed earlier, in P2.
 
 **Order rationale.** Single-writer comes first: it is the simpler mechanism, it
 establishes the record/status/commit vocabulary the multi-writer paper reuses,
@@ -70,13 +82,35 @@ and it makes P1 short. That matters because the first submission is the one
 arXiv moderators use to size up a new account.
 
 The programming model does not split evenly between the engines. As of
-cefb0414, **read-your-own-writes and disjoint declarations are shared** — the sw
+b5767298, **read-your-own-writes and disjoint declarations are shared** — the sw
 engine gained both, so P1 demonstrates them and P3 will not have to introduce
-them from scratch. What remains **multi-writer only**: the full read policy (the
-`load`/`load_optimistic`/`load_validate`/`load_committed` distinction, which
-exists because a concurrent parker can be undecided), guards, conflict/aging,
-and the abort lane — under `sw` these are provably dead. Hence P3 still follows
-P2.
+them from scratch.
+
+The P2/P3 line is **write-set vs read-set validation.** P2 owns write-set atomicity
+and everything that makes a mutating structure *usable* under concurrency: the
+sole-driver commit, the abort/aging/fair-mutex escalation *mechanism*, and — because
+per-slot atomicity is not operation atomicity — **freeze-on-free**, whose general
+primitive (the **RCU-forwarding tombstone**) is claimed in P2 as a general
+engine-usability contribution. What remains **multi-writer-only and read-side** goes
+to P3: the read-policy taxonomy (`load`/`load_optimistic`/`load_validate`/
+`load_committed`, which exists only because a concurrent parker can be undecided),
+guards, and the conflict/aging *declarations* that tune the escalation — the
+validation a structure needs for a slot it *reads but does not write*. Under `sw`
+these are provably dead. Hence P3 still follows P2.
+
+**Same user in every paper.** Each paper presents the same consumer of the engine —
+the bidirectional list and the hash list — as its worked example; the delta between
+papers is the engine capability, not the structure. P1 shows the sw commit on them,
+P2 the MW engine + freeze-on-free + tombstone, P3 the read-set validation — so a
+reader watches one familiar structure gain each capability in turn.
+
+**Evaluation is distributed, and P4 is comparative.** Each paper carries the
+measurements that justify *its own* claims (P2 carries the throughput behind each
+rejected alternative — [`SCOPE.md`](p2-sole-driver-mcas/SCOPE.md) DECISION #1). P4 is
+then the *comprehensive comparative* study — against existence/RLU/MV-RLU, scaling,
+tail latency — which does little defensively (hence last) but is the strongest
+academic artifact. **Open fork:** P4 as a standalone comparative paper, vs. folding
+the comparative study into the dcache application paper.
 
 ## Framing rule (do not soften)
 
