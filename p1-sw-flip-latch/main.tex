@@ -332,7 +332,7 @@ parties and gives each of them a different bargain. A reader delimits its
 traversal with \code{rcu\_read\_lock()} and \code{rcu\_read\_unlock()}, marking an
 \rcu \emph{read-side critical section}. On the
 common implementations these are not locks at all: they exclude nothing and
-contend with nothing, and in the userspace library's \QSBR mode
+contend with nothing, and in \urcu's \QSBR mode
 \code{rcu\_read\_lock()} is an empty function --- a debug assertion and nothing
 else. What a reader gets in exchange is narrow but sufficient: any object it
 reaches inside the critical section remains allocated until that section ends.
@@ -907,6 +907,27 @@ must be reconciled with the dependency-chaining requirement of
 \cref{sec:monotone} --- it \emph{is} a dependency-chained descent, which is why
 it is safe as stated and why it costs the reader no barrier.
 
+It is worth being concrete about when this ordering is needed at all, because a
+great many tree edits never reach for it. Inserting a \emph{new} node is the
+case where it is free. Set the node's parent pointer during the build phase,
+while the node is still unpublished and no reader can reach it, and then make it
+reachable with a single store to the child pointer in its parent. The node
+becomes visible with its parent pointer \emph{already} correct, so there is one
+publication rather than two, and a reader that descends into it and walks back up
+finds the two edges agree with no ordering rule in play. This is ordinary \rcu
+build-and-publish (\cref{sec:buildpublish}); it needs neither the reverse-order
+rule nor a \pseudotxn.
+
+The rule --- and the \fliplatch behind it --- earns its keep in the case
+build-and-publish cannot reach: restructuring a node that is \emph{pinned}, its
+address held by the application and so not free to be rebuilt hidden and swapped
+in. A new node could carry its parent pointer into visibility because it was
+assembled in private; a pinned node cannot, so its parent pointer has to be
+re-pointed \emph{in place}, while readers can still reach it, and the forward and
+back edges genuinely move under live readers. That is the re-parent above, and it
+is where a single-instant switch of both edges --- or, if the edit is split
+across commits, the reverse-order rule --- stops being optional.
+
 The limits should be equally clear. This is an embedder's discipline, not an
 engine guarantee: the engine cannot know a structure's traversal order, so
 nothing checks that the commits were ordered against it. It applies only where a
@@ -1003,7 +1024,13 @@ unconditionally and branches, then may walk a version chain. None of these loads
 is expensive in isolation; all of them are memory references, and in each case
 the branch cannot resolve until its load does.
 
-A \pseudotxn's marker occupies tag bits of the slot, so recognizing it is
+A \pseudotxn's marker occupies tag bits of the slot. For a pointer slot those
+bits cost nothing: a pointer to an aligned object leaves its low bits clear by
+construction, so every pointer-shaped slot already wastes them, and the marker
+uses only what alignment left idle (\cref{sec:alignment} sets out how many). A
+slot holding a non-pointer has no such waste to spend, so there the marker is not
+free --- a counter or a bitmap word gives up one bit, carrying 63 on a 64-bit
+word rather than 64 (\cref{sec:nonpointer}). Recognizing the marker is then
 \begin{center}
 \code{((uintptr\_t) v \& tag) == tag}
 \end{center}
@@ -1220,7 +1247,7 @@ worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
 the lifecycle, alongside what a concurrent reader resolving $s$ actually
 obtains.
 
-\begin{table}[t]
+\begin{table}[ht]
 \centering
 \caption{One transacted slot $s$ through the lifecycle. The reader's column
 changes exactly once. Install and settle both rewrite $s$ --- they are stores to
@@ -1261,28 +1288,27 @@ subsequent settle overwrites the intruder's store with $n$. Nothing traps, and
 readers are handed a stale value \emph{as though it were current}. This is the
 same fact as \cref{sec:exclusion} viewed from the reader's side, and it is worth
 seeing from both: the \fliplatch's cheapness comes from having no install-time
-check, and an engine with one --- the \mw engine's install
-compare-and-swap --- would have refused the install instead.
+check. An engine that checked at install --- a compare-and-swap on the slot,
+paid on every commit --- would have caught the second writer and refused the
+install; this one spends nothing there and asks the embedder for exclusion
+instead.
 
 \subsection{Progress}
 \label{sec:swprogress}
 
 Under exclusion there is nothing to contend for, and the progress story is
-correspondingly short: a commit cannot fail. The engine has no abort because it
-has no contention to abort on.
-
-This is worth stating plainly because the shared status enumeration carries an
-\ABORT value, and its presence invites the opposite conclusion. That value
-exists so that an embedder can be written once against both front-ends: only the
-concurrent engine ever returns it, and the single-updater, having no contention,
-never does.
+correspondingly short: a commit cannot fail. There is no abort, because there is
+no contention to abort on. A committed \pseudotxn is the writer's to complete;
+nothing a concurrent party does can turn it back.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% This is the migration-shape argument and it pays off in the companion
-% paper: the *_prepare forms and the shared status enum are what let an
-% embedder move from this engine to the multi-writer one mechanically.
-% Forward-reference it, but do not develop it here -- P1 should not depend
-% on P2 to be complete.
+% An earlier draft explained here why the API carries an ABORT status value the
+% single-updater never returns (it is shared with the concurrent front-end so an
+% embedder migrates without rewriting its commit handling). Removed: it explains
+% a P1 feature by a P2 mechanism the reader has not met, and it is redundant --
+% the migration point already lives in Sec. 1's Scope paragraph, which is where
+% the series relationship belongs. Do not reintroduce a concurrent-engine
+% explanation in this subsection; keep the progress story self-contained.
 % -----------------------------------------------------------------------
 
 \subsection{What the embedder owes}
@@ -1655,19 +1681,15 @@ live structure instead, it believes $E_2$'s predecessor is still $E_1$, records
 publishes a list pointing through deleted nodes. Nothing here is a race; one
 writer, editing in program order, has torn its own commit.
 
-The engine closes this the way its concurrent sibling does, with
-\emph{read-your-own-writes}. Two accessors form the pair: a load that returns a
-slot's pending new value if this \pseudotxn has already recorded one and its
-committed value otherwise, and a recording store that \emph{fuses} a second edit
-of a slot onto the existing record --- keeping the committed old, advancing the
-new --- rather than appending a duplicate. A transaction holds at most one record
-per slot. The wrappers read every neighbour link through the load and record
-through the fusing store, so the second delete above reads the \emph{pending}
-\code{P->next}, chains onto that record, and the commit unlinks both victims and
-leaves $P \leftrightarrow N$ coherent. This is the same mechanism, and the same
-guarantee, as the concurrent engine's, reached through the same calls --- which
-is what lets an embedder written against one move to the other without rewriting
-its commit handling.
+The engine closes this with \emph{read-your-own-writes}. Two accessors form the
+pair: a load that returns a slot's pending new value if this \pseudotxn has
+already recorded one and its committed value otherwise, and a recording store
+that \emph{fuses} a second edit of a slot onto the existing record --- keeping
+the committed old, advancing the new --- rather than appending a duplicate. A
+transaction holds at most one record per slot. The wrappers read every neighbour
+link through the load and record through the fusing store, so the second delete
+above reads the \emph{pending} \code{P->next}, chains onto that record, and the
+commit unlinks both victims and leaves $P \leftrightarrow N$ coherent.
 
 Two boundaries remain, and both are narrower than the old ``slot-disjoint
 only'' rule they replace.
@@ -1683,8 +1705,7 @@ two.
 \emph{Declaring a write set disjoint is a promise the engine keeps you to.}
 Read-your-own-writes costs a find per recorded edit, which an embedder whose
 slots are distinct \emph{by construction} can skip by declaring the handle
-disjoint --- the single-writer analogue of the concurrent engine's identical
-option. The declaration is a contract on slot \emph{addresses}: a bitmap, whose
+disjoint. The declaration is a contract on slot \emph{addresses}: a bitmap, whose
 63~logical bits share one word, satisfies it only for edits the caller knows
 fall in distinct words. Break the promise and the fused reconciliation is
 skipped, the earlier same-slot edit is lost, and the commit reports success ---
@@ -1897,9 +1918,9 @@ must carry its own version in the word. Under exclusion this has no teeth. The
 one thing that could invalidate a recorded old --- an earlier edit in the
 writer's own bracket --- is exactly what read-your-own-writes reconciles
 (\cref{sec:swcomposition}), and nothing outside the bracket can change the slot
-at all. The distinction earns its keep in the concurrent engine, where a peer
-writer can move a slot away and back between a read and the commit; here it is
-inert.
+at all. The distinction earns its keep only where writers are concurrent and a
+peer can move a slot away and back between a read and the commit; under
+exclusion it is inert.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % UPDATED when the sw engine gained read-your-own-writes (pinned cefb0414). The
@@ -1973,7 +1994,7 @@ Selectors could instead be packed --- many groups' bits in one word, with each
 proxy carrying a bit index --- which shrinks the group to nothing but makes the
 selector word a contention point shared across unrelated transactions, and makes
 each flip a read-modify-write rather than a store. Under exclusion the
-read-modify-write is safe; under a concurrent engine it would not be.
+read-modify-write is safe; under concurrent writers it would not be.
 
 \paragraph{Write-once versus reusable.} A group here is used once and reclaimed.
 It could be reset and reused, which trades the reclamation cost for a
