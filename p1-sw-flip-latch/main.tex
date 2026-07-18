@@ -542,16 +542,32 @@ point, and $n$ is the value it takes afterwards.
 
 \begin{definition}[Pseudo-transaction]
 \label{def:pseudotxn}
-A \pseudotxn is a set of records over pairwise-distinct slots, \emph{frozen}
-at the commit point, together with a single \emph{commit step} that makes the
-whole set take effect at once.
+A \pseudotxn is a set of records over pairwise-distinct slots that is
+\emph{frozen} --- closed to further records --- before a single \emph{commit
+step} makes the whole set take effect at once.
 \end{definition}
 
-Two properties of \cref{def:pseudotxn} carry the entire model. The record set
-is \emph{frozen}: no record may join it after the commit step begins, so what
-becomes visible is decided before anything is published. And the commit is a
-\emph{single step}: one store, not a protocol, so there is no interval during
-which part of the set has taken effect and part has not.
+Two properties of \cref{def:pseudotxn} carry the entire model, and they concern
+different things: \emph{what} takes effect, and \emph{when}. They also happen at
+different times, and the order matters.
+
+\emph{Freezing} settles the \emph{what}, and it comes first. The set is closed
+before the commit step, not at it: once the commit procedure is under way the
+membership is fixed, and no record may still join. So what will become visible
+is decided in advance rather than accreting as the commit proceeds.
+
+The \emph{single step} settles the \emph{when}, and it comes last. The commit
+step is one store, not a protocol, so the already-frozen set takes effect all at
+once --- there is no interval in which part of it is visible and part is not.
+
+These are two distinct moments in sequence, and only the second is the commit
+step. Staging the set is what closes it; the single store that follows is what
+makes the closed set visible; and any work that tidies up afterwards changes
+nothing a reader can see (\cref{prop:lp}). The staging and the tidying are not
+part of the commit step and are not linearization points --- a fact easier to
+see once the mechanism is concrete (\cref{sec:lifecycle}), where freezing
+coincides with the start of installation and the commit step is the lone store
+that flips the set from old to new.
 
 \subsection{A transaction in the filesystem sense}
 \label{sec:fssense}
@@ -1114,10 +1130,13 @@ changes it.
 
 \input{fig-fliplatch}
 
-This is the commit step of \cref{def:pseudotxn}, realized: the record set is the
-set of installed proxies, frozen once installation ends, and the commit is the
-selector store. It is also why \cref{prop:monotone} holds --- the selector is
-written once, $0 \to 1$, and never written back.
+This is the commit step of \cref{def:pseudotxn}, realized. The record set is the
+set of proxies to be installed; it is frozen when installation begins, because
+from that point the writer is placing proxies for exactly those records and no
+other may join. Installation itself publishes nothing --- the selector is still
+$0$, so every proxy resolves to old --- and the commit step is the lone selector
+store that follows. That single store, $0 \to 1$ and never written back, is also
+why \cref{prop:monotone} holds.
 
 \subsection{Why exclusion is required}
 \label{sec:exclusion}
@@ -1161,11 +1180,13 @@ cannot already hold a parked proxy.
 
 \begin{enumerate}
 \item \textbf{Build} the new structure where readers cannot reach it.
-\item \textbf{Install.} Initialize the group, then for each slot initialize a
-      proxy with its $\{\mathit{old},\mathit{new}\}$ targets and point the slot
-      at the tagged proxy. The selector is $0$, so this is \emph{transparent to
-      readers}: they still resolve to old. Installation is not a partial commit;
-      it is not observable at all.
+\item \textbf{Install.} The record set is frozen at this point: these are the
+      slots that will change, and no further record may join. Initialize the
+      group, then for each slot initialize a proxy with its
+      $\{\mathit{old},\mathit{new}\}$ targets and point the slot at the tagged
+      proxy. The selector is $0$, so this is \emph{transparent to readers}: they
+      still resolve to old. Installation is not a partial commit; it is not
+      observable at all.
 \item \textbf{Commit.} One release store, $0 \to 1$. Every proxy now resolves to
       new, atomically. This is the linearization point
       (\cref{prop:lp}).
