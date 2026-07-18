@@ -1858,46 +1858,36 @@ what the model \emph{is}.
 
 \textbf{No reader snapshot.} A reader is not a transaction of any kind
 (\cref{sec:nonguarantees}); a traversal spanning slots may straddle a commit. An
-embedder that needs a coherent multi-slot read builds it on top, and ongoing
-work in this series develops more than one way. A \emph{seqcount} around the
-commit lets a reader notice that a mutation intervened and retry. A plain
-seqcount reader is only obstruction-free --- a sustained stream of writers can
-starve its retry indefinitely --- but the grace period repairs exactly that. If
-the counter's next in-place advance is withheld until the grace period following
-the previous one has elapsed, no reader's sampling window can span two advances,
-so a reader retries \emph{at most once}: a bound that is constant in the number
-of writers, which is a wait-free read. One bit of counter suffices for it, and
-the cost moves to the writer, which admits one in-place update per grace period
-per node and copies the rest. A \emph{validating transaction} is the other
-direction: it folds the reader's loads into the commit's conflict set --- the
-loads ``act as writes'', accepted only if every slot still holds what it
-returned --- torn-free, but it aborts and retries under contention. These are
-points on one curve trading write-side work for read-side progress, with
-copy-on-write at the far end; the base model fixes none of them, and that it
-declines to is the deliberate weakening of \cref{sec:whyweakening}, not a
-shortfall.
+embedder that needs a coherent multi-slot read layers its own versioning on top.
+Two standard families do this without disturbing the base engine: a
+\emph{seqcount}, where the reader re-samples a counter around its read and
+retries if a writer intervened, and a \emph{validating transaction}, where the
+reader's loads fold into a commit that is accepted only if every slot it touched
+still holds what it returned --- the loads ``act as writes''. Their progress
+guarantees and cost are the subject of later work in this series. That the base
+model supplies neither is the deliberate weakening of \cref{sec:whyweakening},
+not a shortfall.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% The snapshot approaches are ONGOING work, deliberately NOT pinned. Provenance:
-%   - seqcount reader + the single-bit GP-gated latch: design/rcu-txn-blob.md in
-%     efficios-trie-benchmark; the latch is urcu-txn-dev 2a978059 (UNPUSHED as of
-%     the pin cefb0414). The validating-transaction reader is the concurrent
-%     engine's urcu_txn_load_validate() (rcu-txn.h).
-% Hint only -- do not describe either as shipped, do not pin.
+% DELIBERATELY UNDERSTATED. This bullet names only the two STANDARD families
+% (plain seqcount; validating transaction) and stops. It does NOT describe how
+% far the read side can be kept wait-free, and must not.
 %
-% CORRECTION (do not regress): an earlier draft, following the OLDER commit
-% 98c7f2f7 ("seqcount reads are not wait-free"), claimed BOTH approaches forfeit
-% wait-free reads and cast single-pointer COW as the only wait-free way to
-% snapshot many words. Mathieu flagged this as wrong and it is: the single-bit
-% GP-gated latch gets BOTH torn-free AND wait-free. Mechanism (blob design note,
-% "Single-bit latch: wait-free reads for real"): gate the latch so the next
-% in-place flip waits for the grace period after the previous flip, so no
-% reader's window spans two flips; the reader then retries AT MOST ONCE -- a
-% constant independent of writer count, hence genuinely wait-free, not merely
-% bounded-by-a-large-constant. Cost moves entirely to the write side: <= 1
-% in-place update per GP per node, recompact (COW) the rest. So there is NO
-% wait-free-XOR-torn-free trilemma; COW is one point on a curve, not the only
-% wait-free corner. Do not reinstate the trilemma framing.
+% Reason (Mathieu's call): the single-bit grace-period-gated seqcount latch with
+% a copy-on-write overflow escape -- which makes a torn-free multi-word read
+% ALSO wait-free (<= 1 retry, constant in writer count) by admitting <= 1
+% in-place update per GP per node and recompacting the rest -- is suspected
+% NOVEL and is RESERVED for its own paper (a fuller, enabling disclosure is
+% stronger prior art than a buried hint, and self-disclosure never blocks the
+% later paper). Mechanism lives in efficios-trie-benchmark design/rcu-txn-blob.md
+% ("Single-bit latch: wait-free reads for real"); the urcu-txn-dev commits that
+% carry it are unpushed and volatile (hashes change on amend) -- do not cite them.
+%
+% So: do NOT reinstate the wait-free single-bit-latch mechanism, its retry bound,
+% the COW escape hatch, or any "wait-free XOR torn-free / COW is the only
+% wait-free corner" framing here. An earlier draft did (following the stale
+% "seqcount reads are not wait-free" note) and it was both wrong AND a premature
+% disclosure of the reserved result. Keep P1 neutral on read-side progress class.
 % -----------------------------------------------------------------------
 
 \textbf{Value-based, not stability-based.} A record's old is the value the slot

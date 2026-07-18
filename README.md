@@ -37,6 +37,14 @@ academic paper in three ways, and the difference shapes every document here:
 - **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
   userspace on the txn engine; experiment in
   `/home/efficios/git/efficios-trie-benchmark/experiment`.
+- **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
+  (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
+  per grace period per node, with a copy-on-write overflow escape, makes a
+  torn-free multi-word read *also* wait-free (≤ 1 retry, constant in writer
+  count). Design in `efficios-trie-benchmark/design/rcu-txn-blob.md`
+  ("Single-bit latch"). **Deliberately kept out of P1** — a full enabling
+  disclosure is stronger prior art than a hint, and P1 stays neutral on read-side
+  progress class (§7.4). Could stand alone or anchor the DLM-hybrid paper.
 
 The Fractal Trie proper is **deferred** — work still heavily in progress.
 
