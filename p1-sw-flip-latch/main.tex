@@ -1616,9 +1616,17 @@ discipline is to identify the victims first and then edit, not to interleave the
 two.
 
 \emph{Declaring a write set disjoint is a promise the engine keeps you to.}
-Read-your-own-writes costs a find per recorded edit, which an embedder whose
-slots are distinct \emph{by construction} can skip by declaring the handle
-disjoint. The declaration is a contract on slot \emph{addresses}, not on the
+Read-your-own-writes costs a find per recorded edit --- \emph{is this slot
+already pending?} --- but not the quadratic scan that first suggests. A typical
+transaction is small, a two-edge list operation, where scanning the handful of
+pending records beats anything cleverer, and the engine does exactly that; only
+when a write set grows large enough for the scan to dominate does it arm a Bloom
+filter, which answers the find's common outcome --- a miss, the slot is new ---
+in constant time. The filter is built lazily, on the first lookup that would
+scan a long write set rather than on the record that crosses the threshold, so a
+transaction that stays small never pays for one. An embedder whose slots are
+distinct \emph{by construction} can skip the find altogether by declaring the
+handle disjoint. The declaration is a contract on slot \emph{addresses}, not on the
 logical items an edit names: two edits the caller believes distinct can still
 land on one slot --- the adjacent deletes above both re-point \code{P->next} ---
 so it is safe only where the write set is disjoint by construction, not merely
@@ -1631,7 +1639,7 @@ merely observed.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This section was rewritten when the sw engine gained read-your-own-writes
-% (urcu-txn-dev 10f22a76, d47aaae8, cced8fb0; pinned at cefb0414). BEFORE that,
+% (urcu-txn-dev 10f22a76, d47aaae8, cced8fb0). BEFORE that,
 % the sw engine had no transactional loads: composition was slot-disjoint ONLY,
 % and adjacent deletes silently corrupted -- which was true at the previous pin
 % (ec621268) and is the behaviour earlier drafts described.
@@ -1838,7 +1846,7 @@ peer can move a slot away and back between a read and the commit; under
 exclusion it is inert.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% UPDATED when the sw engine gained read-your-own-writes (pinned cefb0414). The
+% UPDATED when the sw engine gained read-your-own-writes. The
 % earlier draft unified "value-based not stability-based" with "composition is
 % slot-disjoint only" -- true when the engine could NOT read its own pending
 % edits, false now that it can. Under exclusion the only thing that could
@@ -2231,15 +2239,10 @@ a surprise.
 % so a reader must be able to fetch exactly what this paper describes years
 % from now, without depending on where development happened to go next.
 % ---------------------------------------------------------------------------
-\TODO{Re-pin: Sec. 6.3 now describes the pprev-out-of-txn hlist (urcu-txn-dev
-09a8b796), which is NOT in the current pin cefb0414. That commit is UNPUSHED (it
-sits on unpushed blob commits, so its hash is not yet stable). BLOCKS
-submission: once it is pushed and stable, move the pin below to it and update the
-date. Until then the prose is ahead of the pin.}
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{cefb0414ce36a0443ea425f5fbe183c19fe6db22} (2026-07-17), on branch
+\code{09a8b796bf933fbd3525a1bff0a96c411cd88ee0} (2026-07-18), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
