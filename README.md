@@ -23,21 +23,36 @@ academic paper in three ways, and the difference shapes every document here:
 
 | # | Directory | Topic | Status |
 |---|-----------|-------|--------|
-| 1 | `p1-sw-flip-latch/` | RCU pseudo-transactions + the single-writer flip-latch | skeleton |
+| 1 | `p1-sw-flip-latch/` | RCU pseudo-transactions + the single-writer flip-latch | **drafted, complete prose; pinned cefb0414** |
 | 2 | `p2-sole-driver-mcas/` | Sole-driver MCAS: the multi-writer engine | not started |
-| 3 | `p3-programming-model/` | Read policy, RYW chaining, declarations, wrappers | not started |
+| 3 | `p3-programming-model/` | Read policy, guards, conflict/aging, wrappers | not started |
 | 4 | `p4-evaluation/` | Evaluation | not started |
 
-The Fractal Trie is **deferred** — work still heavily in progress.
+**Candidate further papers** (queued, not scheduled):
+
+- **DLM-style hybrid.** MW-txn for a per-node lock + tombstone, SW-txn for the
+  structural changes under that lock, plus an optional seqcount. This is how the
+  Fractal Trie reaches existence-like behaviour (commit width = number of
+  *nodes*, not edges). A design document exists.
+- **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
+  userspace on the txn engine; experiment in
+  `/home/efficios/git/efficios-trie-benchmark/experiment`.
+
+The Fractal Trie proper is **deferred** — work still heavily in progress.
 
 **Order rationale.** Single-writer comes first: it is the simpler mechanism, it
 establishes the record/status/commit vocabulary the multi-writer paper reuses,
 and it makes P1 short. That matters because the first submission is the one
 arXiv moderators use to size up a new account.
 
-The programming model does not split evenly between the engines: read policy,
-RYW chaining, guards, declarations, conflict/aging, and the abort lane are all
-**multi-writer only** — under `sw` they are provably dead. Hence P3 follows P2.
+The programming model does not split evenly between the engines. As of
+cefb0414, **read-your-own-writes and disjoint declarations are shared** — the sw
+engine gained both, so P1 demonstrates them and P3 will not have to introduce
+them from scratch. What remains **multi-writer only**: the full read policy (the
+`load`/`load_optimistic`/`load_validate`/`load_committed` distinction, which
+exists because a concurrent parker can be undecided), guards, conflict/aging,
+and the abort lane — under `sw` these are provably dead. Hence P3 still follows
+P2.
 
 ## Framing rule (do not soften)
 

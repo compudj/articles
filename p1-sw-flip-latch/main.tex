@@ -124,9 +124,10 @@ bargain that makes \rcu worth using. Specifically:
 
 \item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
       list whose two chains stay mutually coherent --- so the reverse walk
-      \code{rculist} declines to offer becomes ordinary --- and a hash list,
-      with the boundary: composition is legal only across slot-disjoint edits,
-      and silently commits stale pointers when it is not.
+      \code{rculist} declines to offer becomes ordinary --- and a hash list.
+      Several edits compose into one commit, including edits that touch the same
+      slots, through a read-your-own-writes discipline (\cref{sec:swcomposition});
+      we give the two obligations that remain.
 
 \item \textbf{The design space we did not take} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
@@ -699,10 +700,10 @@ unit of cross-structure atomicity is one \pseudotxn, not one writer and not one
 critical section. An operation that commits the index edit and then commits the
 list edit has produced two linearization points and is back to exactly the skew
 above --- the engine has made the composition \emph{available}, not automatic.
-What may legally be folded into a single commit is constrained in turn:
-composition is sound across slot-disjoint edits, which cross-structure
-composition satisfies by construction, and \cref{sec:swcomposition} gives the
-boundary and what happens on the wrong side of it.
+Folding edits into one commit is sound even when they touch the same slots: the
+engine reconciles a writer's edits against its own pending ones through
+read-your-own-writes (\cref{sec:swcomposition}). Cross-structure composition,
+where the slots cannot coincide, is the easy case of that.
 
 \subsection{What is not guaranteed}
 \label{sec:nonguarantees}
@@ -1370,6 +1371,13 @@ This matters beyond generality, and it is the sharpest form of the argument in
 no header to prepend and no field to add, so making it transactable under such a
 scheme means wrapping it in one --- paying an object's worth of metadata to
 transact a word's worth of data. This engine spends one bit.
+
+The transacted bitmap is also the plainest case for the composition of
+\cref{sec:swcomposition}. Because 63~logical bits share one physical word,
+flipping two different bits records two edits on the \emph{same} slot; they
+compose into one commit only because the recording store fuses same-slot edits
+rather than appending them. The bitmap is where read-your-own-writes stops being
+a list-specific convenience and becomes the general rule.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % State this carefully. The fair version is about GRANULARITY, not a claim
@@ -1402,20 +1410,16 @@ resolved per record. A per-translation-unit tag could not express it.
 
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% PENDING (as of 2026-07-16): there is no SINGLE-WRITER bitmap wrapper yet.
-% rcu-txn-bitmap.h is written against the multi-writer MCAS engine only, and
-% the sw wrappers are the list and hlist. Mathieu plans to implement an sw
-% bitmap. So Sec. 5.2 and 5.3 currently argue the capability from the TAG
-% CONTRACT -- which is legitimate, because it IS a property of the contract
-% and not of either engine -- but they cannot point at a shipped sw wrapper.
-% When the sw bitmap lands, revisit both sections and Sec. 6: the prose is
-% already written and needs only the wrapper as its concrete instance. Two
-% things to check at that point: (1) whether rank()/select() consistency
-% differs under exclusion -- the MCAS bitmap leans on the value-CAS at
-% commit to re-validate the bits within a word, and the sw engine has no
-% such CAS; (2) whether the sw bitmap keeps the narrow bit-0 tag, since Sec.
-% 5.3's whole example depends on it composing with wider-tagged pointer
-% slots in one commit.
+% RESOLVED (pinned cefb0414): the single-writer bitmap wrapper now exists,
+% include/urcu/rcu-txn-sw-bitmap.h. Both questions the old PENDING note flagged
+% are answered in source: (1) it keeps the narrow bit-0 tag (so Sec. 5.3's
+% mixed-width example holds -- a bit-0 bitmap word composing with a
+% nibble-tagged pointer in one commit); (2) rank()/select() read across several
+% words and are per-word HINTS, not snapshots -- they hold no proxy and resolve
+% each word against its own moment, so a multi-word scan can straddle a commit.
+% That is the general "a reader is not a transaction" property (Sec. 3.4), not a
+% bitmap-specific caveat, and needs no separate treatment. The MCAS twin offers
+% a guarded multi-word snapshot; the sw engine deliberately does not.
 % -----------------------------------------------------------------------
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
@@ -1636,33 +1640,73 @@ which is \cref{prop:crossstructure} being cashed, and the reason even an
 operation that needs no atomicity for its own sake is still expressed as a
 \pseudotxn.
 
-\subsection{Composition is slot-disjoint only}
+\subsection{Composing edits: read-your-own-writes}
 \label{sec:swcomposition}
 
-The \sw engine's composition has a hard limit, and it follows directly from what
-\cref{sec:exclusion} removed.
+Folding several edits into one commit raises a hazard that has nothing to do
+with concurrency, and everything to do with a writer reading state its own
+earlier edit has already changed. Consider deleting two adjacent nodes,
+$P \rightarrow E_1 \rightarrow E_2 \rightarrow N$, in one \pseudotxn. Removing
+$E_1$ records \code{P->next}: \edit{E_1}{E_2} and \code{E2->prev}:
+\edit{E_1}{P}. Removing $E_2$ must now record \code{P->next} again --- but only
+if it \emph{sees} that \code{P->next} is already pending. If it re-reads the
+live structure instead, it believes $E_2$'s predecessor is still $E_1$, records
+\code{E1->next}: \edit{E_2}{N} on a node that is about to vanish, and the commit
+publishes a list pointing through deleted nodes. Nothing here is a race; one
+writer, editing in program order, has torn its own commit.
 
-The engine has no transactional loads and no same-slot reconciliation. Each
-\code{*\_prepare} therefore reads its neighbour slots \emph{raw}, and cannot see
-an edit made earlier in the same bracket. Composition is legal only across
-\textbf{slot-disjoint} edits.
+The engine closes this the way its concurrent sibling does, with
+\emph{read-your-own-writes}. Two accessors form the pair: a load that returns a
+slot's pending new value if this \pseudotxn has already recorded one and its
+committed value otherwise, and a recording store that \emph{fuses} a second edit
+of a slot onto the existing record --- keeping the committed old, advancing the
+new --- rather than appending a duplicate. A transaction holds at most one record
+per slot. The wrappers read every neighbour link through the load and record
+through the fusing store, so the second delete above reads the \emph{pending}
+\code{P->next}, chains onto that record, and the commit unlinks both victims and
+leaves $P \leftrightarrow N$ coherent. This is the same mechanism, and the same
+guarantee, as the concurrent engine's, reached through the same calls --- which
+is what lets an embedder written against one move to the other without rewriting
+its commit handling.
 
-Cross-structure composition --- the intended use --- is disjoint by
-construction: a node published into a trie and spliced into a list touches
-slots that cannot coincide. But two edits on \emph{one} list whose
-neighbourhoods touch, adjacent deletes being the obvious case, will silently
-commit stale pointers. The second edit's idea of its neighbour predates the
-first edit, and nothing in this engine notices.
+Two boundaries remain, and both are narrower than the old ``slot-disjoint
+only'' rule they replace.
+
+\emph{The caller must name the nodes it means.} Read-your-own-writes reconciles
+the \emph{links} an edit records, but it cannot re-run the caller's search: a
+traversal made with the ordinary \rcu accessors sees the committed structure,
+not this \pseudotxn's pending one, so a caller that walks and edits in the same
+bracket can still hand an edit a node its own earlier edit has displaced. The
+discipline is to identify the victims first and then edit, not to interleave the
+two.
+
+\emph{Declaring a write set disjoint is a promise the engine keeps you to.}
+Read-your-own-writes costs a find per recorded edit, which an embedder whose
+slots are distinct \emph{by construction} can skip by declaring the handle
+disjoint --- the single-writer analogue of the concurrent engine's identical
+option. The declaration is a contract on slot \emph{addresses}: a bitmap, whose
+63~logical bits share one word, satisfies it only for edits the caller knows
+fall in distinct words. Break the promise and the fused reconciliation is
+skipped, the earlier same-slot edit is lost, and the commit reports success ---
+which is why a debug build
+(\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT}) traps a violated declaration, and why
+the declaration should be made only where disjointness is structural rather than
+merely observed.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% Say "silently" and mean it -- there is no abort, no assert, no debug trap
-% for this in the sw engine. It is the sharpest edge in the paper and it
-% must be in Sec. 7 as well. This is also the cleanest possible motivation
-% for the companion paper: the multi-writer front-end's read-your-own-writes
-% chaining exists precisely to make same-slot composition safe, and it is
-% the reason that engine has transactional loads at all. So the limitation
-% is not a defect to apologise for -- it is the boundary that defines what
-% the other engine is for. Frame it that way.
+% This section was rewritten when the sw engine gained read-your-own-writes
+% (urcu-txn-dev 10f22a76, d47aaae8, cced8fb0; pinned at cefb0414). BEFORE that,
+% the sw engine had no transactional loads: composition was slot-disjoint ONLY,
+% and adjacent deletes silently corrupted -- which was true at the previous pin
+% (ec621268) and is the behaviour earlier drafts described.
+%
+% Do NOT reinstate the old "the concurrent engine's RYW is what it is FOR / the
+% reason it has transactional loads at all" framing anywhere (it was in this
+% NOTE and in the Sec. 10 P2 hook). It is now FALSE: BOTH engines have RYW, so
+% RYW is part of the SHARED programming model (P3), not P2's differentiator.
+% What still distinguishes the concurrent engine is the machinery exclusion
+% removes -- the install CAS, conflict detection, abort, helping -- for MULTIPLE
+% writers. RYW is orthogonal to that and now lives on both sides.
 % -----------------------------------------------------------------------
 
 \subsection{Composing with reclamation}
@@ -1747,9 +1791,11 @@ build.
   corrupt it.
 \item[Free tag bits.] Every value a transacted slot may legitimately hold must
   satisfy \code{(value \& tag) != tag} (\cref{sec:tagcontract}).
-\item[Distinct slots, and no raw access.] A \pseudotxn's records must target
-  pairwise-distinct slots; every write to a transacted slot must go through the
-  engine and every read through its accessor.
+\item[Correct composition, and no raw access.] Edits that touch the same slot
+  must be composed through the read-your-own-writes path, which fuses them
+  (\cref{sec:swcomposition}); the blind fast path and any handle declared
+  disjoint instead require pairwise-distinct slots. Every write to a transacted
+  slot must go through the engine and every read through its accessor.
 \item[Deferred descriptor reclaim.] A descriptor reachable through a slot is
   reclaimed only after a grace period, because a reader may dereference it.
 \end{description}
@@ -1788,10 +1834,13 @@ would mean inspecting every value ever stored in a transacted slot, which is the
 per-write cost the design exists to avoid. It is discharged by the embedder's
 encoding, by construction or not at all.
 
-Slot-disjointness of composed edits (\cref{sec:swcomposition}) is likewise
-unchecked in this engine, and its violation is the quietest of all: the second
-edit records an old value that predates the first, and the commit publishes it.
-No abort, no assertion, no debug trap.
+A disjoint declaration (\cref{sec:swcomposition}), if false, is the quietest
+violation of all: the engine skips the reconciliation the declaration promised
+was unnecessary, drops the earlier of two edits that land on one slot, and
+commits success. It is the one contract with a dedicated opt-in trap
+(\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT}), though even that catches only the
+recording side; a default build discharges the declaration by construction or
+corrupts quietly.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Frame the opt-in validator as the design position it is: the contract is
@@ -1816,19 +1865,25 @@ any value-based \mcas. This is the deliberate weakening of
 \textbf{Value-based, not stability-based.} A record's old is the value the slot
 must hold \emph{at} the commit point, not one it must have held throughout. An
 operation whose correctness requires \emph{detecting} an away-and-back change
-must carry its own version in the word. Under exclusion this has no teeth ---
-nothing else can change the slot --- which is why it surfaces here only through
-\cref{sec:swcomposition}: a stale recorded old is exactly a same-bracket edit
-this engine cannot see.
+must carry its own version in the word. Under exclusion this has no teeth. The
+one thing that could invalidate a recorded old --- an earlier edit in the
+writer's own bracket --- is exactly what read-your-own-writes reconciles
+(\cref{sec:swcomposition}), and nothing outside the bracket can change the slot
+at all. The distinction earns its keep in the concurrent engine, where a peer
+writer can move a slot away and back between a read and the commit; here it is
+inert.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% Good unification worth keeping: in the single-writer engine, "value-based
-% not stability-based" and "composition is slot-disjoint only" are THE SAME
-% limitation seen from two sides. Under exclusion the only thing that can
-% invalidate a recorded old is an earlier edit in your own bracket. In the
-% concurrent engine they separate, and that is where the guard/validate API
-% earns its place -- so the unification is a P1 observation, not a general
-% one.
+% UPDATED when the sw engine gained read-your-own-writes (pinned cefb0414). The
+% earlier draft unified "value-based not stability-based" with "composition is
+% slot-disjoint only" -- true when the engine could NOT read its own pending
+% edits, false now that it can. Under exclusion the only thing that could
+% invalidate a recorded old is your own earlier same-bracket edit, and RYW now
+% reconciles exactly that, so the value/stability distinction is inert here
+% rather than surfacing through composition. It earns its keep only in the
+% concurrent engine, where a PEER can change a slot between read and commit --
+% which is where the guard/validate API lives. Do not re-couple it to
+% composition here.
 % -----------------------------------------------------------------------
 
 \textbf{Monotonicity is a property of the traversal, not only of the engine.}
@@ -2230,7 +2285,7 @@ a surprise.
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{ec621268bba1f16711e992fa7320851d7a1a3205} (2026-07-14), on branch
+\code{cefb0414ce36a0443ea425f5fbe183c19fe6db22} (2026-07-17), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
@@ -2241,18 +2296,22 @@ Within that tree, the material of this paper is the following headers, all under
 \begin{description}\setlength{\itemsep}{2pt}
 \item[\code{rcu-txn-sw.h}] The \fliplatch: flip groups, proxies, resolution, and
       the four-step lifecycle of \cref{sec:lifecycle}. Its ordering note is the
-      source of \cref{sec:monotone} and \cref{sec:publishorder}.
+      source of \cref{sec:monotone} and \cref{sec:publishorder}, and its
+      read-your-own-writes pair (\code{urcu\_txn\_sw\_load} /
+      \code{urcu\_txn\_sw\_record\_chain}) is the composition mechanism of
+      \cref{sec:swcomposition}.
 \item[\code{rcu-txn-sw-list.h}] The bidirectional list of \cref{sec:wrappers},
       whose two chains stay mutually coherent.
 \item[\code{rcu-txn-sw-hlist.h}] The hash list.
+\item[\code{rcu-txn-sw-bitmap.h}] The transacted bitmap of
+      \cref{sec:nonpointer}: a word of 63 logical bits, tag at bit~0.
 \item[\code{rcu-txn.h}] The shared model and status vocabulary of
       \cref{sec:model}.
 \end{description}
 
-\noindent Two further headers are named here for orientation rather than as
-contributions of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
-companion paper, and \code{rcu-txn-bitmap.h} is a non-pointer encoding
-(\cref{sec:nonpointer}) written against that engine rather than this one.
+\noindent One further header is named here for orientation rather than as a
+contribution of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
+companion paper.
 
 This paper is licensed CC BY 4.0. It is published to place the design, and the
 alternatives of \cref{sec:variations}, in the public record as prior art, so
