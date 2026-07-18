@@ -45,6 +45,13 @@ academic paper in three ways, and the difference shapes every document here:
     which would break address-as-identity; separating a fixed-identity host from
     a name-carrying shell decouples the two. No design doc yet
     (`design/rcu-txn-use-cases.md` only touches dentry in passing).
+  - *Candidate novelty (Mathieu's flag):* **per-node seqcounts** sampled by a
+    reader **on the way down and again on the way up** a path walk, to detect a
+    directory **move** that raced the walk. Gives the same guarantee as a
+    seqlock but **without the global, writer-non-scaling** seqlock — moves are
+    detected locally, so unrelated writers do not contend on one counter. (*cf.*,
+    my inference: this replaces the Linux kernel's global `rename_lock` seqlock
+    used in RCU path walk with a scalable per-node scheme — confirm the framing.)
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
   (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
   per grace period per node, with a copy-on-write overflow escape, makes a
