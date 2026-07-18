@@ -1539,7 +1539,7 @@ acquire.
 % will actually trip over it.
 % -----------------------------------------------------------------------
 
-\subsection{The hash list: one visible edge, two recorded}
+\subsection{The hash list: one transacted edge}
 \label{sec:swhlist}
 
 The hash-bucket sibling is shaped like the kernel's hlist: the head is a single
@@ -1552,15 +1552,32 @@ another \code{next} slot, and \textbf{no operation carries a head special
 case}: first-position insert and delete are the general code path with a
 different slot address.
 
-Readers walk forward only, so each structural operation has exactly one
-reader-visible edge; \code{pprev} is writer-only bookkeeping. Both edges are
-nonetheless recorded into the flip transaction, for two reasons that have
-nothing to do with reader visibility. A mutation becomes all-or-nothing under an
-allocation failure. And it composes: through the \code{*\_prepare} forms, a
-single-edge hlist edit can be folded into a larger cross-structure flip ---
-which is \cref{prop:crossstructure} put to work, and the reason even an
-operation that needs no atomicity for its own sake is still expressed as a
-\pseudotxn.
+Readers walk forward only, so a structural operation has exactly one
+reader-visible edge --- the \code{next} slot it re-points. That edge is
+transacted; \code{pprev} is not. No reader ever loads \code{pprev}, and a single
+updater has no peer to race it, so the backlink needs neither atomicity nor a
+proxy: it is maintained by a plain store, written eagerly in the prepare step.
+An hlist mutation therefore records \emph{one} edge and commits it with a lone
+release store --- and for a stand-alone insert or delete there is no proxy to
+allocate, no group, and no deferred reclamation, so it costs about what a bare
+\code{rcu\_assign\_pointer} does.
+
+The plain backlink is not a corner that composition pays for later. When two
+edits land on one bucket, the second reads its neighbour's \code{pprev} directly
+and sees the first edit's store, because under one updater a plain store is
+immediately visible to that same updater --- so adjacent deletes compose without
+the backlink ever entering the transaction. \emph{Deferring} the backlink store
+and then reading it raw would be the bug, the hlist form of the adjacent-delete
+trap of \cref{sec:swcomposition}: a later edit would re-point a slot inside an
+already-unlinked node. Eager-and-raw agree on every committed outcome;
+deferred-and-raw do not.
+
+Why transact the forward edge at all, when one release store would publish it?
+For the same reason the bidir list does: composability. Through the
+\code{*\_prepare} forms that single edge folds into a larger cross-structure flip
+--- \cref{prop:crossstructure} put to work --- so an operation that needs no
+atomicity of its own is still expressed as a \pseudotxn, and pays almost nothing
+for the option when it is used alone.
 
 \subsection{Composing edits: read-your-own-writes}
 \label{sec:swcomposition}
@@ -2214,6 +2231,11 @@ a surprise.
 % so a reader must be able to fetch exactly what this paper describes years
 % from now, without depending on where development happened to go next.
 % ---------------------------------------------------------------------------
+\TODO{Re-pin: Sec. 6.3 now describes the pprev-out-of-txn hlist (urcu-txn-dev
+09a8b796), which is NOT in the current pin cefb0414. That commit is UNPUSHED (it
+sits on unpushed blob commits, so its hash is not yet stable). BLOCKS
+submission: once it is pushed and stable, move the pin below to it and update the
+date. Until then the prose is ahead of the pin.}
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
