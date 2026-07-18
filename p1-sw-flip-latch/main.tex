@@ -75,7 +75,7 @@ change becomes one pointer swap, and pay to copy; drain the readers with a grace
 period so nobody spans the inconsistent window, and pay to wait; or decline the
 operation.
 
-\Cref{sec:rculistgap} looks at a library that took the third option, and it is
+\Cref{sec:onestore} looks at a library that took the third option, and it is
 the cleanest evidence available that the problem is real, and it is not confined
 to a niche library. Linux's \rcu list --- the most widely deployed there is ---
 publishes only its forward chain: \code{\_\_list\_del()} commits the forward
@@ -1419,12 +1419,15 @@ A record stores the \emph{tag}, not a pre-tagged pointer, and the proxy is
 formed from the record's current address at install time. That distinction looks
 pedantic and is not: it is what makes a descriptor safe to grow.
 
-A transaction that outgrows its descriptor must move its records. Had each
-record cached a proxy value computed from its old address, every such value
-would be stranded by the move --- pointing at storage the records no longer
-occupy. Because the record stores only the tag, the tag travels with the
-record's content through the move, and the installer re-derives the proxy from
-the record's final address. Nothing is stranded, and growth needs no fixup pass.
+Growth here means reallocation, and reallocation moves addresses. A descriptor
+that fills up is enlarged the way any dynamic array is --- a larger block is
+allocated, the records are copied into it, and the old block is freed --- so
+every record lands at a \emph{new} address. Had each record cached a proxy value
+computed from its old address, the copy would strand all of them at once: each
+would carry a pointer into storage the records no longer occupy. Because the
+record stores only the tag, the tag travels with the record's content across the
+move untouched, and the installer re-derives the proxy from the record's final
+address. Nothing is stranded, and growth needs no fixup pass.
 
 \subsection{The alignment budget}
 \label{sec:alignment}
@@ -1477,35 +1480,13 @@ precisely the cost this design exists to avoid.
 \section{Transacted Data Structures}
 \label{sec:wrappers}
 
-\subsection{The gap: a list with no reverse walk}
-\label{sec:rculistgap}
-
-Userspace \rcu's doubly-linked list, \code{rculist.h}, ships forward iterators
-and no RCU-safe reverse walk. That is not an oversight, and the reason is worth
-following, because it is the concrete form of the problem this engine solves.
-
-A doubly-linked list has two chains, but \code{rculist} publishes only one. In
-\code{cds\_list\_del\_rcu()} the forward edge is committed by a single atomic
-store to \code{prev->next}. The back edge is a plain assignment: no
-\code{rcu\_assign\_pointer}, no release ordering --- and correspondingly, the
-\code{prev} pointers are never \code{rcu\_dereference}d. A backward walk
-therefore has no acquire to pair with and no atomic handoff, and can read a
-\code{prev} value inconsistent with the live forward chain.
-
-The semantic consequence is worse than the ordering one. A removed node is a
-ghost, reclaimed only after a grace period. A reverse walker can keep stepping
-onto a node the forward chain has already dropped, for as long as that ghost
-survives --- so \textbf{the \code{prev} view trails the \code{next} view by up to
-a grace period}. There is no barrier to sprinkle that fixes this: the two chains
-are updated by two stores, and nothing makes them one event.
-% -----------------------------------------------------------------------
-% NOTE (drafting; retained deliberately -- see README framing rule).
-% This is the paper's best motivating example and it should be in Sec. 1
-% too, in one sentence. It is a real, shipped, widely-deployed library that
-% OMITS AN OPERATION because it cannot publish two edges atomically. Nobody
-% has to be persuaded the problem is real -- the absence of the API is the
-% evidence.
-% -----------------------------------------------------------------------
+\Cref{sec:onestore} established the gap this engine exists to close: a
+doubly-linked list has two reader-visible chains, but \rcu can publish only one
+of them atomically, so \code{rculist} maintains a \code{prev} chain no reader may
+walk and ships no \rcu-safe reverse iterator. The \fliplatch moves both edges at
+a single instant --- precisely what that gap needs. This section spends it on two
+structures: a bidirectional list whose reverse walk becomes ordinary, and a hash
+list.
 
 \subsection{Two edges, one flip}
 \label{sec:swlist}
