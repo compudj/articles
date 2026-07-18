@@ -1639,7 +1639,7 @@ merely observed.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This section was rewritten when the sw engine gained read-your-own-writes
-% (urcu-txn-dev 10f22a76, d47aaae8, cced8fb0). BEFORE that,
+% (urcu-txn-dev a797a2eb, 89e8d822, f6e48016). BEFORE that,
 % the sw engine had no transactional loads: composition was slot-disjoint ONLY,
 % and adjacent deletes silently corrupted -- which was true at the previous pin
 % (ec621268) and is the behaviour earlier drafts described.
@@ -2244,7 +2244,7 @@ evaluation, follow in their own papers.
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{09a8b796bf933fbd3525a1bff0a96c411cd88ee0} (2026-07-18), on branch
+\code{b5767298e4d0a6877d1fd6fd3d8e54eeaf11df7d} (2026-07-18), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
