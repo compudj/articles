@@ -35,8 +35,8 @@ requires writer exclusion. This paper drops the exclusion. The sole-driver
 multi-word compare-and-swap (\mcas) engine realizes the same model for concurrent
 writers: a transaction is driven only by its owner, and a thread that trips over
 an in-flight proxy waits a bounded spin for the owner to settle,
-then escalates. There is no helping, no stealing, and---this is the
-centerpiece---no RDCSS (restricted double-compare single-swap). A plain value-CAS
+then escalates. There is no helping, no stealing, and---most of all---no RDCSS
+(restricted double-compare single-swap). A plain value-CAS
 install is A-B-A-safe by construction, because the re-plant hazard it prevents
 needs a \emph{foreign} driver of one's own records, which sole-driver excludes.
 
@@ -110,7 +110,7 @@ its predecessor lost.
 \begin{itemize}
 \item \textbf{The sole-driver \mcas engine} (\cref{sec:engine}): a frozen record
       set, a tri-state status word, and descriptor-naming installs, driven by
-      the owner alone. Its centerpiece is a \emph{negative} result---the engine
+      the owner alone. Its main result is a \emph{negative} one---the engine
       needs \textbf{no RDCSS} (restricted double-compare single-swap, the
       double-word primitive that normally guards a descriptor install). A plain
       value-CAS install is A-B-A-safe by construction under one driver, because
@@ -264,7 +264,7 @@ escalation of \cref{sec:progress}. Keeping the wait and the progress guarantee
 separate is deliberate: the wait is an optimization, and the correctness of the
 engine does not rest on it.
 
-\subsection{No RDCSS: the centerpiece}
+\subsection{No RDCSS}
 \label{sec:norddcss}
 
 A value-CAS install is the natural way to place a record: compare-and-swap the
@@ -1049,8 +1049,8 @@ of---a descriptor-naming install, a status word, a bounded wait, an escalation
 lane---while refusing to pay for one thing that machinery usually drags in.
 Because a transaction is driven only by its owner, the install-time A-B-A that
 RDCSS exists to prevent cannot arise, so the engine installs with a bare
-value-CAS and needs no RDCSS. That is a negative result, and it is the paper's
-centerpiece.
+value-CAS and needs no RDCSS. That is a negative result, and it is the one this
+paper turns on.
 
 The engine is bounded-blocking, not lock-free, and we have argued that this is
 the right target rather than a shortfall. The argument is measured: the
