@@ -95,6 +95,39 @@ per-read check.
 
 ---
 
+## The read-side snapshot menu — validating read vs. version (Arm A, 2026-07-19)
+
+P3 is the read-side *programming model*, so it presents the full menu of read-side
+consistency tools and when to reach for each — which is what lifts it past a bare
+guard paper. Two tools sit on **orthogonal axes** (composition scope × progress class):
+
+- **Validating read** (P3's contribution, P3-1): fold a read into the commit's k-CAS
+  conflict set (`load_validate`). *Composes a snapshot across structures*, opt-in per
+  slot — but parks a proxy, contends, and is **not wait-free**.
+- **Version-based snapshot** (GP-bounded seqcount / wait-free 1-bit latch): *single
+  structure only*, but can be made **wait-free** (≤ 1 retry, constant in writer count).
+  Source: `efficios-trie-benchmark/design/rcu-gp-bounded-version.md` (extracted from
+  `rcu-txn-blob.md`).
+
+The distinction P3 states (from that doc): *the validating transaction is the only one
+that composes a snapshot across other structures; every version-based row snapshots one
+structure alone — that, not progress class, is the reason to reach for it.* This is also
+P3's honest boundary: for a wait-free single-structure snapshot, do NOT use P3's guards
+(they park proxies and contend) — use a version.
+
+**Scope split (Arm A, 2026-07-19).** The **wait-free GP-gated 1-bit latch folds into the
+DLM-hybrid paper, not P3**, because its clean parity form needs per-node write
+serialization = the DLM per-node lock (the SW flip-latch acts as the version selector;
+under plain MW you'd need the messier enter/exit concurrent form). So P3 **carries the
+menu / taxonomy** (composition-scope × progress-class) and the general version discussion
+as positioning + boundary, and **forward-references DLM** for the wait-free construction.
+P3 claims neither the version mechanism nor the latch. The version-on-payload
+**demonstrator** (extend the same-user hlist node with a multi-word payload) lives in
+**DLM**; P3's demonstrator stays the hlist **links** (the back-edge guard). A **SoA /
+novelty review** on the latch travels to DLM before any hard claim. This resolves
+open-question #2 (P3 thin-vs-merge) in the *keep P3 lean after P2, strengthen DLM*
+direction — P2's `next paper` forward-refs stay valid.
+
 ## DEMONSTRATOR — decided (2026-07-18): the same hlist; guards are the back-edge dual
 
 The same-user convention holds fully across P3 — **no richer structure is needed for guards.**
@@ -155,7 +188,13 @@ reverse-walk** P1's intro opens on: the forward edge is *write*-validated, the b
 1. **RESOLVED (2026-07-18) — see DEMONSTRATOR.** The same-user hlist already uses guards (the
    pprev back-edge liveness guard); no richer structure needed. Skiplist optional, for the
    ordered read-policy/composition story only.
-2. **Standalone-paper strength (series strategy).** P3's novelty is substrate-level, not
-   idea-level — thinner than P2. Defensively fine (it discloses the barrier-free-RCU
-   opt-in-per-slot realization, which is unoccupied), but the academic-novelty is modest —
-   relevant only if aiming beyond arXiv. Confirm P3 stands alone vs. reframe/merge.
+2. **RESOLVED (Arm A, 2026-07-19).** P3's novelty is substrate-level, not idea-level —
+   thinner than P2. Considered folding the wait-free 1-bit latch in to strengthen it;
+   decided **against** because the latch needs the DLM per-node lock (it belongs in DLM,
+   not a pre-DLM P3). Resolution: **keep P3 lean and right after P2** (guards / validation
+   / read policy on the hlist links), grow it past a bare guard paper with the **read-side
+   snapshot menu** (positioning + boundary vs. the version-based snapshot), and
+   forward-ref DLM for the wait-free construction. Latch + version-on-payload demonstrator
+   → DLM. P3 stays defensively complete (discloses the barrier-free-RCU opt-in-per-slot
+   realization) without over-reaching on academic novelty. See the read-side-snapshot-menu
+   section above.

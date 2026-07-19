@@ -24,16 +24,26 @@ academic paper in three ways, and the difference shapes every document here:
 | # | Directory | Topic | Status |
 |---|-----------|-------|--------|
 | 1 | `p1-sw-flip-latch/` | RCU pseudo-transactions + the single-writer flip-latch | **drafted, complete prose; pinned b5767298** |
-| 2 | `p2-sole-driver-mcas/` | Sole-driver MCAS: the MW engine + the RCU-forwarding tombstone | **scoped** ([`SCOPE.md`](p2-sole-driver-mcas/SCOPE.md)) |
-| 3 | `p3-programming-model/` | Read-*set* validation: read policy, guards, conflict/aging declarations | not started |
+| 2 | `p2-sole-driver-mcas/` | Sole-driver MCAS: the MW engine (no-RDCSS) + logical deletion, applied | **first draft; pinned c7f428a8** ([`SCOPE.md`](p2-sole-driver-mcas/SCOPE.md)) |
+| 3 | `p3-programming-model/` | Read-*set* validation: read policy, guards, declarations; the read-side snapshot menu (forward-refs DLM for the wait-free version/latch) | not started |
 | 4 | `p4-evaluation/` | Comprehensive comparative evaluation (see fork below) | not started |
 
 **Candidate further papers** (queued, not scheduled):
 
 - **DLM-style hybrid.** MW-txn for a per-node lock + tombstone, SW-txn for the
-  structural changes under that lock, plus an optional seqcount. This is how the
-  Fractal Trie reaches existence-like behaviour (commit width = number of
-  *nodes*, not edges). A design document exists.
+  structural changes under that lock, plus the **GP-bounded version / wait-free
+  single-bit latch** as its read-side snapshot layer (folded in 2026-07-19; no
+  longer a standalone candidate). This is how the Fractal Trie reaches
+  existence-like behaviour (commit width = number of *nodes*, not edges). The
+  per-node lock is exactly what supplies the write-side serialization the clean
+  parity latch needs — the SW flip-latch doubles as the version selector — which
+  is why the latch belongs *here* rather than in P3 (Arm A, 2026-07-19). Design
+  docs: the DLM scheme, and
+  `efficios-trie-benchmark/design/rcu-gp-bounded-version.md` (version/latch). A
+  **SoA / novelty review is required before hard-claiming** the wait-free latch
+  (suspected novel). Demonstrator: extend the same-user list/hlist node with a
+  **multi-word payload** — version-on-payload beside the lock/tombstone on the
+  links.
 - **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
   userspace on the txn engine — *"can urcu-txn dissolve `rename_lock`?"*.
   Landed + stress-validated (S3 results on 2×96-core EPYC). Full novelty
@@ -48,33 +58,39 @@ academic paper in three ways, and the difference shapes every document here:
   move-detection generation) are first-class contributions, not benchmark datapoints —
   though its 2×96-core scaling result is a headline workload P4 can cite.
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
-  (suspected novel; reserved). A one-bit seqcount whose flips are gated to one
-  per grace period per node, with a copy-on-write overflow escape, makes a
-  torn-free multi-word read *also* wait-free (≤ 1 retry, constant in writer
-  count). Design in `efficios-trie-benchmark/design/rcu-txn-blob.md`
-  ("Single-bit latch"). **Deliberately kept out of P1** — a full enabling
-  disclosure is stronger prior art than a hint, and P1 stays neutral on read-side
-  progress class (§7.4). Could stand alone or anchor the DLM-hybrid paper.
+  (suspected novel). A one-bit seqcount whose flips are gated to one per grace
+  period per node, with a copy-on-write overflow escape, makes a torn-free
+  multi-word read *also* wait-free (≤ 1 retry, constant in writer count).
+  **No longer a standalone candidate (2026-07-19, Arm A): it folds into the
+  DLM-hybrid paper above**, because its clean parity form needs the DLM per-node
+  lock for write-side serialization (the SW flip-latch acts as the version
+  selector). **Kept out of P1** — a full enabling disclosure beats a hint, and P1
+  stays neutral on read-side progress class (§7.4). P3 references it in its
+  read-side snapshot menu and forward-refs DLM for the construction. Design:
+  `efficios-trie-benchmark/design/rcu-gp-bounded-version.md` (extracted from
+  `rcu-txn-blob.md`).
 - **Non-pointer transacted slots** (deferred with the above). The tag contract
   constrains *values*, not pointers, so a counter or bitmap word can be
   transacted by spending one payload bit. Cut from P1 (2026-07-17): **P1 is
   pointers-only**. The one genuinely useful non-pointer application is a
-  **sequence counter** (Mathieu), which pairs naturally with the seqcount-latch
-  paper above. Note the trap that forced the cut: a "bitmap bit flips atomically
-  with an accompanying pointer" example is *writer*-atomic (one commit) but gives
-  readers no cross-slot snapshot — they read slot-by-slot — so consuming the pair
-  needs a seqcount or recompaction. That belongs in the seqcount paper, not P1.
+  **sequence counter** (Mathieu), which pairs naturally with the version/latch,
+  now in the DLM-hybrid paper above. Note the trap that forced the cut: a "bitmap
+  bit flips atomically with an accompanying pointer" example is *writer*-atomic
+  (one commit) but gives readers no cross-slot snapshot — they read slot-by-slot —
+  so consuming the pair needs a seqcount or recompaction. That belongs in the
+  version/DLM paper, not P1.
 
 **Candidate order** (all post-P3; dependency/readiness, not a commitment): **dcache**
 first — it already exists (landed + validated), the most writeable and the strongest
-application result; the **seqcount-latch** (+ non-pointer slots) is independent and
-slots in whenever its novelty check clears; **DLM-hybrid** then the **Fractal Trie**
-are the deeper structural line.
+application result; **DLM-hybrid** (now carrying the version/latch and the
+non-pointer sequence counter) then the **Fractal Trie** are the deeper structural
+line.
 
 The Fractal Trie proper is **deferred** — work still heavily in progress. It is the
-capstone of that line and carries the engine-specific *wide-node* freeze-on-free
-packing (the unified proxy/tombstone/`nr_child` state word, recompact-on-insert); the
-general RCU-forwarding tombstone itself is claimed earlier, in P2.
+capstone of that line and carries the engine-specific *wide-node* packing (the
+unified proxy/tombstone/`nr_child` state word, recompact-on-insert); the general
+logical-deletion tombstone itself is **disclosed earlier, in P2** — as applied
+prior art, with P2 claiming no novelty in it (see the P2 §6 rewrite, 2026-07-18).
 
 **Order rationale.** Single-writer comes first: it is the simpler mechanism, it
 establishes the record/status/commit vocabulary the multi-writer paper reuses,
