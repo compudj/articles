@@ -240,18 +240,18 @@ becomes unnecessary once the single-driver discipline is added to it.
 \label{def:soledriver}
 A transaction is installed, decided, and settled by its \emph{owner} alone. No
 foreign thread ever plants, drives, evicts, or steals another transaction's
-records. A thread that meets a foreign in-flight record in a slot it cares about
-waits a bounded spin for that record's owner to settle the slot to a plain
-value, then proceeds.
+records. A thread that meets a foreign in-flight record resolves it to the
+transaction's logical value, or---when it needs the slot itself settled before it
+can act on it---waits a bounded spin for the owner to settle it; either way it
+proceeds without ever driving the record.
 \end{definition}
 
 The discipline is total, and its most easily overlooked edge is the read side. A
-load that lands on an \UNDECIDED foreign record does not help decide it. It waits
-a bounded spin for the record's owner to settle---so that the value it returns is
-stable---and if the owner is still undecided at the patience cap, it returns the
-record's \emph{logical} value, the old, and moves on. The engine's own read
-accessor states it as an imperative: \emph{never drive} the foreign
-transaction. This closes an objection a careful reader will otherwise
+reader that lands on an \UNDECIDED foreign record does not help decide it: it
+resolves the record to its \emph{logical} value---the old, the value the
+transaction takes if it aborts---at once, without waiting on it, and moves on. The
+engine's own read accessor states it as an imperative: \emph{never drive} the
+foreign transaction. This closes an objection a careful reader will otherwise
 raise---``but surely your read path helps''---and it is worth stating outright
 because it is what makes the next subsection's argument airtight: there is no
 foreign \emph{installer} of a transaction's records, and no foreign \emph{driver}
