@@ -961,7 +961,9 @@ operations couple through unwritten slots.
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Multi-word compare-and-swap.} The engine's descriptor-and-status shape
+\subsection{Multi-word compare-and-swap}
+
+The engine's descriptor-and-status shape
 is that of practical \mcas~\citep{harris2002mcas, fraser2004lockfreedom,
 fraser2007locks}, and its no-RDCSS result is stated against that line: RDCSS is
 the machinery~\citep{harris2002mcas} that a recent \kcas
@@ -971,7 +973,9 @@ Brown's~\citep{arbelraviv2017descriptors}, whose \rcu reclamation baseline over
 this library is the prior art \cref{sec:settle} is careful not to reclaim as its
 own.
 
-\paragraph{Blocking that beats lock-free.} That a blocking design can outperform
+\subsection{Blocking that beats lock-free}
+
+That a blocking design can outperform
 a lock-free one at scale is not a new observation---it is the lesson of broad
 synchronization studies~\citep{david2013everything} and of flat
 combining~\citep{hendler2010flatcombining}, which serializes deliberately to win
@@ -980,7 +984,9 @@ the general insight; the progress taxonomy we place it in is
 standard~\citep{herlihy2003obstruction, herlihy2011progress}, and the fair-lane
 fallback is an MCS lock~\citep{mellorcrummey1991mcs}.
 
-\paragraph{Logical deletion.} The tombstone of \cref{sec:tombstone} is applied
+\subsection{Logical deletion}
+
+The tombstone of \cref{sec:tombstone} is applied
 prior art, claimed as none of ours. Marked-pointer deletion is
 Harris~\citep{harris2001lists}; the flag/record discipline in non-blocking trees
 is Ellen et al.~\citep{ellen2010nbbst} and Natarajan and
@@ -989,7 +995,9 @@ Mittal~\citep{natarajan2014bst}; freezing a record set against later updates is
 design property we call out---that readers never consult the tombstone
 (\cref{sec:tombstoneclaim}).
 
-\paragraph{RCU trees, and reader-visible old versions.} Concurrent updates to an
+\subsection{RCU trees, and reader-visible old versions}
+
+Concurrent updates to an
 \rcu search tree with per-node-locked writers are Arbel and Attiya's
 Citrus~\citep{arbel2014citrus}; the sole-driver engine replaces those locks with
 lock-free \mcas writers over the same \rcu reader discipline. Reader-visible old
@@ -999,6 +1007,37 @@ declines; a throughput comparison against them crosses guarantee classes and is
 the evaluation paper's to make carefully. Transactional
 boosting~\citep{herlihy2008boosting} is the composition pattern a
 lock-plus-engine design converges on.
+
+\subsection{What this paper claims}
+\label{sec:relclaims}
+
+As in the companion paper, the claim is a conjunction, because each ingredient of
+the engine is separately old. The \emph{descriptor-and-status shape}---a frozen
+record set resolved through a status word---is
+Harris's~\citep{harris2002mcas, fraser2004lockfreedom}. That a \emph{blocking}
+engine can beat a lock-free one is not our
+insight~\citep{david2013everything, hendler2010flatcombining}; the safety of a
+disjoint-access operation only its owner may drive is Israeli and
+Rappoport's~\citep{israeli1994disjoint}; the progress classes we place it in are
+standard~\citep{herlihy2003obstruction, herlihy2011progress}, and its fair serial
+lane is an MCS lock~\citep{mellorcrummey1991mcs}. Reclaiming descriptors after a
+grace period is \rcu's ordinary treatment~\citep{arbelraviv2017descriptors}, and
+logical deletion is Harris's marked pointer and its
+descendants~\citep{harris2001lists, ellen2010nbbst, brown2013scx}.
+
+What we have not found in that prior art is the combination: a multi-writer \mcas
+engine that is \textbf{sole-driven and therefore free of RDCSS}---its install a
+plain value-CAS made A-B-A-safe by construction rather than by a double-word
+primitive, because the hazard RDCSS guards is helper-induced and there is no
+helper---while being \textbf{bounded-blocking with a cost-scaled adaptive
+coarseness}, \textbf{refcount-free to reclaim} at the instant owner-only settle
+makes a transaction unreachable, and \textbf{usable in place} through a
+logical-deletion discipline that charges the reader nothing. The linchpin, and the
+one step we are not aware of drawn this way, is the first: removing helping makes
+RDCSS \emph{unnecessary}, not merely cheaper. Every part is borrowed; assembling
+them into an engine with that property is the claim---and, as a defensive
+publication, we disclose it, and the alternatives we rejected
+(\cref{sec:variations}), in enough detail to be rebuilt from these pages alone.
 
 % ===========================================================================
 \section{Conclusion}
