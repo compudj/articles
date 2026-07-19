@@ -28,7 +28,7 @@
 % Keep "linearizable" scoped to the k-CAS write. NEVER "serializable"/"opacity".
 % Overclaiming here is the single most damaging error available to this paper.
 % ---------------------------------------------------------------------------
-A companion paper described an \rcu \pseudotxn---a frozen set of
+A companion paper described a Read-copy-update (\rcu) \pseudotxn---a frozen set of
 \record{slot}{old}{new} records made visible by one commit step---and realized
 it for a single writer with a \fliplatch that has no compare-and-swap and
 requires writer exclusion. This paper drops the exclusion. The sole-driver
@@ -55,15 +55,14 @@ coordination---a would-be attacher validates it and aborts---so a reader gets a
 frozen node for free without ever consulting the tombstone, which keeps it off
 the reader's path and lets it sit on a cold cache line. This is a known
 technique, disclosed here as applied. With it and one guarded read, the same
-bidirectional list and hash list the companion paper used become usable under
-concurrent writers.
+bidirectional list and hash list become usable under concurrent writers.
 \end{abstract}
 
 % ===========================================================================
 \section{Introduction}
 \label{sec:intro}
 
-Read-copy-update rests on a bargain: readers pay nothing, and in exchange a
+Read-copy-update (\rcu) rests on a bargain: readers pay nothing, and in exchange a
 writer gets exactly one atomic act, a single pointer store bracketed by building
 the new structure where readers cannot reach it and reclaiming the old one after
 a grace period~\citep{mckenney1998rcu, desnoyers2012urcu}. A companion paper
@@ -94,8 +93,9 @@ The argument is not a preference stated after the fact. It is a falsification
 trail. An earlier version of this engine had threads \emph{help} drive each
 other's transactions, in the manner of practical \mcas
 \citep{harris2002mcas, barnes1993method}. Helping made two threads co-install a
-transaction's records, which admits an install-time A-B-A hazard, which forced a
-per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch to close. That latch
+transaction's records, which admits an install-time A-B-A hazard---a value that
+cycles away and back, which a plain compare-and-swap cannot detect---which forced
+a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch to close. That latch
 already made the helping engine bounded-blocking---so lock-freedom was never
 actually on the table there---and it lost on throughput to the simpler design:
 hot-cache-line traffic on the per-record state machine, and helper work that
