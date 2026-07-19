@@ -308,9 +308,9 @@ states the elimination this way---that the sole-driver regime makes RDCSS
 unnecessary rather than merely cheaper.
 
 The engine does still require the ordinary things a value-based \mcas requires,
-and none of them concerns slot values: tag bit~0 free in every legitimate slot
-value (the descriptor-naming tag, \cref{sec:constraints}), pairwise-distinct
-slots per transaction, and---the reclamation obligation---that a descriptor
+and none of them concerns slot values: the embedder's per-record tag kept free
+in every legitimate slot value (\cref{sec:constraints}), pairwise-distinct slots
+per transaction, and---the reclamation obligation---that a descriptor
 reachable through a slot is freed only after a grace period, because a reader may
 still dereference it. This is value-CAS atomicity: a record is validated to hold
 its old at the linearization point, not to have been stable throughout. An
@@ -363,13 +363,17 @@ point has been reached.
 \subsection{Constraints}
 \label{sec:constraints}
 
-The engine owns tag bit~0 of every transacted slot: an installed record is
-recognized by that bit, so every value a slot may legitimately hold must leave
-it clear, which two-byte alignment of the pointed-to objects guarantees. The
-record set is frozen at commit---membership is fixed before installation
-begins---and the slots of one transaction are pairwise distinct. These are the
-same shape of contract the companion paper's tag scheme imposed, and they are
-discharged by the embedder's encoding, by construction or not at all.
+An installed record is recognized by a \emph{tag}, and---as in the companion
+paper---the tag is chosen \emph{per record} by the embedder rather than fixed by
+the engine: bit~0 in the structures shown here, a reserved nibble or high bits
+where a slot's own encoding has already spent its low bit. Whatever the embedder
+picks, every value that slot may legitimately hold must keep the tag pattern
+clear. The engine's own fixed requirement is narrower and always met: a record's
+address must carry the tag pattern in free low bits, which its alignment
+guarantees.
+The record set is frozen at commit---membership is fixed before installation
+begins---and the slots of one transaction are pairwise distinct. These contracts
+are discharged by the embedder's encoding, by construction or not at all.
 
 % ===========================================================================
 \section{Progress and the Coarseness Thesis}
@@ -948,8 +952,9 @@ the linearization point, not to have been stable throughout the transaction. An
 operation whose correctness requires detecting an away-and-back change must carry
 its own version in the word; snapshot and version semantics are layered on top,
 as with any value-based \mcas. Memory safety holds unconditionally; atomicity is
-conditional on the embedder's contracts---tag bit~0 free, pairwise-distinct
-slots, deferred descriptor reclaim, and the logical-deletion discipline where
+conditional on the embedder's contracts---the per-record tag kept free,
+pairwise-distinct slots, deferred descriptor reclaim, and the logical-deletion
+discipline where
 operations couple through unwritten slots.
 
 % ===========================================================================
