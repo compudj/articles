@@ -107,11 +107,12 @@ its predecessor lost.
 
 \subsection*{Contributions}
 
-The paper claims two things, developed below and drawn together in
-\cref{sec:relclaims}: a specific negative result---that a sole-driver engine needs
-no RDCSS---and, more broadly, the engine as a combination of otherwise-known parts
-we have not found assembled before, of which that result is the linchpin. The
-contributions that build them are:
+The paper claims two things, drawn together in \cref{sec:relclaims}: that a
+sole-driver engine needs \textbf{no RDCSS}, and that the engine as a
+whole---sole-driven, bounded-blocking, refcount-free to reclaim, usable in
+place---is a combination of otherwise-known parts we have not found assembled
+before, of which that first result is the linchpin. Four contributions build and
+back them:
 
 \begin{itemize}
 \item \textbf{The sole-driver \mcas engine} (\cref{sec:engine}): a frozen record
@@ -121,20 +122,24 @@ contributions that build them are:
       double-word primitive that normally guards a descriptor install). A plain
       value-CAS install is A-B-A-safe by construction under one driver, because
       the re-plant hazard it resolves requires a foreign driver of one's own
-      records, which the regime excludes (\cref{sec:norddcss}).
+      records, which the regime excludes (\cref{sec:norddcss}); and its owner-only
+      settle makes a terminal transaction a \emph{refcount-free} reclamation point
+      (\cref{sec:settle}). This is the first claim, and two elements of the second.
 
 \item \textbf{The progress argument} (\cref{sec:progress}): deadlock-freedom by
       construction from a sorted install order; \emph{bounded-blocking} defined
       and placed in the progress taxonomy---not obstruction-free, because it
       waits, but starvation-free through a FIFO-fair mutex escalation whose
-      budget scales with an operation's cost.
+      budget scales with an operation's cost: the second claim's bounded-blocking
+      element.
 
 \item \textbf{A measured design-space map} (\cref{sec:variations}): helping,
       abort-others, age-as-resolution, DCAS (double compare-and-swap)/RDCSS, and
-      pure lock-freedom---each
-      built or considered, each rejected, each with the throughput or
-      portability reason that decided it. Disclosing an implemented-then-rejected
-      approach is what makes this section carry defensive weight.
+      pure lock-freedom---each built or considered, each rejected, each with the
+      throughput or portability reason that decided it. This is not a third claim
+      but the \emph{evidence} behind the progress argument above, and---because
+      disclosing an implemented-then-rejected approach dates it as prior
+      art---the defensive disclosure of the design space itself.
 
 \item \textbf{Logical deletion, applied} (\cref{sec:tombstone},
       \cref{sec:structures}): per-slot atomicity is not operation atomicity, so a
