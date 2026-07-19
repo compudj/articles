@@ -19,5 +19,11 @@ mode.txt
 arxiv-stage/
 *-arxiv.tar.gz
 
+# Per-paper scratchpad: extracted primary-source texts (SCX, Shenandoah,
+# reuse-don't-recycle, ...) kept locally for exact quotes when drafting Related
+# Work. Third-party paper text -- never vendored into the repo.
+scratchpad/
+*/scratchpad/
+
 # Built PDFs are generated; regenerate with `make`.
 *.pdf

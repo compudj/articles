@@ -1404,3 +1404,210 @@
                   \code{kernel/nstree.c}, which takes one adjacency hop},
   url          = {https://lore.kernel.org/r/20241213-work-mount-rbtree-lockless-v3-4-6e3cdaf9b280}
 }
+
+% ===========================================================================
+% P2 (sole-driver MCAS) additions. Progress-class lineage, contention
+% management, non-blocking-tree freeze primitives, RCU trees, and the GC
+% relocation barriers the deletion-mark forwarding must be distinguished from.
+% Metadata verified where marked; entries still flagged in the P2 SCOPE's
+% verify-before-cite list carry a NOTE and should be re-checked before arxiv.
+% ===========================================================================
+
+@inproceedings{david2013everything,
+  author       = {Tudor David and Rachid Guerraoui and Vasileios Trigonakis},
+  title        = {Everything You Always Wanted to Know About Synchronization
+                  but Were Afraid to Ask},
+  booktitle    = {Proc.\ 24th ACM Symposium on Operating Systems Principles
+                  (SOSP)},
+  year         = {2013},
+  pages        = {33--48}
+}
+
+@inproceedings{hendler2010flatcombining,
+  author       = {Danny Hendler and Itai Incze and Nir Shavit and Moran Tzafrir},
+  title        = {Flat Combining and the Synchronization-Parallelism Tradeoff},
+  booktitle    = {Proc.\ 22nd ACM Symposium on Parallelism in Algorithms and
+                  Architectures (SPAA)},
+  year         = {2010},
+  pages        = {355--364}
+}
+
+@inproceedings{herlihy2003obstruction,
+  author       = {Maurice Herlihy and Victor Luchangco and Mark Moir},
+  title        = {Obstruction-Free Synchronization: Double-Ended Queues as an
+                  Example},
+  booktitle    = {Proc.\ 23rd IEEE International Conference on Distributed
+                  Computing Systems (ICDCS)},
+  year         = {2003},
+  pages        = {522--529}
+}
+
+@inproceedings{herlihy2011progress,
+  author       = {Maurice Herlihy and Nir Shavit},
+  title        = {On the Nature of Progress},
+  booktitle    = {Proc.\ 15th International Conference on Principles of
+                  Distributed Systems (OPODIS)},
+  year         = {2011},
+  pages        = {313--328}
+}
+
+@inproceedings{israeli1994disjoint,
+  author       = {Amos Israeli and Lihu Rappoport},
+  title        = {Disjoint-Access-Parallel Implementations of Strong Shared
+                  Memory Primitives},
+  booktitle    = {Proc.\ 13th ACM Symposium on Principles of Distributed
+                  Computing (PODC)},
+  year         = {1994},
+  pages        = {151--160}
+}
+
+% verify-before-cite (P2 SCOPE): wound-wait page range.
+@article{rosenkrantz1978woundwait,
+  author       = {Daniel J. Rosenkrantz and Richard E. Stearns and
+                  Philip M. Lewis, II},
+  title        = {System Level Concurrency Control for Distributed Database
+                  Systems},
+  journal      = {ACM Transactions on Database Systems},
+  volume       = {3},
+  number       = {2},
+  year         = {1978},
+  pages        = {178--198}
+}
+
+@inproceedings{scherer2005contention,
+  author       = {William N. Scherer, III and Michael L. Scott},
+  title        = {Advanced Contention Management for Dynamic Software
+                  Transactional Memory},
+  booktitle    = {Proc.\ 24th ACM Symposium on Principles of Distributed
+                  Computing (PODC)},
+  year         = {2005},
+  pages        = {240--248}
+}
+
+@inproceedings{barnes1993method,
+  author       = {Greg Barnes},
+  title        = {A Method for Implementing Lock-Free Shared-Data Structures},
+  booktitle    = {Proc.\ 5th ACM Symposium on Parallel Algorithms and
+                  Architectures (SPAA)},
+  year         = {1993},
+  pages        = {261--270}
+}
+
+@inproceedings{harris2001lists,
+  author       = {Timothy L. Harris},
+  title        = {A Pragmatic Implementation of Non-Blocking Linked-Lists},
+  booktitle    = {Proc.\ 15th International Conference on Distributed Computing
+                  (DISC)},
+  year         = {2001},
+  pages        = {300--314}
+}
+
+@inproceedings{ellen2010nbbst,
+  author       = {Faith Ellen and Panagiota Fatourou and Eric Ruppert and
+                  Franck van Breugel},
+  title        = {Non-blocking Binary Search Trees},
+  booktitle    = {Proc.\ 29th ACM Symposium on Principles of Distributed
+                  Computing (PODC)},
+  year         = {2010},
+  pages        = {131--140}
+}
+
+@inproceedings{natarajan2014bst,
+  author       = {Aravind Natarajan and Neeraj Mittal},
+  title        = {Fast Concurrent Lock-Free Binary Search Trees},
+  booktitle    = {Proc.\ 19th ACM SIGPLAN Symposium on Principles and Practice
+                  of Parallel Programming (PPoPP)},
+  year         = {2014},
+  pages        = {317--328}
+}
+
+@inproceedings{brown2013scx,
+  author       = {Trevor Brown and Faith Ellen and Eric Ruppert},
+  title        = {Pragmatic Primitives for Non-blocking Data Structures},
+  booktitle    = {Proc.\ 32nd ACM Symposium on Principles of Distributed
+                  Computing (PODC)},
+  year         = {2013},
+  pages        = {13--22}
+}
+
+@inproceedings{bronson2010bst,
+  author       = {Nathan G. Bronson and Jared Casper and Hassan Chafi and
+                  Kunle Olukotun},
+  title        = {A Practical Concurrent Binary Search Tree},
+  booktitle    = {Proc.\ 15th ACM SIGPLAN Symposium on Principles and Practice
+                  of Parallel Programming (PPoPP)},
+  year         = {2010},
+  pages        = {257--268}
+}
+
+@inproceedings{arbel2014citrus,
+  author       = {Maya Arbel and Hagit Attiya},
+  title        = {Concurrent Updates with {RCU}: Search Tree as an Example},
+  booktitle    = {Proc.\ 33rd ACM Symposium on Principles of Distributed
+                  Computing (PODC)},
+  year         = {2014},
+  pages        = {196--205}
+}
+
+@inproceedings{dice2006tl2,
+  author       = {Dave Dice and Ori Shalev and Nir Shavit},
+  title        = {Transactional Locking {II}},
+  booktitle    = {Proc.\ 20th International Symposium on Distributed Computing
+                  (DISC)},
+  year         = {2006},
+  pages        = {194--208}
+}
+
+@inproceedings{riegel2006lsa,
+  author       = {Torvald Riegel and Pascal Felber and Christof Fetzer},
+  title        = {A Lazy Snapshot Algorithm with Eager Validation},
+  booktitle    = {Proc.\ 20th International Symposium on Distributed Computing
+                  (DISC)},
+  year         = {2006},
+  pages        = {284--298}
+}
+
+@inproceedings{flood2016shenandoah,
+  author       = {Christine H. Flood and Roman Kennke and Andrew Dinn and
+                  Andrew Haley and Roland Westrelin},
+  title        = {Shenandoah: An Open-Source Concurrent Compacting Garbage
+                  Collector for {OpenJDK}},
+  booktitle    = {Proc.\ 13th International Conference on Principles and
+                  Practices of Programming on the Java Platform (PPPJ)},
+  year         = {2016},
+  pages        = {13:1--13:9}
+}
+
+@article{yang2022zgc,
+  author       = {Albert Mingkun Yang and Tobias Wrigstad},
+  title        = {Deep Dive into {ZGC}: A Modern Garbage Collector in {OpenJDK}},
+  journal      = {ACM Transactions on Programming Languages and Systems},
+  volume       = {44},
+  number       = {4},
+  year         = {2022},
+  pages        = {22:1--22:34}
+}
+
+% verify-before-cite (P2 SCOPE): venue is a Lisp \& Functional Programming
+% paper; the forwarding-pointer read barrier is the load-bearing reference.
+@inproceedings{brooks1984forwarding,
+  author       = {Rodney A. Brooks},
+  title        = {Trading Data Space for Reduced Time and Code Space in
+                  Real-Time Garbage Collection on Stock Hardware},
+  booktitle    = {Proc.\ ACM Symposium on LISP and Functional Programming (LFP)},
+  year         = {1984},
+  pages        = {256--262}
+}
+
+% verify-before-cite (P2 SCOPE): this is the mainline Linux rseq time-slice
+% extension series (Gleixner, 2025); the author took part in it. Cited only to
+% attribute the MECHANISM -- P2 claims nothing on it (see Sec. 4).
+@misc{gleixner2025rseqtse,
+  author       = {Thomas Gleixner and others},
+  title        = {\code{rseq}: Time Slice Extension},
+  howpublished = {Linux kernel patch series},
+  year         = {2025},
+  note         = {Mechanism attribution only. Defers preemption of a userspace
+                  thread for a bounded window; distinct from classic
+                  \code{rseq} (2018), which \emph{restarts} on preemption}
+}

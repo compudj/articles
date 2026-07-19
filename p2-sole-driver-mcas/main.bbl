@@ -1,0 +1,237 @@
+\begin{thebibliography}{28}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Arbel and Attiya(2014)]{arbel2014citrus}
+Maya Arbel and Hagit Attiya.
+\newblock Concurrent updates with {RCU}: Search tree as an example.
+\newblock In \emph{Proc.\ 33rd ACM Symposium on Principles of Distributed
+  Computing (PODC)}, pages 196--205, 2014.
+
+\bibitem[Arbel{-}Raviv and Brown(2017)]{arbelraviv2017descriptors}
+Maya Arbel{-}Raviv and Trevor Brown.
+\newblock Reuse, don't recycle: Transforming lock-free algorithms that throw
+  away descriptors.
+\newblock In Andr{\'{e}}a~W. Richa, editor, \emph{31st International Symposium
+  on Distributed Computing, {DISC} 2017, Vienna, Austria, October 16-20, 2017},
+  volume~91 of \emph{LIPIcs}, pages 4:1--4:16. Schloss Dagstuhl -
+  Leibniz-Zentrum f{\"{u}}r Informatik, 2017.
+\newblock \doi{10.4230/LIPIcs.DISC.2017.4}.
+\newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2017.4}.
+
+\bibitem[Barnes(1993)]{barnes1993method}
+Greg Barnes.
+\newblock A method for implementing lock-free shared-data structures.
+\newblock In \emph{Proc.\ 5th ACM Symposium on Parallel Algorithms and
+  Architectures (SPAA)}, pages 261--270, 1993.
+
+\bibitem[Brown et~al.(2013)Brown, Ellen, and Ruppert]{brown2013scx}
+Trevor Brown, Faith Ellen, and Eric Ruppert.
+\newblock Pragmatic primitives for non-blocking data structures.
+\newblock In \emph{Proc.\ 32nd ACM Symposium on Principles of Distributed
+  Computing (PODC)}, pages 13--22, 2013.
+
+\bibitem[David et~al.(2013)David, Guerraoui, and
+  Trigonakis]{david2013everything}
+Tudor David, Rachid Guerraoui, and Vasileios Trigonakis.
+\newblock Everything you always wanted to know about synchronization but were
+  afraid to ask.
+\newblock In \emph{Proc.\ 24th ACM Symposium on Operating Systems Principles
+  (SOSP)}, pages 33--48, 2013.
+
+\bibitem[Desnoyers et~al.(2012)Desnoyers, McKenney, Stern, Dagenais, and
+  Walpole]{desnoyers2012urcu}
+Mathieu Desnoyers, Paul~E. McKenney, Alan~S. Stern, Michel~R. Dagenais, and
+  Jonathan Walpole.
+\newblock User-level implementations of read-copy update.
+\newblock \emph{{IEEE} Transactions on Parallel and Distributed Systems},
+  23\penalty0 (2):\penalty0 375--382, 2012.
+\newblock \doi{10.1109/TPDS.2011.159}.
+\newblock URL \url{https://doi.org/10.1109/TPDS.2011.159}.
+
+\bibitem[Dice et~al.(2006)Dice, Shalev, and Shavit]{dice2006tl2}
+Dave Dice, Ori Shalev, and Nir Shavit.
+\newblock Transactional locking {II}.
+\newblock In \emph{Proc.\ 20th International Symposium on Distributed Computing
+  (DISC)}, pages 194--208, 2006.
+
+\bibitem[Ellen et~al.(2010)Ellen, Fatourou, Ruppert, and van
+  Breugel]{ellen2010nbbst}
+Faith Ellen, Panagiota Fatourou, Eric Ruppert, and Franck van Breugel.
+\newblock Non-blocking binary search trees.
+\newblock In \emph{Proc.\ 29th ACM Symposium on Principles of Distributed
+  Computing (PODC)}, pages 131--140, 2010.
+
+\bibitem[Fraser(2004)]{fraser2004lockfreedom}
+Keir Fraser.
+\newblock \emph{Practical Lock-Freedom}.
+\newblock PhD thesis, University of Cambridge, Computer Laboratory, February
+  2004.
+\newblock URL \url{https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.pdf}.
+\newblock Technical Report UCAM-CL-TR-579; dissertation submitted September
+  2003.
+
+\bibitem[Fraser and Harris(2007)]{fraser2007locks}
+Keir Fraser and Tim Harris.
+\newblock Concurrent programming without locks.
+\newblock \emph{{ACM} Transactions on Computer Systems}, 25\penalty0
+  (2):\penalty0 5, 2007.
+\newblock \doi{10.1145/1233307.1233309}.
+\newblock URL \url{https://doi.org/10.1145/1233307.1233309}.
+
+\bibitem[Gleixner et~al.(2025)]{gleixner2025rseqtse}
+Thomas Gleixner et~al.
+\newblock \code{rseq}: Time slice extension.
+\newblock Linux kernel patch series, 2025.
+\newblock Mechanism attribution only. Defers preemption of a userspace thread
+  for a bounded window; distinct from classic \code{rseq} (2018), which
+  \emph{restarts} on preemption.
+
+\bibitem[Guerraoui et~al.(2020)Guerraoui, Kogan, Marathe, and
+  Zablotchi]{guerraoui2020mcas}
+Rachid Guerraoui, Alex Kogan, Virendra~J. Marathe, and Igor Zablotchi.
+\newblock Efficient multi-word compare and swap.
+\newblock In Hagit Attiya, editor, \emph{34th International Symposium on
+  Distributed Computing, {DISC} 2020, Virtual Conference, October 12-16, 2020},
+  volume 179 of \emph{LIPIcs}, pages 4:1--4:19. Schloss Dagstuhl -
+  Leibniz-Zentrum f{\"{u}}r Informatik, 2020.
+\newblock \doi{10.4230/LIPIcs.DISC.2020.4}.
+\newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2020.4}.
+
+\bibitem[Harris(2001)]{harris2001lists}
+Timothy~L. Harris.
+\newblock A pragmatic implementation of non-blocking linked-lists.
+\newblock In \emph{Proc.\ 15th International Conference on Distributed
+  Computing (DISC)}, pages 300--314, 2001.
+
+\bibitem[Harris et~al.(2002)Harris, Fraser, and Pratt]{harris2002mcas}
+Timothy~L. Harris, Keir Fraser, and Ian~A. Pratt.
+\newblock A practical multi-word compare-and-swap operation.
+\newblock In Dahlia Malkhi, editor, \emph{Distributed Computing, 16th
+  International Conference, {DISC} 2002, Toulouse, France, October 28-30, 2002,
+  Proceedings}, volume 2508 of \emph{Lecture Notes in Computer Science}, pages
+  265--279. Springer, 2002.
+\newblock \doi{10.1007/3-540-36108-1\_18}.
+\newblock URL \url{https://doi.org/10.1007/3-540-36108-1\_18}.
+
+\bibitem[Hendler et~al.(2010)Hendler, Incze, Shavit, and
+  Tzafrir]{hendler2010flatcombining}
+Danny Hendler, Itai Incze, Nir Shavit, and Moran Tzafrir.
+\newblock Flat combining and the synchronization-parallelism tradeoff.
+\newblock In \emph{Proc.\ 22nd ACM Symposium on Parallelism in Algorithms and
+  Architectures (SPAA)}, pages 355--364, 2010.
+
+\bibitem[Herlihy and Koskinen(2008)]{herlihy2008boosting}
+Maurice Herlihy and Eric Koskinen.
+\newblock Transactional boosting: A methodology for highly-concurrent
+  transactional objects.
+\newblock In Siddhartha Chatterjee and Michael~L. Scott, editors,
+  \emph{Proceedings of the 13th {ACM} {SIGPLAN} Symposium on Principles and
+  Practice of Parallel Programming, {PPoPP} 2008, Salt Lake City, UT, USA,
+  February 20-23, 2008}, pages 207--216. {ACM}, 2008.
+\newblock \doi{10.1145/1345206.1345237}.
+\newblock URL \url{https://doi.org/10.1145/1345206.1345237}.
+
+\bibitem[Herlihy and Shavit(2011)]{herlihy2011progress}
+Maurice Herlihy and Nir Shavit.
+\newblock On the nature of progress.
+\newblock In \emph{Proc.\ 15th International Conference on Principles of
+  Distributed Systems (OPODIS)}, pages 313--328, 2011.
+
+\bibitem[Herlihy et~al.(2003{\natexlab{a}})Herlihy, Luchangco, and
+  Moir]{herlihy2003obstruction}
+Maurice Herlihy, Victor Luchangco, and Mark Moir.
+\newblock Obstruction-free synchronization: Double-ended queues as an example.
+\newblock In \emph{Proc.\ 23rd IEEE International Conference on Distributed
+  Computing Systems (ICDCS)}, pages 522--529, 2003{\natexlab{a}}.
+
+\bibitem[Herlihy et~al.(2003{\natexlab{b}})Herlihy, Luchangco, Moir, and
+  III]{herlihy2003dstm}
+Maurice Herlihy, Victor Luchangco, Mark Moir, and William N.~Scherer III.
+\newblock Software transactional memory for dynamic-sized data structures.
+\newblock In Elizabeth Borowsky and Sergio Rajsbaum, editors, \emph{Proceedings
+  of the Twenty-Second {ACM} Symposium on Principles of Distributed Computing,
+  {PODC} 2003, Boston, Massachusetts, USA, July 13-16, 2003}, pages 92--101.
+  {ACM}, 2003{\natexlab{b}}.
+\newblock \doi{10.1145/872035.872048}.
+\newblock URL \url{https://doi.org/10.1145/872035.872048}.
+
+\bibitem[Israeli and Rappoport(1994)]{israeli1994disjoint}
+Amos Israeli and Lihu Rappoport.
+\newblock Disjoint-access-parallel implementations of strong shared memory
+  primitives.
+\newblock In \emph{Proc.\ 13th ACM Symposium on Principles of Distributed
+  Computing (PODC)}, pages 151--160, 1994.
+
+\bibitem[Kim et~al.(2019)Kim, Mathew, Kashyap, Ramanathan, and
+  Min]{kim2019mvrlu}
+Jaeho Kim, Ajit Mathew, Sanidhya Kashyap, Madhava~Krishnan Ramanathan, and
+  Changwoo Min.
+\newblock {MV-RLU:} scaling read-log-update with multi-versioning.
+\newblock In Iris Bahar, Maurice Herlihy, Emmett Witchel, and Alvin~R. Lebeck,
+  editors, \emph{Proceedings of the Twenty-Fourth International Conference on
+  Architectural Support for Programming Languages and Operating Systems,
+  {ASPLOS} 2019, Providence, RI, USA, April 13-17, 2019}, pages 779--792.
+  {ACM}, 2019.
+\newblock \doi{10.1145/3297858.3304040}.
+\newblock URL \url{https://doi.org/10.1145/3297858.3304040}.
+
+\bibitem[Matveev et~al.(2015)Matveev, Shavit, Felber, and
+  Marlier]{matveev2015rlu}
+Alexander Matveev, Nir Shavit, Pascal Felber, and Patrick Marlier.
+\newblock Read-log-update: A lightweight synchronization mechanism for
+  concurrent programming.
+\newblock In Ethan~L. Miller and Steven Hand, editors, \emph{Proceedings of the
+  25th Symposium on Operating Systems Principles, {SOSP} 2015, Monterey, CA,
+  USA, October 4-7, 2015}, pages 168--183. {ACM}, 2015.
+\newblock \doi{10.1145/2815400.2815406}.
+\newblock URL \url{https://doi.org/10.1145/2815400.2815406}.
+
+\bibitem[McKenney and Slingwine(1998)]{mckenney1998rcu}
+Paul~E. McKenney and John~D. Slingwine.
+\newblock Read-copy update: Using execution history to solve concurrency
+  problems.
+\newblock In \emph{Parallel and Distributed Computing and Systems}, pages
+  509--518, Las Vegas, NV, USA, October 1998.
+\newblock URL
+  \url{http://www.rdrop.com/~paulmck/scalability/paper/rclockpdcsproof.pdf}.
+
+\bibitem[Mellor{-}Crummey and Scott(1991)]{mellorcrummey1991mcs}
+John~M. Mellor{-}Crummey and Michael~L. Scott.
+\newblock Algorithms for scalable synchronization on shared-memory
+  multiprocessors.
+\newblock \emph{{ACM} Transactions on Computer Systems}, 9\penalty0
+  (1):\penalty0 21--65, 1991.
+\newblock \doi{10.1145/103727.103729}.
+\newblock URL \url{https://doi.org/10.1145/103727.103729}.
+
+\bibitem[Natarajan and Mittal(2014)]{natarajan2014bst}
+Aravind Natarajan and Neeraj Mittal.
+\newblock Fast concurrent lock-free binary search trees.
+\newblock In \emph{Proc.\ 19th ACM SIGPLAN Symposium on Principles and Practice
+  of Parallel Programming (PPoPP)}, pages 317--328, 2014.
+
+\bibitem[Riegel et~al.(2006)Riegel, Felber, and Fetzer]{riegel2006lsa}
+Torvald Riegel, Pascal Felber, and Christof Fetzer.
+\newblock A lazy snapshot algorithm with eager validation.
+\newblock In \emph{Proc.\ 20th International Symposium on Distributed Computing
+  (DISC)}, pages 284--298, 2006.
+
+\bibitem[Rosenkrantz et~al.(1978)Rosenkrantz, Stearns, and Philip
+  M.~Lewis]{rosenkrantz1978woundwait}
+Daniel~J. Rosenkrantz, Richard~E. Stearns, and II~Philip M.~Lewis.
+\newblock System level concurrency control for distributed database systems.
+\newblock \emph{ACM Transactions on Database Systems}, 3\penalty0 (2):\penalty0
+  178--198, 1978.
+
+\bibitem[William N.~Scherer and Scott(2005)]{scherer2005contention}
+III William N.~Scherer and Michael~L. Scott.
+\newblock Advanced contention management for dynamic software transactional
+  memory.
+\newblock In \emph{Proc.\ 24th ACM Symposium on Principles of Distributed
+  Computing (PODC)}, pages 240--248, 2005.
+
+\end{thebibliography}
