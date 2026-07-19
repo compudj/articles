@@ -1,9 +1,17 @@
-\begin{thebibliography}{28}
+\begin{thebibliography}{32}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Anderson et~al.(1991)Anderson, Bershad, Lazowska, and
+  Levy]{anderson1991scheduler}
+Thomas~E. Anderson, Brian~N. Bershad, Edward~D. Lazowska, and Henry~M. Levy.
+\newblock Scheduler activations: Effective kernel support for the user-level
+  management of parallelism.
+\newblock In \emph{Proc.\ 13th ACM Symposium on Operating Systems Principles
+  (SOSP)}, pages 95--109, 1991.
 
 \bibitem[Arbel and Attiya(2014)]{arbel2014citrus}
 Maya Arbel and Hagit Attiya.
@@ -51,6 +59,14 @@ Mathieu Desnoyers, Paul~E. McKenney, Alan~S. Stern, Michel~R. Dagenais, and
   23\penalty0 (2):\penalty0 375--382, 2012.
 \newblock \doi{10.1109/TPDS.2011.159}.
 \newblock URL \url{https://doi.org/10.1109/TPDS.2011.159}.
+
+\bibitem[Dice and Harris(2016)]{dice2016lockholder}
+Dave Dice and Tim Harris.
+\newblock Lock holder preemption avoidance via transactional lock elision.
+\newblock In \emph{11th ACM SIGPLAN Workshop on Transactional Computing
+  (TRANSACT)}, 2016.
+\newblock URL \url{https://timharris.uk/papers/2016-lhp.pdf}.
+\newblock Workshop paper; no formal proceedings pagination.
 
 \bibitem[Dice et~al.(2006)Dice, Shalev, and Shavit]{dice2006tl2}
 Dave Dice, Ori Shalev, and Nir Shavit.
@@ -178,6 +194,25 @@ Jaeho Kim, Ajit Mathew, Sanidhya Kashyap, Madhava~Krishnan Ramanathan, and
   {ACM}, 2019.
 \newblock \doi{10.1145/3297858.3304040}.
 \newblock URL \url{https://doi.org/10.1145/3297858.3304040}.
+
+\bibitem[Kosche et~al.(1999)Kosche, Singleton, Smaalders, and
+  Tucker]{kosche1999preemption}
+Nicolai Kosche, Dave Singleton, Bart Smaalders, and Andrew Tucker.
+\newblock Method and apparatus for execution and preemption control of computer
+  process entities.
+\newblock U.S.\ Patent 5,937,187, 1999.
+\newblock Assignee Sun Microsystems; filed 1996, granted 1999-08-10. The
+  Solaris \code{schedctl} preemption-control mechanism (\code{sc\_nopreempt} /
+  \code{sc\_yield}).
+
+\bibitem[Marsh et~al.(1991)Marsh, Scott, LeBlanc, and
+  Markatos]{marsh1991firstclass}
+Brian~D. Marsh, Michael~L. Scott, Thomas~J. LeBlanc, and Evangelos~P. Markatos.
+\newblock First-class user-level threads.
+\newblock In \emph{Proc.\ 13th ACM Symposium on Operating Systems Principles
+  (SOSP)}, pages 110--121, 1991.
+\newblock Introduces temporary non-preemption (the ``two-minute warning'').
+  Appeared as \emph{Operating Systems Review} 25(5).
 
 \bibitem[Matveev et~al.(2015)Matveev, Shavit, Felber, and
   Marlier]{matveev2015rlu}

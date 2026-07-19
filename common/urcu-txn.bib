@@ -1611,3 +1611,58 @@
                   thread for a bounded window; distinct from classic
                   \code{rseq} (2018), which \emph{restarts} on preemption}
 }
+
+% ---------------------------------------------------------------------------
+% Preemption-deferral lineage (P2 Sec. 4.4). Cited to attribute the general
+% pattern of deferring a critical-section holder's preemption; P2 claims none
+% of it (the claim boundary is the userspace use for the install->settle window
+% + the tail-thinning observation). Metadata verified against DBLP / Google
+% Patents / the TRANSACT program page, 2026-07-19.
+% ---------------------------------------------------------------------------
+@inproceedings{marsh1991firstclass,
+  author       = {Brian D. Marsh and Michael L. Scott and Thomas J. LeBlanc and
+                  Evangelos P. Markatos},
+  title        = {First-Class User-Level Threads},
+  booktitle    = {Proc.\ 13th ACM Symposium on Operating Systems Principles
+                  (SOSP)},
+  year         = {1991},
+  pages        = {110--121},
+  note         = {Introduces temporary non-preemption (the ``two-minute
+                  warning''). Appeared as \emph{Operating Systems Review}
+                  25(5)}
+}
+
+@inproceedings{anderson1991scheduler,
+  author       = {Thomas E. Anderson and Brian N. Bershad and Edward D. Lazowska
+                  and Henry M. Levy},
+  title        = {Scheduler Activations: Effective Kernel Support for the
+                  User-Level Management of Parallelism},
+  booktitle    = {Proc.\ 13th ACM Symposium on Operating Systems Principles
+                  (SOSP)},
+  year         = {1991},
+  pages        = {95--109}
+}
+
+% TRANSACT is an informal workshop with no formal proceedings/pagination.
+@inproceedings{dice2016lockholder,
+  author       = {Dave Dice and Tim Harris},
+  title        = {Lock Holder Preemption Avoidance via Transactional Lock
+                  Elision},
+  booktitle    = {11th ACM SIGPLAN Workshop on Transactional Computing
+                  (TRANSACT)},
+  year         = {2016},
+  note         = {Workshop paper; no formal proceedings pagination},
+  url          = {https://timharris.uk/papers/2016-lhp.pdf}
+}
+
+@misc{kosche1999preemption,
+  author       = {Nicolai Kosche and Dave Singleton and Bart Smaalders and
+                  Andrew Tucker},
+  title        = {Method and Apparatus for Execution and Preemption Control of
+                  Computer Process Entities},
+  howpublished = {U.S.\ Patent 5,937,187},
+  year         = {1999},
+  note         = {Assignee Sun Microsystems; filed 1996, granted 1999-08-10.
+                  The Solaris \code{schedctl} preemption-control mechanism
+                  (\code{sc\_nopreempt} / \code{sc\_yield})}
+}

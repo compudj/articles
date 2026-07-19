@@ -480,18 +480,20 @@ We are deliberately careful about what is and is not claimed here.
 %     claim only the engine-level OBSERVATION that it thins the tail from
 %     bounded to rare -- which is what makes bounded-blocking practically
 %     competitive.
-% OPEN QUESTION for Mathieu: this lever is not in the pinned engine at all.
-% Options -- (a) keep it as an explicit future/defensive-disclosure subsection
-% (current), clearly marked unimplemented; (b) cut it to a one-line forward
-% reference; (c) hold it for the evaluation paper. Also owes the schedctl/TNP
-% lineage cites (Edler 1988; Marsh 1991; Anderson activations 1991; Dice-Harris
-% TRANSACT 2016) -- currently \NEEDCITE below.
+% RESOLVED (Mathieu, 2026-07-19): KEEP the subsection (option a) -- explicit
+% future/defensive-disclosure, clearly marked unimplemented. The schedctl/TNP
+% lineage cites are added and DBLP/patent-verified: schedctl = US Patent
+% 5,937,187 (kosche1999preemption); temporary non-preemption = Marsh et al. SOSP
+% 1991 (marsh1991firstclass); scheduler activations = Anderson et al. SOSP 1991
+% (anderson1991scheduler); lock-holder-preemption avoidance = Dice-Harris
+% TRANSACT 2016 (dice2016lockholder).
 % ---------------------------------------------------------------------------
 The \emph{mechanism} is not ours: it is the mainline kernel series, and the
 general pattern of deferring a critical-section holder's preemption so waiters do
-not stall is textbook \NEEDCITE{schedctl (Solaris); temporary non-preemption
-(Marsh--Scott--LeBlanc--Markatos 1991); scheduler activations
-(Anderson 1991); Dice--Harris preemption-tolerance survey, TRANSACT 2016}. What
+not stall is textbook---Solaris's \code{schedctl} preemption
+control~\citep{kosche1999preemption}, the temporary non-preemption of
+\citet{marsh1991firstclass}, scheduler activations~\citep{anderson1991scheduler},
+and lock-holder-preemption avoidance~\citep{dice2016lockholder}. What
 we disclose, as prior art rather than claim as invention, is the specific
 userspace use---deferring preemption across a bounded-blocking \mcas's publish
 window---together with the engine-level observation that it thins the tail. And
@@ -523,12 +525,12 @@ next section is the evidence, because the losing end was built too.
 % then rejected for a throughput or portability reason. Disclosing an
 % implemented-then-rejected approach enables it as prior art for free.
 %
-% MEASUREMENT GAP (SCOPE DECISION #1 + TASK): the decisive throughput numbers
-% behind helping / abort-others / age-resolution live in the benchmark repo
-% (efficios-trie-benchmark), NOT the engine headers. They are \UNVERIFIED
-% placeholders below. DO NOT invent them -- locate the real runs before any
-% arxiv build. The engine header confirms only the QUALITATIVE claim
-% ("the sole-driver regime won across every measured workload").
+% MEASUREMENT (SCOPE DECISION #1) -- RESOLVED 2026-07-19: the decisive number is
+% the help+steal -> sole-driver A/B, +21.7% at 192 cores (to +25.8% under
+% contention), from efficios-trie-benchmark txn_vs_existence_skiplist_engine.csv
+% (txn-default = help+steal, txn-spin = sole-driver); retire commit a07b67ba.
+% abort-others (= stealing) is folded into that bundle; age-as-resolution has no
+% isolated run and is rejected on the correctness trap. No \UNVERIFIED remain.
 % ---------------------------------------------------------------------------
 
 The mechanism of \cref{sec:engine} is one point in a design space, and unusually
