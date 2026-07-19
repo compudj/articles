@@ -107,6 +107,12 @@ its predecessor lost.
 
 \subsection*{Contributions}
 
+The paper claims two things, developed below and drawn together in
+\cref{sec:relclaims}: a specific negative result---that a sole-driver engine needs
+no RDCSS---and, more broadly, the engine as a combination of otherwise-known parts
+we have not found assembled before, of which that result is the linchpin. The
+contributions that build them are:
+
 \begin{itemize}
 \item \textbf{The sole-driver \mcas engine} (\cref{sec:engine}): a frozen record
       set, a tri-state status word, and descriptor-naming installs, driven by
@@ -138,9 +144,10 @@ its predecessor lost.
       to this engine: because the freeze is updater-only coordination, a reader
       gets a frozen node for free without consulting the tombstone, so it stays
       off the reader's path. A single guarded read folds the one remaining
-      liveness precondition into the commit. We claim no novelty in the
-      mechanism; with it, the companion paper's bidirectional list and hash list
-      are shown under concurrent writers.
+      liveness precondition into the commit. The technique itself is old---one element
+      of the combination (\cref{sec:relclaims}), not a novelty of its own---and
+      with it, the companion paper's bidirectional list and hash list are shown
+      under concurrent writers.
 \end{itemize}
 
 \paragraph{Scope.} This paper is about write-set atomicity under concurrency and
@@ -795,8 +802,10 @@ present.
 % RETRACTED -- see the mark-not-proxy memory.
 % ---------------------------------------------------------------------------
 
-We claim no novelty in the mechanism; logical deletion is old, in both of its
-placements. A marked pointer whose bit logically deletes a node and fails a racing
+Logical deletion is old, in both of its placements, and we claim no novelty in it
+as a mechanism---it enters this paper as one ingredient of the conjunction
+(\cref{sec:relclaims}), not a result of its own. A marked pointer whose bit
+logically deletes a node and fails a racing
 writer's CAS is Harris~\citep{harris2001lists}; the equivalent as a separate flag
 or record interpreted by updaters is the non-blocking-tree discipline of Ellen,
 Fatourou, Ruppert and van Breugel~\citep{ellen2010nbbst} and Natarajan and
@@ -1011,33 +1020,40 @@ lock-plus-engine design converges on.
 \subsection{What this paper claims}
 \label{sec:relclaims}
 
-As in the companion paper, the claim is a conjunction, because each ingredient of
-the engine is separately old. The \emph{descriptor-and-status shape}---a frozen
-record set resolved through a status word---is
-Harris's~\citep{harris2002mcas, fraser2004lockfreedom}. That a \emph{blocking}
-engine can beat a lock-free one is not our
-insight~\citep{david2013everything, hendler2010flatcombining}; the safety of a
-disjoint-access operation only its owner may drive is Israeli and
-Rappoport's~\citep{israeli1994disjoint}; the progress classes we place it in are
-standard~\citep{herlihy2003obstruction, herlihy2011progress}, and its fair serial
-lane is an MCS lock~\citep{mellorcrummey1991mcs}. Reclaiming descriptors after a
-grace period is \rcu's ordinary treatment~\citep{arbelraviv2017descriptors}, and
-logical deletion is Harris's marked pointer and its
-descendants~\citep{harris2001lists, ellen2010nbbst, brown2013scx}.
+The paper makes two claims, at two scopes.
 
-What we have not found in that prior art is the combination: a multi-writer \mcas
-engine that is \textbf{sole-driven and therefore free of RDCSS}---its install a
-plain value-CAS made A-B-A-safe by construction rather than by a double-word
-primitive, because the hazard RDCSS guards is helper-induced and there is no
-helper---while being \textbf{bounded-blocking with a cost-scaled adaptive
-coarseness}, \textbf{refcount-free to reclaim} at the instant owner-only settle
-makes a transaction unreachable, and \textbf{usable in place} through a
-logical-deletion discipline that charges the reader nothing. The linchpin, and the
-one step we are not aware of drawn this way, is the first: removing helping makes
-RDCSS \emph{unnecessary}, not merely cheaper. Every part is borrowed; assembling
-them into an engine with that property is the claim---and, as a defensive
-publication, we disclose it, and the alternatives we rejected
-(\cref{sec:variations}), in enough detail to be rebuilt from these pages alone.
+\textbf{The first is independent and specific: a sole-driver \mcas needs no
+RDCSS.} The install-time A-B-A that RDCSS exists to prevent is helper-induced
+(\cref{prop:abainstall})---it needs a second, foreign driver of one's own
+records---so with no helper it cannot arise, and a plain value-CAS install is
+A-B-A-safe by construction rather than by a double-word primitive. Value-CAS
+install, single-driver ownership~\citep{israeli1994disjoint}, and the tie between
+RDCSS and helping~\citep{guerraoui2020mcas} are each old; what we are not aware of
+drawn this way is the conclusion---that dropping helping makes RDCSS
+\emph{unnecessary}, not merely cheaper. It is a negative result, and it stands on
+its own.
+
+\textbf{The second is the conjunction, in the manner of the companion paper.} Each
+remaining ingredient of the engine is separately old: the descriptor-and-status
+shape is Harris's~\citep{harris2002mcas, fraser2004lockfreedom}; that a
+\emph{blocking} engine can beat a lock-free one is not our
+insight~\citep{david2013everything, hendler2010flatcombining}; the progress
+classes we place it in are standard~\citep{herlihy2003obstruction,
+herlihy2011progress} and its fair serial lane is an MCS
+lock~\citep{mellorcrummey1991mcs}; reclaiming descriptors after a grace period is
+\rcu's ordinary treatment~\citep{arbelraviv2017descriptors}; and logical deletion
+is Harris's marked pointer and its descendants~\citep{harris2001lists,
+ellen2010nbbst, brown2013scx}. What we have not found is their assembly into one
+engine: RDCSS-free and sole-driven, \textbf{bounded-blocking with a cost-scaled
+adaptive coarseness}, \textbf{refcount-free to reclaim} at the instant owner-only
+settle makes a transaction unreachable, and \textbf{usable in place} through a
+logical-deletion discipline that charges the reader nothing. The first claim is
+the linchpin of this second one.
+
+Everything else is disclosed, not claimed---and for a defensive publication that
+is the point, not a shortfall: we describe the engine, and the alternatives we
+rejected (\cref{sec:variations}), in enough detail to be rebuilt from these pages
+alone.
 
 % ===========================================================================
 \section{Conclusion}
@@ -1049,8 +1065,8 @@ of---a descriptor-naming install, a status word, a bounded wait, an escalation
 lane---while refusing to pay for one thing that machinery usually drags in.
 Because a transaction is driven only by its owner, the install-time A-B-A that
 RDCSS exists to prevent cannot arise, so the engine installs with a bare
-value-CAS and needs no RDCSS. That is a negative result, and it is the one this
-paper turns on.
+value-CAS and needs no RDCSS. That is a negative result---the first of the paper's
+two claims, and the one it turns on.
 
 The engine is bounded-blocking, not lock-free, and we have argued that this is
 the right target rather than a shortfall. The argument is measured: the
@@ -1069,11 +1085,17 @@ nothing attaches to a departing node. Because that freeze is updater-only, a
 reader gets a frozen node for free without ever consulting the tombstone, so it
 stays off the reader's path and can sit on a cold cache line---the read side
 unchanged, as the companion paper promised. Its read-side companion is a single
-guarded read that folds one liveness precondition into the commit. We claim no
-novelty in the technique; with it, the same bidirectional list and hash list the
-companion paper used are usable under concurrent writers---the forward edge made
-coherent by a shared-slot write, the back edge by a read-validated one, both
-coherent at every step.
+guarded read that folds one liveness precondition into the commit. The technique
+is not ours; folded into the engine it is one part of the paper's second claim.
+With it, the same bidirectional list and hash list the companion paper used are
+usable under concurrent writers---the forward edge made coherent by a shared-slot
+write, the back edge by a read-validated one, both coherent at every step.
+
+That second claim is broader, and weaker in kind: each part---the
+descriptor-and-status engine, the bounded-blocking progress, the refcount-free
+reclamation, the logical deletion---is borrowed, but their assembly into one
+engine, with the no-RDCSS result as its linchpin, is a combination we have not
+found before.
 
 \paragraph{The rest of the series.} The read-side programming model this paper
 forward-references---the read-policy taxonomy, the general guard facility, and the
