@@ -483,7 +483,8 @@ We are deliberately careful about what is and is not claimed here.
 % RESOLVED (Mathieu, 2026-07-19): KEEP the subsection (option a) -- explicit
 % future/defensive-disclosure, clearly marked unimplemented. The schedctl/TNP
 % lineage cites are added and DBLP/patent-verified: schedctl = US Patent
-% 5,937,187 (kosche1999preemption); temporary non-preemption = Marsh et al. SOSP
+% 5,937,187 (kosche1999preemption) + its unmerged Linux restatement, Aziz LKML
+% 2014 (aziz2014preempt); temporary non-preemption = Marsh et al. SOSP
 % 1991 (marsh1991firstclass); scheduler activations = Anderson et al. SOSP 1991
 % (anderson1991scheduler); lock-holder-preemption avoidance = Dice-Harris
 % TRANSACT 2016 (dice2016lockholder).
@@ -491,7 +492,8 @@ We are deliberately careful about what is and is not claimed here.
 The \emph{mechanism} is not ours: it is the mainline kernel series, and the
 general pattern of deferring a critical-section holder's preemption so waiters do
 not stall is textbook---Solaris's \code{schedctl} preemption
-control~\citep{kosche1999preemption}, the temporary non-preemption of
+control~\citep{kosche1999preemption} and its later Linux
+restatement~\citep{aziz2014preempt}, the temporary non-preemption of
 \citet{marsh1991firstclass}, scheduler activations~\citep{anderson1991scheduler},
 and lock-holder-preemption avoidance~\citep{dice2016lockholder}. What
 we disclose, as prior art rather than claim as invention, is the specific

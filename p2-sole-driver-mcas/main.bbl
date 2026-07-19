@@ -1,4 +1,4 @@
-\begin{thebibliography}{32}
+\begin{thebibliography}{33}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -29,6 +29,17 @@ Maya Arbel{-}Raviv and Trevor Brown.
   Leibniz-Zentrum f{\"{u}}r Informatik, 2017.
 \newblock \doi{10.4230/LIPIcs.DISC.2017.4}.
 \newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2017.4}.
+
+\bibitem[Aziz(2014)]{aziz2014preempt}
+Khalid Aziz.
+\newblock Pre-emption control for userspace.
+\newblock Linux Kernel Mailing List (RFC PATCH), March 2014.
+\newblock URL
+  \url{http://lkml.iu.edu/hypermail/linux/kernel/1403.0/00780.html}.
+\newblock A memory-mapped \code{sched\_preempt\_delay} interface letting a
+  userspace lock holder request a briefly extended time slice to finish its
+  critical section---the Solaris \code{schedctl} idea proposed for Linux. Not
+  merged.
 
 \bibitem[Barnes(1993)]{barnes1993method}
 Greg Barnes.

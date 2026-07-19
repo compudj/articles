@@ -1666,3 +1666,18 @@
                   The Solaris \code{schedctl} preemption-control mechanism
                   (\code{sc\_nopreempt} / \code{sc\_yield})}
 }
+
+% The Solaris schedctl idea proposed (unmerged) for Linux; from Oracle. Metadata
+% verified from the LKML archive, 2026-07-19.
+@misc{aziz2014preempt,
+  author       = {Khalid Aziz},
+  title        = {Pre-emption Control for Userspace},
+  howpublished = {Linux Kernel Mailing List (RFC PATCH)},
+  year         = {2014},
+  month        = mar,
+  note         = {A memory-mapped \code{sched\_preempt\_delay} interface letting
+                  a userspace lock holder request a briefly extended time slice
+                  to finish its critical section---the Solaris \code{schedctl}
+                  idea proposed for Linux. Not merged},
+  url          = {http://lkml.iu.edu/hypermail/linux/kernel/1403.0/00780.html}
+}
