@@ -39,11 +39,22 @@ academic paper in three ways, and the difference shapes every document here:
   parity latch needs — the SW flip-latch doubles as the version selector — which
   is why the latch belongs *here* rather than in P3 (Arm A, 2026-07-19). Design
   docs: the DLM scheme, and
-  `efficios-trie-benchmark/design/rcu-gp-bounded-version.md` (version/latch). A
-  **SoA / novelty review is required before hard-claiming** the wait-free latch
-  (suspected novel). Demonstrator: extend the same-user list/hlist node with a
-  **multi-word payload** — version-on-payload beside the lock/tombstone on the
-  links.
+  `efficios-trie-benchmark/design/rcu-gp-bounded-version.md` (version/latch). **SoA
+  review done (2026-07-19): novel *composition*, not a new primitive** — the
+  wait-free/torn-free single-bit-toggle read property is **Left-Right's**
+  (Ramalhete–Correia, DISC 2015, which does it better: 0 retry vs ≤ 1). Claim only
+  the mechanism (single in-place instance + RCU-GP-bounded seqcount + COW overflow
+  + reader-drain outsourced to the already-paid grace period, zero reader-side
+  writes); cite-and-distinguish **Left-Right, ARC (TPDS 2019), plain RCU, seqlock
+  (Boehm 2012), and RLU** — no surveyed scheme occupies the single-instance +
+  wait-free corner (the axes are anti-correlated). Both prior-art gaps are now
+  **closed**: the version-snapshot / EBR family (second review — RLU is closest on
+  footprint but copies per-write), and RCU's own GP flip-counter (it is
+  grace-period *detection*, global/per-domain and per-CPU-split, confirmed against
+  perfbook — not a per-node reader data-version). The boundary + two-axis map live
+  in `rcu-gp-bounded-version.md` (benchmark tree commit `4118b04`). Demonstrator:
+  extend the same-user list/hlist node with a **multi-word payload** —
+  version-on-payload beside the lock/tombstone on the links.
 - **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
   userspace on the txn engine — *"can urcu-txn dissolve `rename_lock`?"*.
   Landed + stress-validated (S3 results on 2×96-core EPYC). Full novelty
