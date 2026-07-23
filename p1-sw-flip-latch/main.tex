@@ -100,8 +100,9 @@ not close, not a feature nobody wanted.
 \subsection*{Contributions}
 
 This paper describes a facility that gives \rcu writers a second atomic operation ---
-a set of word-sized slots that change together --- without disturbing the
-contract that makes \rcu worth using. Specifically:
+a set of word-sized slots that change together --- without imposing
+significant additional cost on \rcu readers in the absence of updates.
+Specifically:
 
 \begin{itemize}
 \item \textbf{A \pseudotxn model} (\cref{sec:model}): a frozen set of
