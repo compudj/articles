@@ -1999,7 +1999,7 @@ branch is not a free branch, and a reader in a tight traversal pays it on every
 hop. So \cref{tab:comparison}'s \textbf{0} is zero \emph{loads}, not zero
 instructions. And when the branch is taken---a commit is in flight on the slot
 the reader just loaded---the reader does pay: it resolves the slot through the
-proxy record and then the group's shared selector, one or two loads the fast
+proxy record and then the group's shared selector, a pair of loads the fast
 path avoids and either of which may miss cache. That cost is bounded---only the
 slots a commit touches, and only while it is in flight---but it is real, so
 \cref{tab:comparison}'s figures describe the steady-state fast path.
