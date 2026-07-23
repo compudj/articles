@@ -1172,6 +1172,17 @@ with the record.
 So each record carries its own \code{proxy\_tag}, supplied when the record is
 added, and heterogeneous slots share one facility, each resolved through its own
 tag.
+
+Three things must be kept apart here: the tag's \emph{meaning}, the slot, and the
+record. The meaning belongs to the slot's structure --- not to the record, and
+not to the value the slot holds. A reader never reads the tag out of that value;
+it knows which structure it is traversing, hence that slot's tag, statically ---
+the typed accessor tests a compile-time constant, the generic load takes the tag
+as a parameter. The record keeps its own copy of the tag only for the write
+side: the generic commit machinery, blind to structure types, reads each
+record's copy to park each proxy with the pattern its slot's readers will test
+for --- which is what lets one commit carry a bit-0 list edge and a nibble-tagged
+structural edge together, each record with its own copy.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is the tightest argument in the paper: Property 4 (cross-structure
