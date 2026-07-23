@@ -1219,7 +1219,10 @@ address. Nothing is stranded, and growth needs no fixup pass.
 
 The tag's width is bounded by how many low bits of a record address are
 guaranteed clear. Records are 16-byte aligned, so an embedder has four bits to
-choose from: enough for a single bit, or for a reserved nibble.
+choose from: enough for a single bit, or for a reserved nibble.\footnote{Storing
+a tag in a pointer's spare low bits, as this facility does, rests on
+implementation-defined casts between pointers and integers; a proposal to give
+C++ a standard pointer-tagging facility is under review~\citep{wg21p3125}.}
 
 The alignment is established deliberately rather than inherited. The descriptor
 is allocated with \code{posix\_memalign()} to a 16-byte boundary, and the record
