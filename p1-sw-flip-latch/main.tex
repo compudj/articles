@@ -27,8 +27,9 @@
 % here is the single most damaging error available to this paper.
 % ---------------------------------------------------------------------------
 Read-copy-update (RCU) makes a \emph{single} pointer store atomic with respect
-to concurrent readers, and readers pay nothing for it. This works only when an
-update is expressible as one store. Updates that must change several
+to concurrent readers, and readers pay nothing for it in the absence of updates.
+This works only when an update is expressible as one store. Updates that must
+change several
 words coherently---a doubly-linked list's back edge, a skip list's tower---fall
 back to copying a larger region, a grace-period drain, or omitting the
 operation. Linux's list does the last: it ships no RCU-safe reverse iterator,
@@ -53,8 +54,9 @@ The weakening is by design. Where a structure is mutated in place, isolation is
 a read-side cost: state on every element, work on every dereference---and the
 read side is what RCU exists to keep free. A \pseudotxn's marker instead rides
 in spare bits of the slot itself, the word the reader loads anyway, so it adds
-no per-element state and no extra load, and vanishes when no mutation is in
-flight. The cost moves to the writer, in the width of a commit.
+no per-element state and, absent a concurrent commit on that slot, no extra
+load---a reader that meets one resolves through the proxy and the shared selector
+instead. The bulk of the cost moves to the writer, in the width of a commit.
 \end{abstract}
 
 % ===========================================================================
@@ -1995,7 +1997,12 @@ branch predictor. It is hinted unlikely and is correctly predicted not-taken
 whenever no commit is in flight, which is to say almost always; but a predicted
 branch is not a free branch, and a reader in a tight traversal pays it on every
 hop. So \cref{tab:comparison}'s \textbf{0} is zero \emph{loads}, not zero
-instructions.
+instructions. And when the branch is taken---a commit is in flight on the slot
+the reader just loaded---the reader does pay: it resolves the slot through the
+proxy record and then the group's shared selector, one or two loads the fast
+path avoids and either of which may miss cache. That cost is bounded---only the
+slots a commit touches, and only while it is in flight---but it is real, so
+\cref{tab:comparison}'s figures describe the steady-state fast path.
 
 That is the honest shape of the claim, and it is still the shape we want: the
 branch is common to every design in the table, so it is not where the comparison
