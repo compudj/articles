@@ -49,7 +49,7 @@ kind---each of its loads resolves independently, so a traversal spanning several
 straddle a commit. There is no opacity and no multi-read snapshot; a reader gets
 monotonicity, never new-then-old.
 
-The weakening is the design. Where a structure is mutated in place, isolation is
+The weakening is by design. Where a structure is mutated in place, isolation is
 a read-side cost: state on every element, work on every dereference---and the
 read side is what RCU exists to keep free. A \pseudotxn's marker instead rides
 in spare bits of the slot itself, the word the reader loads anyway, so it adds
@@ -61,15 +61,15 @@ flight. The cost moves to the writer, in the width of a commit.
 \section{Introduction}
 \label{sec:intro}
 
-Read-copy-update rests on a bargain. Readers pay nothing --- no lock, no
+Read-copy-update rests on a contract. Readers pay nothing --- no lock, no
 barrier, no write to shared state --- and in exchange a writer gets exactly one
-atomic act: a single pointer store, bracketed by building the new structure
+atomic operation: a single pointer store, bracketed by building the new structure
 where readers cannot reach it and reclaiming the old one after a grace period.
-The bargain has held for decades because the structures \rcu serves are
+The contract has held for decades because the structures \rcu serves are
 read-dominated, so making the majority free is worth constraining the minority.
 
 The constraint is real, though, and it is one store. An update that must change
-several words coherently has no atomic act to express itself with. The remedies
+several words coherently has no atomic operation to express itself with. The remedies
 are familiar and each gives something up: copy the enclosing region so the
 change becomes one pointer swap, and pay to copy; drain the readers with a grace
 period so nobody spans the inconsistent window, and pay to wait; or decline the
@@ -94,9 +94,9 @@ the argument.
 
 \subsection*{Contributions}
 
-This paper describes an engine that gives \rcu writers a second atomic act ---
+This paper describes a facility that gives \rcu writers a second atomic operation ---
 a set of word-sized slots that change together --- without disturbing the
-bargain that makes \rcu worth using. Specifically:
+contract that makes \rcu worth using. Specifically:
 
 \begin{itemize}
 \item \textbf{A \pseudotxn model} (\cref{sec:model}): a frozen set of
@@ -134,7 +134,7 @@ bargain that makes \rcu worth using. Specifically:
 \end{itemize}
 
 \paragraph{Scope.} This paper covers the \sw case, where writers are mutually
-excluded by the embedder. A companion paper covers the concurrent engine, which
+excluded by the embedder. A companion paper covers the concurrent facility, which
 attacks the same model with a multi-word compare-and-swap and pays for
 contention detection with machinery this one does not need. The two share the
 model of \cref{sec:model} and the status vocabulary, deliberately: an embedder
@@ -145,7 +145,7 @@ Properties that hold only under exclusion are marked where they appear.
 
 Multi-pointer atomicity under \rcu is not a new goal, and the established
 answers pay for it in the same place: state attached to every element, and
-work on the reader's path. This engine pays in neither. \Cref{sec:costcomparison}
+work on the reader's path. This facility pays in neither. \Cref{sec:costcomparison}
 places it against those answers---existence structures, RLU, and STM---in detail.
 
 % ===========================================================================
@@ -161,7 +161,7 @@ it is stated on shipped code rather than in the abstract.
 \label{sec:rcu}
 
 \rcu~\citep{mckenney1998rcu,desnoyers2012urcu} divides a mutation between two
-parties and gives each of them a different bargain. A reader delimits its
+parties and gives each of them a different contract. A reader delimits its
 traversal with \code{rcu\_read\_lock()} and \code{rcu\_read\_unlock()}, marking an
 \rcu \emph{read-side critical section}. On the
 common implementations these are not locks at all: they exclude nothing and
@@ -211,13 +211,13 @@ practice, and compilers promote it to \code{acquire}~\citep{boehm2008memorymodel
 Userspace \rcu therefore relies on the dependency directly.}
 
 The whole arrangement rests on one sentence: \emph{readers pay nothing, and in
-exchange a writer gets exactly one atomic act.} The rest of this paper is about
+exchange a writer gets exactly one atomic operation.} The rest of this paper is about
 the second half of that sentence.
 
 \subsection{Build, publish, reclaim}
 \label{sec:buildpublish}
 
-The one atomic act is a single pointer store, and it sits in the middle of a
+The one atomic operation is a single pointer store, and it sits in the middle of a
 three-phase discipline that every \rcu mutation follows:
 
 \begin{enumerate}
@@ -251,7 +251,7 @@ store moves.
 \subsection{Why one store is not enough}
 \label{sec:onestore}
 
-An update that must re-point two edges coherently has no atomic act to express
+An update that must re-point two edges coherently has no atomic operation to express
 itself with, and the consequence is not hypothetical. It is visible in the
 doubly-linked list of the most widely deployed \rcu implementation there is: the
 one in the Linux kernel~\citep{linux2026rculist}.
@@ -355,9 +355,9 @@ the interface. \Cref{sec:fliplatch} makes both edges move at one instant, and
 \label{sec:model}
 
 % ---------------------------------------------------------------------------
-% SCOPE NOTE (drafting): this section is deliberately ENGINE-AGNOSTIC. It must
+% SCOPE NOTE (drafting): this section is deliberately FACILITY-AGNOSTIC. It must
 % define only what the single-writer flip-latch (Sec. 4) and the multi-writer
-% MCAS engine (companion paper) BOTH realize, because the companion paper
+% MCAS facility (companion paper) BOTH realize, because the companion paper
 % inherits these definitions verbatim. Anything that is a property of one
 % realization -- descriptors, install/settle, the tri-state status word, abort
 % -- belongs there, not here. In particular there is no abort in this model:
@@ -444,7 +444,7 @@ apology for an incomplete STM; it is a disambiguation for readers who take
 \emph{transaction} to imply isolation. What the prefix marks as absent is
 isolation, and the reason it is absent is the subject of
 \cref{sec:whyweakening}: isolation is paid for on the read side, and the \rcu
-read side is precisely what this engine declines to charge.
+read side is precisely what this facility declines to charge.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % If space is tight this table is the first thing to cut to prose --- but
@@ -491,7 +491,7 @@ serializable --- neither holds, and neither is asserted anywhere in this paper.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Keep "linearizable" scoped to the WRITE, exactly as in Property 3. The
-% engine's own words: "This linearizes the WRITE." Never extend it to a
+% facility's own words: "This linearizes the WRITE." Never extend it to a
 % read-plus-write bracket -- that bracket is not atomic and claiming
 % otherwise is the single most damaging error available to this series.
 % -----------------------------------------------------------------------
@@ -532,9 +532,9 @@ because there is only one publish.
 unit of cross-structure atomicity is one \pseudotxn, not one writer and not one
 critical section. An operation that commits the index edit and then commits the
 list edit has produced two linearization points and is back to exactly the skew
-above --- the engine has made the composition \emph{available}, not automatic.
+above --- the facility has made the composition \emph{available}, not automatic.
 Folding edits into one commit is sound even when they touch the same slots: the
-engine reconciles a writer's edits against its own pending ones through
+facility reconciles a writer's edits against its own pending ones through
 read-your-own-writes (\cref{sec:swcomposition}). Cross-structure composition,
 where the slots cannot coincide, is the easy case of that.
 
@@ -586,10 +586,10 @@ not what it must have held throughout. An operation whose correctness requires
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Do NOT write "a validated slot is CHECKED to hold its expected value" in
-% P1. The single-writer engine performs no check: it has no install CAS, so
+% P1. The single-writer facility performs no check: it has no install CAS, so
 % nothing verifies o against memory. Under exclusion the writer is entitled
 % to know, and o is used for RESOLUTION (what a proxy returns pre-flip), not
-% for validation. The concurrent engine's install CAS is what turns this
+% for validation. The concurrent facility's install CAS is what turns this
 % into a check -- so the checking language belongs in P2, and the model here
 % must state the property without implying an enforcement that does not
 % exist. Sec. 7.4 explains where this DOES bite in P1: through composition.
@@ -618,9 +618,9 @@ exploitable rather than merely tolerable (\cref{sec:publishorder}).
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % DO NOT call this "causal". "Causal consistency" names a specific model
 % that is WEAKER than linearizability -- it lets observers disagree on the
-% order of unrelated writes -- so borrowing the word would make the engine
+% order of unrelated writes -- so borrowing the word would make the facility
 % read as claiming less than it provides. "Never new-then-old" is precise,
-% memorable, collides with no existing model's name, and is the engine's own
+% memorable, collides with no existing model's name, and is the facility's own
 % phrasing. Equally, do not write "per-slot linearizability": true of each
 % read, but it implies reads are unrelated and so undersells Property 5.
 % -----------------------------------------------------------------------
@@ -649,10 +649,10 @@ race that no test on a strongly-ordered machine will ever reproduce.
 \Cref{sec:nonguarantees} invites an obvious objection. If a reader gets no
 snapshot, and a traversal touching several slots may straddle a commit, how is
 any multi-slot traversal ever correct? The answer is not that snapshots are
-recovered somewhere later. It is that a snapshot is only one way of buying what
-the reader actually needs, and there is a cheaper way to buy it.
+recovered somewhere later. It is that a snapshot is only one way of providing what
+the reader actually needs, and there is a cheaper way to provide it.
 
-What a snapshot buys is \emph{independence from timing}: it makes a reader's
+What a snapshot provides is \emph{independence from timing}: it makes a reader's
 conclusions hold no matter when its individual loads happened. But a reader does
 not read in an arbitrary order. It reads in the order its traversal dictates,
 and that order is usually fixed by the structure --- a tree is descended, a list
@@ -762,7 +762,7 @@ is where a single-instant switch of both edges --- or, if the edit is split
 across commits, the reverse-order rule --- stops being optional.
 
 The limits should be equally clear. This is an embedder's discipline, not an
-engine guarantee: the engine cannot know a structure's traversal order, so
+facility guarantee: the facility cannot know a structure's traversal order, so
 nothing checks that the commits were ordered against it. It applies only where a
 read order actually is fixed; a reader that compares two independently-reached
 slots, or re-reads a pointer it cached, has no chain to carry the order and is
@@ -778,7 +778,7 @@ without opacity.
 \subsection{Why this weakening}
 \label{sec:whyweakening}
 
-\rcu exists because readers dominate. Its entire bargain is that a reader pays
+\rcu exists because readers dominate. Its entire contract is that a reader pays
 nothing: no lock, no barrier, no write to shared state. Every design that adds
 multi-pointer atomicity on top of \rcu must decide what to charge that reader,
 and the answer is what separates them (\cref{tab:comparison}).
@@ -854,7 +854,7 @@ the scarce resource, and it is the axis on which this design is at its worst.
 % for it: the existence-vs-txn gap on a tower-structured workload should
 % WIDEN with tower height, because width grows and existence's does not.
 % That is a prediction the cost model makes, and it is testable with the
-% engine's own commit-cost introspection. A validated cost model is a
+% facility's own commit-cost introspection. A validated cost model is a
 % result; an unexplained loss is an embarrassment. They are the same
 % numbers.
 % -----------------------------------------------------------------------
@@ -871,8 +871,8 @@ above is otherwise too flattering. What RLU buys with its charge is strictly
 more than what we provide: a coherent snapshot, where we give only monotone
 resolution (\cref{prop:monotone}). "We declined to charge for it" is therefore
 an honest description of the trade only if it travels with what the charge
-bought. A reader who needs a snapshot cannot take this engine and economize ---
-they need a different engine. The comparison holds where the guarantee classes
+bought. A reader who needs a snapshot cannot take this facility and economize ---
+they need a different facility. The comparison holds where the guarantee classes
 match, as they do against existence structures (\cref{sec:costcomparison}); a
 comparison against RLU crosses them (\cref{sec:relrcu}).
 
@@ -944,9 +944,9 @@ why \cref{prop:monotone} holds.
 The flip-latch is legal \emph{only} under writer mutual exclusion. This is a
 precondition of the mechanism, not a caveat on it.
 
-The engine has no install-time CAS, no conflict detection, and no abort. Those
+The facility has no install-time CAS, no conflict detection, and no abort. Those
 are precisely the parts that would let two writers discover each other, and they
-are absent by design --- their absence is what makes this engine cheaper than the
+are absent by design --- their absence is what makes this facility cheaper than the
 multi-writer one. The consequence is unforgiving: two writers racing on one slot
 simply corrupt it, and a default build says nothing.
 % -----------------------------------------------------------------------
@@ -956,7 +956,7 @@ simply corrupt it, and a default build says nothing.
 % surface.
 % -----------------------------------------------------------------------
 
-Because the failure is silent, the engine ships a runtime validator
+Because the failure is silent, the facility ships a runtime validator
 (\code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE}) that aborts the process on a violation.
 It is off by default and costs nothing when off --- the handle does not even
 carry the owner field. It claims the two things that exist to be claimed: the
@@ -968,7 +968,7 @@ cannot already hold a parked proxy.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is worth stating as a design lesson rather than an implementation
-% note: the contract is unenforceable at zero cost, so the engine makes the
+% note: the contract is unenforceable at zero cost, so the facility makes the
 % check opt-in and free-when-off rather than pretending the contract is
 % safe. Ties to the series-wide honesty point: memory safety is
 % unconditional, atomicity is conditional on embedder contracts. Cross-
@@ -978,6 +978,10 @@ cannot already hold a parked proxy.
 \subsection{Lifecycle: build, install, commit, settle}
 \label{sec:lifecycle}
 
+The mutation is driven by the \emph{embedder}: the code that builds a data
+structure on this facility and performs its updates. The embedder owns the whole
+lifecycle---all four steps below---and the obligations of
+\cref{sec:embedderowes}; "builder" would name only the first step.
 \begin{enumerate}
 \item \textbf{Build} the new structure where readers cannot reach it.
 \item \textbf{Install.} The record set is frozen at this point: these are the
@@ -1048,7 +1052,7 @@ subsequent settle overwrites the intruder's store with $n$. Nothing traps, and
 readers are handed a stale value \emph{as though it were current}. This is the
 same fact as \cref{sec:exclusion} viewed from the reader's side, and it is worth
 seeing from both: the \fliplatch's cheapness comes from having no install-time
-check. An engine that checked at install --- a compare-and-swap on the slot,
+check. A facility that checked at install --- a compare-and-swap on the slot,
 paid on every commit --- would have caught the second writer and refused the
 install; this one spends nothing there and asks the embedder for exclusion
 instead.
@@ -1067,21 +1071,21 @@ nothing a concurrent party does can turn it back.
 % embedder migrates without rewriting its commit handling). Removed: it explains
 % a P1 feature by a P2 mechanism the reader has not met, and it is redundant --
 % the migration point already lives in Sec. 1's Scope paragraph, which is where
-% the series relationship belongs. Do not reintroduce a concurrent-engine
+% the series relationship belongs. Do not reintroduce a concurrent-facility
 % explanation in this subsection; keep the progress story self-contained.
 % -----------------------------------------------------------------------
 
 \subsection{What the embedder owes}
 \label{sec:embedderowes}
 
-The engine is deliberately incomplete: it supplies the latch, and leaves three
+The facility is deliberately incomplete: it supplies the latch, and leaves three
 obligations with the structure that embeds it.
 
 \begin{itemize}
 \item \textbf{Tagging.} The embedder chooses how a proxy pointer is marked so
       its readers recognize one --- a spare low or high bit, or a reserved type
       code in an already-tagged pointer --- and routes resolution through the
-      engine's accessor. \Cref{sec:tags} takes this up: it is where the engine's
+      facility's accessor. \Cref{sec:tags} takes this up: it is where the facility's
       zero-added-state claim is made concrete.
 \item \textbf{Allocation.} Proxies and the group are the embedder's to allocate,
       with whatever alignment its tagging scheme demands --- often as a single
@@ -1092,8 +1096,8 @@ obligations with the structure that embeds it.
 
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% Frame this as a design position, not a shortfall: the engine cannot know
-% the embedder's pointer encoding, so a general engine that OWNED the
+% Frame this as a design position, not a shortfall: the facility cannot know
+% the embedder's pointer encoding, so a general facility that OWNED the
 % tagging would have to add a field -- which is the very cost this design
 % exists to avoid. The obligations are the price of adding no per-element
 % state, and that trade is the paper's thesis. Do not let this read as "and
@@ -1104,9 +1108,9 @@ obligations with the structure that embeds it.
 \section{Slots and Tags}
 \label{sec:tags}
 
-\Cref{sec:whyweakening} claimed that this engine adds no per-element state and
+\Cref{sec:whyweakening} claimed that this facility adds no per-element state and
 costs the reader no additional load. This section substantiates that claim, and
-states what it costs in return: the engine has nowhere of its own to put the
+states what it costs in return: the facility has nowhere of its own to put the
 marker, so it must borrow bits from the embedder's pointer encoding.
 
 \subsection{The tag contract}
@@ -1114,7 +1118,7 @@ marker, so it must borrow bits from the embedder's pointer encoding.
 
 A parked slot must hold something a reader can recognize as a proxy and
 distinguish from every legitimate value the slot could otherwise hold. The
-engine takes those bits from the slot itself:
+facility takes those bits from the slot itself:
 
 \begin{itemize}
 \item a parked slot's value is \code{(record\_address | tag)};
@@ -1129,15 +1133,15 @@ pattern is indistinguishable from a proxy, and a reader will follow it into a
 record that does not exist.
 
 Two further obligations follow. Every write to a transacted slot must go through
-the engine: one raw store breaks atomicity for every participant, not only the
-writer that made it. And every read must resolve through the engine's accessor,
+the facility: one raw store breaks atomicity for every participant, not only the
+writer that made it. And every read must resolve through the facility's accessor,
 since a bare load of a parked slot yields a tagged record address rather than a
 value.
 
 \subsection{Why the tag cannot be fixed}
 \label{sec:pertag}
 
-The obvious design is a single tag, chosen once by the engine --- bit~0, say,
+The obvious design is a single tag, chosen once by the facility --- bit~0, say,
 free in any aligned pointer. It is also the design that
 \cref{prop:crossstructure} rules out.
 
@@ -1160,7 +1164,7 @@ once}. A per-translation-unit macro cannot express that; the tag has to travel
 with the record.
 
 So each record carries its own \code{proxy\_tag}, supplied when the record is
-added, and heterogeneous slots share one engine, each resolved through its own
+added, and heterogeneous slots share one facility, each resolved through its own
 tag.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
@@ -1171,7 +1175,7 @@ tag.
 % "flexibility". Do NOT use the fractal trie as the worked example here --
 % it is deferred to a later paper and P1 must not depend on it. The hazard
 % is fully statable in the abstract: "a structure whose pointers already
-% encode a type in their low bits". The engine header names the trie's 0xF
+% encode a type in their low bits". The facility header names the trie's 0xF
 % nibble as its motivating case; we can describe the shape without the
 % consumer.
 % -----------------------------------------------------------------------
@@ -1218,23 +1222,23 @@ ABIs.
 \subsection{What the tag buys}
 \label{sec:tagbuys}
 
-The tag is the whole of the engine's presence in a reader's world. There is no
+The tag is the whole of the facility's presence in a reader's world. There is no
 header, no side table, no per-element field --- the marker occupies bits of a
 word the structure already had and the reader already loads. That is why
 \cref{tab:comparison}'s last row reads zero in the loads column, and it is why
 the structure a
 reader traverses in the steady state is byte-for-byte the one it would traverse
-with no engine linked at all.
+with no facility linked at all.
 
-The price is that the engine cannot own the encoding. It does not know which
+The price is that the facility cannot own the encoding. It does not know which
 bits a given structure has left, so it cannot choose for the embedder ---
-\cref{sec:embedderowes}'s obligations are the direct consequence. An engine that
+\cref{sec:embedderowes}'s obligations are the direct consequence. A facility that
 owned the tagging would have to add a field to say what it owned, which is
 precisely the cost this design exists to avoid.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Close the loop with Sec. 3.7 explicitly: the obligations are not a
-% shortfall, they are the mechanism by which the cost is avoided. An engine
+% shortfall, they are the mechanism by which the cost is avoided. A facility
 % that took the decision away from the embedder would have to pay for the
 % privilege in exactly the coin (per-element state) the design refuses to
 % spend.
@@ -1244,7 +1248,7 @@ precisely the cost this design exists to avoid.
 \section{Transacted Data Structures}
 \label{sec:wrappers}
 
-\Cref{sec:onestore} established the gap this engine exists to close: a
+\Cref{sec:onestore} established the gap this facility exists to close: a
 doubly-linked list has two reader-visible chains, but \rcu can publish only one
 of them atomically, so \code{rculist} maintains a \code{prev} chain no reader may
 walk and ships no \rcu-safe reverse iterator. The \fliplatch moves both edges at
@@ -1358,7 +1362,7 @@ live structure instead, it believes $E_2$'s predecessor is still $E_1$, records
 publishes a list pointing through deleted nodes. Nothing here is a race; one
 writer, editing in program order, has torn its own commit.
 
-The engine closes this with \emph{read-your-own-writes}. Two accessors form the
+The facility closes this with \emph{read-your-own-writes}. Two accessors form the
 pair: a load that returns a slot's pending new value if this \pseudotxn has
 already recorded one and its committed value otherwise, and a recording store
 that \emph{fuses} a second edit of a slot onto the existing record --- keeping
@@ -1379,11 +1383,11 @@ bracket can still hand an edit a node its own earlier edit has displaced. The
 discipline is to identify the victims first and then edit, not to interleave the
 two.
 
-\emph{Declaring a write set disjoint is a promise the engine keeps you to.}
+\emph{Declaring a write set disjoint is a promise the facility keeps you to.}
 Read-your-own-writes costs a find per recorded edit --- \emph{is this slot
 already pending?} --- but not the quadratic scan that first suggests. A typical
 transaction is small, a two-edge list operation, where scanning the handful of
-pending records beats anything cleverer, and the engine does exactly that; only
+pending records beats anything cleverer, and the facility does exactly that; only
 when a write set grows large enough for the scan to dominate does it arm a Bloom
 filter, which answers the find's common outcome --- a miss, the slot is new ---
 in constant time. The filter is built lazily, on the first lookup that would
@@ -1402,17 +1406,17 @@ the declaration should be made only where disjointness is structural rather than
 merely observed.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% This section was rewritten when the sw engine gained read-your-own-writes
+% This section was rewritten when the sw facility gained read-your-own-writes
 % (urcu-txn-dev a797a2eb, 89e8d822, f6e48016). BEFORE that,
-% the sw engine had no transactional loads: composition was slot-disjoint ONLY,
+% the sw facility had no transactional loads: composition was slot-disjoint ONLY,
 % and adjacent deletes silently corrupted -- which was true at the previous pin
 % (ec621268) and is the behaviour earlier drafts described.
 %
-% Do NOT reinstate the old "the concurrent engine's RYW is what it is FOR / the
+% Do NOT reinstate the old "the concurrent facility's RYW is what it is FOR / the
 % reason it has transactional loads at all" framing anywhere (it was in this
-% NOTE and in the Sec. 10 P2 hook). It is now FALSE: BOTH engines have RYW, so
+% NOTE and in the Sec. 10 P2 hook). It is now FALSE: BOTH facilities have RYW, so
 % RYW is part of the SHARED programming model (P3), not P2's differentiator.
-% What still distinguishes the concurrent engine is the machinery exclusion
+% What still distinguishes the concurrent facility is the machinery exclusion
 % removes -- the install CAS, conflict detection, abort -- for MULTIPLE writers
 % (helping/stealing were built and REMOVED; see the retired-variants note, and
 % do not reintroduce them as current MW machinery). RYW is orthogonal to that
@@ -1451,14 +1455,14 @@ only after a grace period.
 % previous transaction survives into the next one. Confirmingly, rcu-txn-sw-
 % list.h carries no such warning: it mentions grace periods only for
 % reclaim. Stating it here would import a multi-writer hazard into a single-
-% writer paper and imply a restriction the sw engine does not have.
+% writer paper and imply a restriction the sw facility does not have.
 % -----------------------------------------------------------------------
 
 % ===========================================================================
 \section{Limitations}
 \label{sec:limitations}
 
-The engine's limits divide cleanly in two, and the division is the useful part.
+The facility's limits divide cleanly in two, and the division is the useful part.
 Some are \emph{properties of the model} --- they cannot be violated, only
 disliked. The rest are \emph{contracts on the embedder} --- they can be
 violated, and violating them is expensive.
@@ -1469,17 +1473,17 @@ violated, and violating them is expensive.
 One thing is worth stating positively first, because it is the guarantee that is
 usually hardest to get in this design space and it costs nothing here.
 
-The engine is indifferent to \emph{slot-value} A-B-A. Resolution goes through
+The facility is indifferent to \emph{slot-value} A-B-A. Resolution goes through
 the record's own status rather than through the slot's plain value, so the
 identity that matters is the descriptor's, not the value's. Any slot value may
 recur --- a next-pointer cycling $B \rightarrow X \rightarrow B$ with $B$ a live
 successor that is never freed, a counter revisiting a number, an embedder's own
 reuse --- and the recurrence is inert. \rcu prevents \emph{address} reuse, but
-not \emph{value} recurrence; this engine does not need it to.
+not \emph{value} recurrence; this facility does not need it to.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Be precise about the scope of "unconditional" here, because it is easy to
-% overstate and the overstatement is load-bearing. The engine's own words
+% overstate and the overstatement is load-bearing. The facility's own words
 % are "memory safety, which holds unconditionally here" -- and the sentence
 % is about SLOT VALUES. It is NOT a claim that memory safety survives a
 % violated contract. It cannot be: Sec. 7.2's tag contract, violated, makes
@@ -1492,7 +1496,7 @@ not \emph{value} recurrence; this engine does not need it to.
 \subsection{The contracts, and what violating them costs}
 \label{sec:contracts}
 
-The engine requires four things of its embedder. None is checked in a default
+The facility requires four things of its embedder. None is checked in a default
 build.
 
 \begin{description}
@@ -1505,7 +1509,7 @@ build.
   must be composed through the read-your-own-writes path, which fuses them
   (\cref{sec:swcomposition}); the blind fast path and any handle declared
   disjoint instead require pairwise-distinct slots. Every write to a transacted
-  slot must go through the engine and every read through its accessor.
+  slot must go through the facility and every read through its accessor.
 \item[Deferred descriptor reclaim.] A descriptor reachable through a slot is
   reclaimed only after a grace period, because a reader may dereference it.
 \end{description}
@@ -1520,17 +1524,17 @@ argument.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is the series' central honesty point and Sec. 1 should not oversell
-% around it. The July review of this engine concluded that every major
+% around it. The July review of this facility concluded that every major
 % finding sat at the CONTRACT layer rather than the mechanism layer -- doc
 % text with API force steering embedders into corruption. That is a real
 % result about this class of design and worth saying: the mechanism is the
 % easy part.
 % -----------------------------------------------------------------------
 
-\subsection{Contracts the engine cannot check for free}
+\subsection{Contracts the facility cannot check for free}
 \label{sec:checkability}
 
-The contracts of \cref{sec:contracts} are not equally checkable, and the engine
+The contracts of \cref{sec:contracts} are not equally checkable, and the facility
 is candid about which is which rather than uniformly optimistic.
 
 Exclusion has an opt-in runtime validator
@@ -1545,7 +1549,7 @@ per-write cost the design exists to avoid. It is discharged by the embedder's
 encoding, by construction or not at all.
 
 A disjoint declaration (\cref{sec:swcomposition}), if false, is the quietest
-violation of all: the engine skips the reconciliation the declaration promised
+violation of all: the facility skips the reconciliation the declaration promised
 was unnecessary, drops the earlier of two edits that land on one slot, and
 commits success. It is the one contract with a dedicated opt-in trap
 (\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT}), though even that catches only the
@@ -1554,7 +1558,7 @@ corrupts quietly.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Frame the opt-in validator as the design position it is: the contract is
-% unenforceable at zero cost, so the engine offers a check that is free when
+% unenforceable at zero cost, so the facility offers a check that is free when
 % off rather than pretending the contract is safe or taxing everyone to
 % police it. That is the same trade as the rest of the paper -- pay nothing
 % by default, and be explicit about what that costs.
@@ -1569,7 +1573,7 @@ what the model \emph{is}.
 \textbf{No reader snapshot.} A reader is not a transaction of any kind
 (\cref{sec:nonguarantees}); a traversal spanning slots may straddle a commit. An
 embedder that needs a coherent multi-slot read layers its own versioning on top.
-Two standard families do this without disturbing the base engine: a
+Two standard families do this without disturbing the base facility: a
 \emph{seqcount}, where the reader re-samples a counter around its read and
 retries if a writer intervened, and a \emph{validating transaction}, where the
 reader's loads fold into a commit that is accepted only if every slot it touched
@@ -1612,19 +1616,19 @@ peer can move a slot away and back between a read and the commit; under
 exclusion it is inert.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% UPDATED when the sw engine gained read-your-own-writes. The
+% UPDATED when the sw facility gained read-your-own-writes. The
 % earlier draft unified "value-based not stability-based" with "composition is
-% slot-disjoint only" -- true when the engine could NOT read its own pending
+% slot-disjoint only" -- true when the facility could NOT read its own pending
 % edits, false now that it can. Under exclusion the only thing that could
 % invalidate a recorded old is your own earlier same-bracket edit, and RYW now
 % reconciles exactly that, so the value/stability distinction is inert here
 % rather than surfacing through composition. It earns its keep only in the
-% concurrent engine, where a PEER can change a slot between read and commit --
+% concurrent facility, where a PEER can change a slot between read and commit --
 % which is where the guard/validate API lives. Do not re-couple it to
 % composition here.
 % -----------------------------------------------------------------------
 
-\textbf{Monotonicity is a property of the traversal, not only of the engine.}
+\textbf{Monotonicity is a property of the traversal, not only of the facility.}
 \Cref{prop:monotone} holds for a dependency-chained reader. One that hops
 without a chain --- re-reading a cached pointer, or comparing two
 independently-reached slots --- must supply its own acquire
@@ -1658,7 +1662,7 @@ reader's sequence inherits from it is not.
 
 The mechanism of \cref{sec:swmechanism} is one point in a design space. This
 section maps the space around it: the choices available at each decision, what
-each would cost, and why this engine chose as it did. Several of these
+each would cost, and why this facility chose as it did. Several of these
 alternatives are perfectly workable; the reasons for rejecting them are
 quantitative or contextual, not fundamental.
 
@@ -1696,13 +1700,13 @@ reclamation already pays.
 
 \paragraph{Width, and the alignment it implies.} A one-bit tag needs only
 two-byte alignment of the record, which any pointer has. The four-bit tag this
-engine permits requires sixteen-byte alignment, which must be arranged
+facility permits requires sixteen-byte alignment, which must be arranged
 deliberately (\cref{sec:alignment}). Wider tags are available at proportionally
 stricter alignment: an eight-bit tag would need 256-byte-aligned records, which
 is affordable for a small pool of proxies and wasteful for many. The width an
-embedder needs is set by its own encoding, not by the engine.
+embedder needs is set by its own encoding, not by the facility.
 
-\paragraph{Low bits versus high bits.} This engine takes tag bits from the low
+\paragraph{Low bits versus high bits.} This facility takes tag bits from the low
 end, where alignment guarantees them. The high end is the alternative: on
 \emph{most} current 64-bit architectures the top bits of a virtual address are
 unused --- though not all, s390x being an exception --- and a tag can live there
@@ -1710,7 +1714,7 @@ instead, leaving the low bits entirely to the embedder.
 The cost is portability --- the number of free high bits is
 architecture-dependent and can change --- so a high-bit scheme needs a runtime
 probe of the address space to establish its budget, and a fallback for
-architectures that offer fewer bits than it wants. An engine could offer both
+architectures that offer fewer bits than it wants. A facility could offer both
 and let the embedder choose.
 
 \paragraph{Tagging versus a sentinel range.} Tagging is not the only way to make
@@ -1742,19 +1746,19 @@ could instead be embedded in the target object, so the slot points at the object
 as usual and the object's header says whether an indirection is in flight ---
 which is what an object-header scheme does, and it is the design
 \cref{sec:whyweakening} rejects: it reintroduces per-element state, which is the
-cost this engine exists to avoid.
+cost this facility exists to avoid.
 
 \subsection{Settle}
 \label{sec:varsettle}
 
-\paragraph{Eager, lazy, or never.} This engine settles eagerly: after the flip,
+\paragraph{Eager, lazy, or never.} This facility settles eagerly: after the flip,
 every slot is rewritten from the tagged proxy back to the direct target. Settle
 could be deferred, batched across transactions, or omitted entirely --- the
-proxies resolve correctly forever, so a never-settling engine is \emph{correct}.
+proxies resolve correctly forever, so a never-settling facility is \emph{correct}.
 It is also unbounded: every read of that slot pays an indirection permanently,
 the proxies can never be reclaimed, and the structure accumulates a growing
 layer of resolved-but-still-present latches. Settle exists to make the cost
-transient, which is the whole thesis of \cref{sec:whyweakening}; an engine that
+transient, which is the whole thesis of \cref{sec:whyweakening}; a facility that
 never settled would have per-slot state after all, arrived at by a different
 road.
 
@@ -1785,7 +1789,7 @@ would serialize readers on a shared counter.
 \label{sec:costcomparison}
 
 \Cref{sec:whyweakening} argued that every design adding multi-pointer atomicity
-to \rcu must charge the reader something, and that this engine charges the
+to \rcu must charge the reader something, and that this facility charges the
 least. This section makes the comparison concrete. \Cref{tab:comparison}
 tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
@@ -2008,7 +2012,7 @@ mutation is in flight. That is a permanent addition to the footprint of the data
 the readers traverse --- and footprint is a read-side cost, paid in cache rather
 than in instructions. A \pseudotxn adds no per-element state at all, so in the
 steady state both the structure a reader traverses and the path it takes through
-it are byte-for-byte what they would be with no engine present.
+it are byte-for-byte what they would be with no facility present.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is where the rcu_head layout experiment belongs -- it isolates
@@ -2020,20 +2024,20 @@ it are byte-for-byte what they would be with no engine present.
 % we already had to retract. Cross-reference the evaluation paper.
 % -----------------------------------------------------------------------
 
-\paragraph{A pseudo-transaction charges the reader no memory.} The engine adds
+\paragraph{A pseudo-transaction charges the reader no memory.} The facility adds
 no per-element state at all. Its marker lives in tag bits of the slot itself ---
 the very word the reader had to load in order to proceed --- so recognizing it
 costs no additional load and no additional line, only the predicted branch
 accounted for above. And because the marker is transient, the structure a reader
 traverses in the steady state is byte-for-byte the structure it would traverse
-with no engine present.
+with no facility present.
 
 \subsection{Transactional memory}
 \label{sec:relstm}
 
 Software transactional memory \citep{shavit1995stm, herlihy2003dstm} and its
 object-based descendants \citep{fraser2004lockfreedom} offer the strictly
-stronger contract this engine declines: a transaction is atomic \emph{and}
+stronger contract this facility declines: a transaction is atomic \emph{and}
 isolated, so a reader's whole read set is mutually consistent. Opacity
 \citep{guerraoui2008opacity} names that reader-side guarantee precisely, and
 naming it is what lets us be precise about what we do not provide.
@@ -2070,7 +2074,7 @@ newer copy, logs a writer's copies, and makes them visible by advancing a global
 clock. \textbf{MV-RLU} \citep{kim2019mvrlu} adds multi-versioning to relieve
 RLU's synchronous writeback. Both provide a \emph{coherent snapshot} --- which
 is strictly stronger than \cref{prop:monotone}, and must be said plainly: any
-comparison of throughput between this engine and RLU crosses guarantee classes.
+comparison of throughput between this facility and RLU crosses guarantee classes.
 Against existence structures the classes match and the comparison is clean.
 
 % ===========================================================================
@@ -2177,7 +2181,7 @@ tag (\cref{sec:pertag}) and which we are likewise not aware of in prior work.
 \section{Conclusion}
 \label{sec:conclusion}
 
-\rcu gives a writer one atomic act, and the limit is not academic. It is visible
+\rcu gives a writer one atomic operation, and the limit is not academic. It is visible
 in the interface of a shipped container: Userspace \rcu's list maintains a
 backward chain that no reader is allowed to walk, and the missing reverse
 iterator is not an oversight but the thing that licenses the plain store to
@@ -2185,7 +2189,7 @@ iterator is not an oversight but the thing that licenses the plain store to
 together, the remedies have been to copy a larger region, to wait out a grace
 period, or to withdraw the operation.
 
-We have described a fourth answer that leaves the bargain intact. A \pseudotxn
+We have described a fourth answer that leaves the contract intact. A \pseudotxn
 is a frozen set of \record{slot}{old}{new} records made visible by one commit
 step; it does not add a phase to \rcu's build--publish--reclaim discipline but
 widens the middle one, so that a single store moves a set of slots rather than a
@@ -2231,11 +2235,11 @@ alone --- a description that cannot be built from is not a disclosure.
 \paragraph{The rest of the series.} This paper is the \sw case, and it is
 deliberately the first: the \fliplatch is the model at its smallest, where a
 commit is one store and the hard parts are contracts rather than machinery. A
-companion paper takes up the \mw engine, which realizes the same model for
+companion paper takes up the \mw facility, which realizes the same model for
 concurrent writers, paying in machinery this paper has no need of for the
 exclusion it drops. Because the two share the model of \cref{sec:model} and the
-status vocabulary, an embedder that outgrows exclusion changes which engine it
-links, not how it reasons. The programming model the two engines share, and the
+status vocabulary, an embedder that outgrows exclusion changes which facility it
+links, not how it reasons. The programming model the two facilities share, and the
 evaluation, follow in their own papers.
 
 % ===========================================================================
@@ -2248,7 +2252,7 @@ evaluation, follow in their own papers.
 % so a reader must be able to fetch exactly what this paper describes years
 % from now, without depending on where development happened to go next.
 % ---------------------------------------------------------------------------
-The engine described here is free software, distributed under
+The facility described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
 \code{b5767298e4d0a6877d1fd6fd3d8e54eeaf11df7d} (2026-07-18), on branch
@@ -2271,11 +2275,11 @@ Within that tree, the material of this paper is the following headers, all under
 \item[\code{rcu-txn-sw-hlist.h}] The hash list.
 \item[\code{rcu-txn-status.h}] The commit-status enum
       (\cref{sec:model}) that both front-ends return, so an embedder tests a
-      commit the same way whichever engine it drives.
+      commit the same way whichever facility it drives.
 \end{description}
 
 \noindent Three further headers are named here for orientation rather than as
-contributions of this paper: \code{rcu-mcas.h} is the \mw engine taken up in the
+contributions of this paper: \code{rcu-mcas.h} is the \mw facility taken up in the
 companion paper, \code{rcu-txn.h} is its transaction front-end, and
 \code{rcu-txn-sw-bitmap.h} applies the same tag contract to a non-pointer word
 --- outside this paper's pointer-focused scope.
