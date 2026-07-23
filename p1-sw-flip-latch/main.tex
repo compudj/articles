@@ -244,8 +244,11 @@ period, never before.
 
 The middle phase is the constraint. Build is unconstrained and reclaim is merely
 deferred, but publish must be \emph{one store}, because a store is the only
-thing the hardware will make atomic with respect to a reader that has taken no
-lock and paid no barrier.
+thing commodity hardware will make atomic with respect to a reader that has taken
+no lock and paid no barrier.\footnote{On hardware with transactional memory, a
+whole multi-word update can be published atomically to a lockless
+reader~\citep{ramadan2007txlinux}. Such hardware is not universal; we assume only
+the single-word store and compare-and-swap that hardware provides everywhere.}
 
 This frame carries through the whole series, and it is worth stating the
 punchline now so that \cref{sec:model} lands as an extension rather than a
