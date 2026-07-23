@@ -74,8 +74,10 @@ The constraint is real, though, and it is one store. An update that must change
 several words coherently has no atomic operation to express itself with. The remedies
 are familiar and each gives something up: copy the enclosing region so the
 change becomes one pointer swap, and pay to copy; drain the readers with a grace
-period so nobody spans the inconsistent window, and pay to wait; or decline the
-operation.
+period so nobody spans the inconsistent window, and pay to wait; impose memory
+ordering so the reader is steered around the inconsistent window instead of being
+made immune to it, and pay in read-side performance~\citep{JoshTriplettPhD}; or
+decline the operation.
 
 \Cref{sec:onestore} looks at a library that took the third option, and it is
 the cleanest evidence available that the problem is real, and it is not confined
@@ -2194,9 +2196,10 @@ backward chain that no reader is allowed to walk, and the missing reverse
 iterator is not an oversight but the thing that licenses the plain store to
 \code{prev} (\cref{sec:onestore}). Where an update needs two edges to move
 together, the remedies have been to copy a larger region, to wait out a grace
-period, or to withdraw the operation.
+period, to impose memory ordering at a read-side cost, or to withdraw the
+operation.
 
-We have described a fourth answer that leaves the contract intact. A \pseudotxn
+We have described a fifth answer that leaves the contract intact. A \pseudotxn
 is a frozen set of \record{slot}{old}{new} records made visible by one commit
 step; it does not add a phase to \rcu's build--publish--reclaim discipline but
 widens the middle one, so that a single store moves a set of slots rather than a
