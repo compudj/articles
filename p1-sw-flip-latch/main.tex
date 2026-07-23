@@ -1840,24 +1840,26 @@ RLU~\citep{matveev2015rlu}
   & 1
   & 1
   & snapshot
-  & clock bump \\
+  & global clock \\
 MV-RLU~\citep{kim2019mvrlu}
   & header $+$ versions
   & $\geq 2$
   & $\geq 3$
   & snapshot
-  & clock bump \\
+  & global clock \\
 \midrule
 \textbf{This work}
   & \textbf{none}
   & \textbf{0}
   & 1
   & never new-then-old
-  & one store \\
+  & selector \\
 \bottomrule
 \end{tabular}
 \caption{Where each design pays for multi-pointer atomicity, on the read-side
-fast path, per dereference. \emph{Extra loads} counts additional memory
+fast path, per dereference. Each publishes with a single store to the shared word
+named in the last column, so publish is one store for every design, not only
+this one. \emph{Extra loads} counts additional memory
 references over and above the load the reader must issue anyway; \emph{extra
 branches} counts conditional branches. Every design tests something, this one
 included --- the honest difference is in the loads column, not the branches
@@ -1866,7 +1868,10 @@ plain load from its per-thread state. A \pseudotxn's is absent because its
 marker rides in the value \code{v} that \code{rcu\_dereference} already
 returned, so its test is arithmetic on a register the reader already holds ---
 but the test is still a branch, and \textbf{0} in the loads column means zero
-loads, not zero instructions. All three single-branch entries are predicted
+loads, not zero instructions. That \textbf{0} is the no-update figure: a reader
+that meets a commit in flight on the slot resolves it through the proxy and
+selector, the pair of loads this path avoids. All three single-branch entries are
+predicted
 branches, statically hinted in their respective sources, and each costs a
 branch-predictor entry. The first column is the unconditional cost, and is where
 the designs differ permanently: existence and RLU attach state to every element
