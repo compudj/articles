@@ -92,8 +92,9 @@ in which they describe different lists --- and a removed node survives as a
 ghost until its grace period elapses, so the \code{prev} view can trail the
 \code{next} view by that long. No barrier fixes either problem. So both
 libraries ship forward iterators and no \rcu-safe reverse walk, and Linux goes
-further, poisoning the back pointer in \code{list\_del\_rcu()} so it cannot be
-followed at all. Nobody has to be persuaded the gap matters: the missing API is
+further, poisoning the back pointer in \code{list\_del\_rcu()} so no concurrent
+\rcu reader can follow it. Nobody has to be persuaded the gap matters: the
+missing API is
 the argument.
 
 \subsection*{Contributions}
