@@ -55,19 +55,28 @@ academic paper in three ways, and the difference shapes every document here:
   in `rcu-gp-bounded-version.md` (benchmark tree commit `4118b04`). Demonstrator:
   extend the same-user list/hlist node with a **multi-word payload** —
   version-on-payload beside the lock/tombstone on the links.
-- **Dentry cache over rcu-txn.** The Linux dcache ported from kernel to
-  userspace on the txn engine — *"can urcu-txn dissolve `rename_lock`?"*.
-  Landed + stress-validated (S3 results on 2×96-core EPYC). Full novelty
-  inventory in [`candidates/dcache.md`](candidates/dcache.md); design note is
-  `efficios-trie-benchmark/experiments/dcache/rename-shell-transition.md`.
+- **Dentry cache over rcu-txn** (working title: *Improvements to the Linux kernel
+  dentry cache with RCU pseudo-transactions*). The Linux dcache reimplemented in
+  userspace on the txn engine — *"can urcu-txn dissolve `rename_lock` + `d_seq`
+  without giving up the kernel bit-lock's cheap writer?"*. Landed +
+  stress-validated on 2×96-core EPYC. Full novelty inventory in
+  [`candidates/dcache.md`](candidates/dcache.md); base design note is
+  `efficios-trie-benchmark/experiments/dcache/rename-shell-transition.md`, and the
+  writer-engine choice is `design/{dcache-dlm-sw,mixed-sw-mw-txn}.md`.
   Headline novelties: the **host/shell** split (inline names + stable-address
-  identity, no recompaction) and the **per-node move-detection generation** (a
-  scalable replacement for the global `rename_lock`), plus a lock-free
-  cross-dir loop check via `load_validate`. Depends on P2/P3 (uses the MW
-  engine + programming model), so it slots after them despite already existing.
+  identity, no recompaction); the **walk-causality version** (per-node / deletion-mark
+  arms — the mark arm is the default — a scalable, counter-free replacement for the
+  global `rename_lock`); a lock-free cross-dir loop check via `load_validate`; and —
+  the newest — the **bucket lock + SW txn writer engine (fold-lock chain), chosen by
+  the metrics** (fold lock > mixed SW/MW > chain lock), which keeps the kernel
+  bit-lock's cheap add/unlink *and* the MW-txn reader win. Depends on P2/P3 (uses
+  the MW engine + programming model + the SW commit form), and touches the DLM line
+  (bucket-lock+SW is the smallest DLM; the mixed SW/MW record is shared with the
+  DLM-hybrid/LRU work), so it slots after them despite already existing.
   **A standalone application paper, not P4's evaluation:** its novelties (host/shell,
-  move-detection generation) are first-class contributions, not benchmark datapoints —
-  though its 2×96-core scaling result is a headline workload P4 can cite.
+  walk-causality version, the metric-chosen writer engine) are first-class
+  contributions, not benchmark datapoints — though its 2×96-core scaling result is a
+  headline workload P4 can cite.
 - **Wait-free multi-word snapshot via a single-bit GP-gated seqcount latch**
   (suspected novel). A one-bit seqcount whose flips are gated to one per grace
   period per node, with a copy-on-write overflow escape, makes a torn-free
