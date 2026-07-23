@@ -1732,7 +1732,12 @@ costs a heavier check on the read path --- typically two inequality comparisons
 to bracket the value against the reserved range, where the tag is a single
 mask-and-compare --- plus an allocator constrained to that range, and a carve-out
 from the data domain that the embedder must guarantee is never a legitimate
-value.
+value. That allocator must be a real one, not a fixed table indexed by the
+handle: a proxy must outlive a grace period, since a reader that loaded its
+handle before the commit settled may still be resolving it. A fixed table would
+have to recycle a slot while such a reader was still reading it, whereas a range
+allocator keeps every proxy independently reclaimable --- which is what lets many
+transactions be in flight, and lingering within a grace period, at once.
 
 \subsection{Proxy placement and allocation}
 \label{sec:varproxy}
