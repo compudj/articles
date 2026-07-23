@@ -187,20 +187,33 @@ framing separates these two kernel jobs cleanly, which is itself worth stating.
 
 ## Further novelties in the design note (not yet flagged, worth capturing)
 
-### N3. Lock-free cross-directory loop check via the commit's validate set
-*(§"Cross-directory loop check")*
+### N3. Lock-free cross-directory cycle check — the per-node move-in-progress Dekker flag
+*(§"Cross-directory loop check"; impl `cross_cycle_check()`, both engines)*
 
 The kernel serializes `A→under→B` / `B→under→A` cycle formation with the global
-`s_vfs_rename_mutex`. Here: fold the entire `T→root` ancestry walk into the
-rename commit's validate set via `urcu_txn_load_validate` (since "is D an ancestor
-of T" is a pure function of T's parent chain). A concurrent reparent of any
-T-ancestor mutates a validated edge ⇒ the commit aborts ⇒ re-walk + re-check.
-Livelock-free (every abort re-checks against strictly-more-committed state);
-N-way cycles die the same way. A **lock-free replacement for a global rename
-mutex** — the strongest single showcase of `load_validate`. (Residual: under the
-bucket-lock+SW engine the loop check currently still leans on the global rename
-serialization; folding it into the acquire is a named separate step,
-`dcache-dlm-sw.md` §4.)
+`s_vfs_rename_mutex`. Here it is **lock-free and done *before* the write locks**:
+moving `host` under `new_parent` forms a cycle iff `host` is an ancestor of
+`new_parent`, so walk `new_parent → root` (bounded, `DC_LOOP_MAX` 256) with **plain
+resolving loads** (`parent_of_rcu`) looking for `host`. Concurrency safety is a
+per-host **move-in-progress flag** (`d_moving`): the mover grays `host->d_moving`
+with a fenced RMW **before** the walk (Dekker set-before-check), so a flagged
+ancestor means a concurrent move is in flight → `-EAGAIN` re-walk; a committed cycle
+(`cur == host`, or `host == root`) → `-EINVAL`. Two moves that would jointly cycle
+cannot both pass. Lock-free, O(depth), and entirely off the lock hold. A **lock-free
+replacement for the global rename mutex**, and (because the walk only *reads* the
+ancestry spine) it does not contend the hot root-ward path.
+
+**Rejected alternative, worth recording (V&A):** the earlier form folded the whole
+`new_parent → root` walk into the rename commit's validate set via
+`urcu_txn_load_validate` — cycle prevention made *atomic* with the move (a slick
+`load_validate` showcase). It was **retired** because the proxy-installing validate
+**pinned the shared spine**: every ancestor edge up the hot root-ward path takes a
+proxy, so concurrent moves serialize on the spine near the root. The Dekker
+`d_moving` flag + plain loads reads the spine without writing it, removing that
+contention. **Consequence to track:** the dcache therefore **no longer exercises
+`load_validate` at all** (the `load_validate` mentions in the source header comments
+are stale, inherited from the pre-Dekker `dcache_txn.c`) — so `load_validate` is a
+P3 feature this paper *cites*, not one it *demonstrates*.
 
 ### N4. The fold cascade — per-node `call_rcu`, retry-on-abort, self-free-only
 *(§"The fold cascade")*
@@ -300,24 +313,38 @@ The natural spine: *rename is the hard part; the kernel pays two global taxes
 dissolves `d_seq` unconditionally, the per-node/MARK version dissolves
 `rename_lock`'s global-retry, and the bucket-lock+SW engine keeps the writer on the
 kernel bit-lock's budget while keeping the txn reader.* **N0 (the converged engine,
-chosen by measurement) is now a co-headline with N1+N2**; N3 (loop check) is the
-strongest single `load_validate` demonstration; N4–N7 are the machinery; the figures
-are the evidence. This paper leans **evaluation-heavy** relative to P1–P3, which is
-fine — it is the applied capstone, and it exercises the whole engine (bucket-lock+SW
-commit, MCAS reader, hlist, `load_validate`, RYW, `call_rcu` reclaim) on a genuinely
-hard, recognizable problem.
+chosen by measurement) is now a co-headline with N1+N2**; N3 (the lock-free Dekker
+cycle check, with the retired `load_validate` form as a V&A datapoint) and N4–N7 are
+the machinery; the figures are the evidence. This paper leans **evaluation-heavy**
+relative to P1–P3, which is fine — it is the applied capstone, and it exercises the
+engine (the bucket-lock+SW commit — `store_sw`/`commit_sw`, `declare_disjoint`,
+`expect_conflict` — the selector-resolving reader (`urcu_txn_read`), the txn-hlist,
+and `call_rcu` reclaim) on a genuinely hard, recognizable problem. (It does **not** exercise
+`load_validate` or the `load_optimistic`/`load_committed` read-policy flavours —
+those it cites from P3, see N3.)
 
 Dependencies: needs the MW engine (P2) and the programming model (P3) as citable
-prior parts (uses `load_validate`, `expect_conflict`, RYW, the four-flavour read
-policy, and the SW commit form). It also **touches the DLM line** — bucket lock + SW
+prior parts. What the converged engine actually *calls*: the **SW commit form**
+(`store_sw`/`commit_sw`), `declare_disjoint`, `expect_conflict`, the txn read/resolve,
+`host_of_rcu`, and `call_rcu` reclaim. What it **cites but no longer demonstrates**
+(a correction over this note's earlier drafts): `load_validate` (retired for the
+cycle check, N3) and the `load_optimistic`/`load_committed` read-policy flavours (the
+reader uses the plain resolve). It also **touches the DLM line** — bucket lock + SW
 is the smallest DLM instance, and the mixed SW/MW record (`mixed-sw-mw-txn.md`) is a
 shared primitive with the DLM-hybrid/LRU work — so cross-references there. Comes
 **after** P2/P3 in the series despite already existing.
 
 ## Open questions the experiment itself lists
 `..`/getpath (tombstoned host's name stale for an upward walker); negative
-dentries; same-bucket rename (RYW handle, not `declare_disjoint`); escalation into
-the fair-mutex lane; the loop-check residual (fold `T→root` into the acquire,
-`dcache-dlm-sw.md` §4); the **LRU** driver (the mixed SW/MW record's real prize,
+dentries; coincident-head rename (the SW engine has no RYW — handled by an in-place
+`bl_sw_replace` that detects the shared head, not a `declare_disjoint`); escalation
+into the fair-mutex lane; the **LRU** driver (the mixed SW/MW record's real prize,
 `mixed-sw-mw-txn.md` §5); provenance framing (relativistic-move / RCU-resize applied
 to *identity*).
+
+(The former "loop-check residual — fold `T→root` into the acquire" open item is
+**closed/moot**: the cycle check is already lock-free and runs before the locks via
+the `d_moving` Dekker flag, N3 — there is nothing to fold into the acquire, and no
+global rename serialization to remove. `dcache-dlm-sw.md` §4 and the inherited source
+header comments still describe the retired `load_validate`/mutex form and are stale
+on this point.)
