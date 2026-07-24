@@ -1320,7 +1320,7 @@ reader-visible edges, one forward and one backward:
 \begin{center}
 \begin{tabular}{@{}ll@{}}
 insert $E$ between $P$ and $N$: & \code{P->next}: \edit{N}{E} \quad and \quad \code{N->prev}: \edit{P}{E} \\
-delete $E$ between $P$ and $N$: & \code{P->next}: \edit{E}{N} \quad and \quad \code{N->prev}: \edit{E}{P} \\
+remove $E$ between $P$ and $N$: & \code{P->next}: \edit{E}{N} \quad and \quad \code{N->prev}: \edit{E}{P} \\
 \end{tabular}
 \end{center}
 
@@ -1329,6 +1329,10 @@ transiently hold tagged proxies sharing one selector word; one release store
 flips the selector and switches both edges together. At every instant the
 forward and backward chains describe the same list, and the reverse walk that
 \code{rculist} cannot offer becomes ordinary.
+
+\input{fig-list-insert}
+
+\input{fig-list-remove}
 
 \subsection{The coherence guarantee, and its scope}
 \label{sec:coherence}

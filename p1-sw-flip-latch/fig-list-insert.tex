@@ -1,0 +1,124 @@
+% Inserting node E between P and N of a bidirectional list, P <-> N  =>  P <-> E <-> N.
+%
+% Three rows, read as a BUFFER between updater and readers:
+%   Reader (top)     -- the only row carrying the list itself: one coherent list
+%                       before the commit, another after, both directions.
+%   RCU pseudo-txn   -- the buffer, drawn as its lifecycle install|commit|settle,
+%     (middle)          aligned under the before | commit | after columns.
+%   Updater (bottom) -- the single semantic mutation it issues.
+% Insert removes nothing, so there is no grace period and no reclaim: the edit
+% is only the atomic publish. A record is written concisely as <slot: old->new>
+% (see the legend); Fig.~\ref{fig:fliplatch} carries the full proxy/selector anatomy.
+%
+% Self-contained TikZ (no external toolchain), matching fig-fliplatch.tex.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  lnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8},
+  nnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=green!14},
+  record/.style  = {draw, rounded corners=1pt, fill=blue!6, inner sep=3.5pt, minimum width=35mm, minimum height=6.5mm, font=\footnotesize},
+  settled/.style = {draw, fill=gray!8, inner sep=3.5pt, font=\footnotesize},
+  sel/.style     = {draw, very thick, minimum width=13mm, minimum height=8mm, fill=orange!18},
+  rowlab/.style  = {align=center, font=\footnotesize\itshape, text=black!75},
+  colhead/.style = {align=center, font=\footnotesize\itshape},
+  phase/.style   = {font=\footnotesize\itshape, text=black!70},
+  biarr/.style   = {latex-latex, semithick},
+  arr/.style     = {-latex, thin},
+  dep/.style     = {-latex, thin, densely dotted, gray!70!black},
+  selbox/.style  = {draw, very thick, minimum width=33mm, minimum height=5mm, fill=orange!18, inner xsep=3pt, font=\footnotesize},
+  trow/.style    = {anchor=west, inner sep=0pt, minimum height=6mm, font=\footnotesize},
+  pick/.style    = {-latex, thin, gray!55},
+  ptr/.style     = {-latex, semithick},
+]
+
+% ---- column headers (reader states) ----------------------------------------
+\node[colhead] at (2.6, 6.35) {before commit};
+\node[colhead] at (9.5, 6.35) {after commit};
+
+% ---- neutral before | after boundary through the reader row ----------------
+\draw[thin, gray!45, densely dashed] (7.3, 6.1) -- (7.3, 3.15);
+
+% ---- separators & row labels ----------------------------------------------
+\draw[thin, gray!45] (-1.9, 3.05) -- (11.9, 3.05);
+\node[rowlab] at (-0.95, 4.70) {Reader\\(bidirectional)};
+\node[rowlab] at (-0.95, 1.35) {Updater\\(RCU pseudo-\\transaction)};
+
+% ===== ROW 1 : reader's view -- the only row with the full list stacks ======
+\node[lnode] (r1P) at (2.6, 5.9) {\code{P}};
+\node[lnode] (r1N) at (2.6, 3.5) {\code{N}};
+\draw[biarr] (r1P) -- (r1N);
+
+\node[lnode] (r2P) at (9.5, 5.9) {\code{P}};
+\node[nnode] (r2E) at (9.5, 4.7) {\code{E}};
+\node[lnode] (r2N) at (9.5, 3.5) {\code{N}};
+\draw[biarr] (r2P) -- (r2E);
+\draw[biarr] (r2E) -- (r2N);
+\node[right=1mm of r2E, font=\scriptsize, text=green!45!black] {new};
+
+% ===== ROW 2 : the transaction, phase by phase =============================
+% build -- the descriptor as a table (slot | old | new); selector box above it
+\node[selbox] (selB) at (2.50, 2.72) {selector:~$0$};
+\node[trow, fill=blue!14] (hdr)  at (0.85, 2.10) {\makebox[13mm][c]{\textit{slot}}\makebox[10mm][c]{\textit{old}\,(0)}\makebox[10mm][c]{\textit{new}\,(1)}};
+\node[trow, fill=blue!6]  (rec1) at (0.85, 1.50) {\makebox[13mm][c]{\code{P.next}}\makebox[10mm][c]{\code{N}}\makebox[10mm][c]{\code{E}}};
+\node[trow, fill=blue!6]  (rec2) at (0.85, 0.90) {\makebox[13mm][c]{\code{N.prev}}\makebox[10mm][c]{\code{P}}\makebox[10mm][c]{\code{E}}};
+\draw[thin, blue!45] (0.85, 0.6) rectangle (4.15, 2.4);
+\draw[thin, blue!45] (2.15, 0.6) -- (2.15, 2.4);
+\draw[thin, blue!45] (3.15, 0.6) -- (3.15, 2.4);
+\draw[thin, blue!45] (0.85, 1.8) -- (4.15, 1.8);
+% each record row reads the shared selector
+\draw[pick] (rec1.west) to[out=180,in=180] (selB.west);
+\draw[pick] (rec2.west) to[out=180,in=180] (selB.south west);
+
+% install -- a copy of the list; its pointers redirected into the record rows
+\node[lnode] (iP) at (5.15, 1.50) {\code{P}};
+\node[lnode] (iN) at (5.15, 0.90) {\code{N}};
+\draw[ptr] (iP.west) -- (rec1.east) node[midway, above, font=\scriptsize] {\code{next}};
+\draw[ptr] (iN.west) -- (rec2.east) node[midway, above, font=\scriptsize] {\code{prev}};
+
+% commit -- the same selector, flipped (aligned above the commit phase)
+\node[selbox, minimum width=27mm] (selC) at (7.30, 2.72) {selector:~$0 \to 1$};
+
+% settle -- copy-paste of the install layout: the pointers now point at E itself
+\node[nnode] (sE) at (9.10, 1.20) {\code{E}};
+\node[lnode] (sP) at (10.70, 1.50) {\code{P}};
+\node[lnode] (sN) at (10.70, 0.90) {\code{N}};
+\draw[ptr] (sP.west) -- (sE.north east) node[pos=0.55, above, font=\scriptsize] {\code{next}};
+\draw[ptr] (sN.west) -- (sE.south east) node[pos=0.55, below, font=\scriptsize] {\code{prev}};
+
+% ===== ROW 3 : updater -- the transaction lifecycle, as phase spans =========
+\draw[thin] (0.2, 0.35) -- (11.4, 0.35);
+\foreach \x in {0.2, 4.2, 6.2, 8.4, 11.4} { \draw[thin] (\x, 0.24) -- (\x, 0.46); }
+\node[phase] at (2.50, 0.03) {build};
+\node[phase] at (5.15, 0.03) {install};
+\node[phase] at (7.30, 0.03) {commit};
+\node[phase] at (9.90, 0.03) {settle};
+
+% the commit store, rising from the commit phase into the flipped selector
+\draw[-latex, very thick, orange!70!black] (7.3, 0.55) -- (selC.south);
+\node[left, font=\scriptsize, text=black] at (7.15, 1.5) {one store};
+
+% ---- legend for the record notation ---------------------------------------
+\node[anchor=west, align=left, font=\scriptsize, text=black!75] at (-1.9, -0.55)
+  {Each record is a row \{\textit{slot},\,\textit{old},\,\textit{new}\}; the shared selector picks the column\\
+   the readers see --- the \textit{old} value while it reads $0$, the \textit{new} value after the flip to $1$.};
+
+\end{tikzpicture}
+\caption{Inserting \code{E} between \code{P} and \code{N} of a bidirectional
+list, \code{P}\,$\leftrightarrow$\,\code{N} becoming
+\code{P}\,$\leftrightarrow$\,\code{E}\,$\leftrightarrow$\,\code{N}, through the
+flip-latch. The reader's row carries the list itself: it traverses one whole
+coherent list before the commit and another after --- in either direction, never
+a half-linked node. The second row is the updater's RCU pseudo-transaction,
+traced across its lifecycle. It \emph{build}s the descriptor: a record binding
+each moving edge to its \{\textit{old},\,\textit{new}\} values, all reading one
+shared selector. \emph{install} redirects the list's own \code{next}/\code{prev}
+pointers into those records. \emph{commit} is the single release store that flips
+the selector $0\!\to\!1$. \emph{settle} leaves the pointers holding the plain new
+node \code{E}. The new node is built privately first, its own \code{next} and
+\code{prev} set to \code{N} and \code{P} before it is reachable. Because nothing
+is removed, no list node is reclaimed; only the transaction's own descriptor
+records are, after a grace period (cf.\ Fig.~\ref{fig:fliplatch} for the full
+proxy/selector anatomy).}
+\label{fig:listinsert}
+\end{figure}
