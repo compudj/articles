@@ -328,7 +328,7 @@ may not be used on the same list. Its sole in-tree caller as of
 \code{next-20260226}, \code{\_\_ns\_tree\_adjoined\_rcu()} in
 \code{kernel/nstree.c}, takes exactly one adjacency hop --- \code{prev}
 \emph{or} \code{next} --- and never compares the two directions against each
-other. It never needs coherence, so it never meets its absence.
+other. It never needs coherence, so it never misses it.
 
 \paragraph{Ordering is not what is missing.} It is tempting to read all of this
 as an ordering bug: publish \code{prev} with \code{rcu\_assign\_pointer()}, read
