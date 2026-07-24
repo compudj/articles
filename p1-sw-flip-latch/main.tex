@@ -776,7 +776,7 @@ in. A new node could carry its parent pointer into visibility because it was
 assembled in private; a pinned node cannot, so its parent pointer has to be
 re-pointed \emph{in place}, while readers can still reach it, and the forward and
 back edges genuinely move under live readers. That is the re-parent above, and it
-is where a single-instant switch of both edges --- or, if the edit is split
+is where an atomic switch of both edges --- or, if the edit is split
 across commits, the reverse-order rule --- stops being optional.
 
 Which of the two applies is decided by the structure's traversal orders. The
