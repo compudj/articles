@@ -684,6 +684,9 @@ $s_1, s_2, \ldots, s_k$, and the writer splits the edit across several
 $s_1$ last.}
 \end{quote}
 
+This ordering rule is, to our knowledge, first stated by
+Triplett~\citep{JoshTriplettPhD}.
+
 The consequence is worth spelling out, because it is a short argument with a
 disproportionate payoff. Write $t_i$ for the instant $s_i$ is published and
 $a_i$ for the instant the reader resolves it. The reader's order gives
@@ -775,6 +778,16 @@ re-pointed \emph{in place}, while readers can still reach it, and the forward an
 back edges genuinely move under live readers. That is the re-parent above, and it
 is where a single-instant switch of both edges --- or, if the edit is split
 across commits, the reverse-order rule --- stops being optional.
+
+Which of the two applies is decided by the structure's traversal orders. The
+reverse-order rule needs a \emph{single} fixed order to reverse; a cyclic
+structure has none. A doubly-linked list read forward and read backward resolves
+its two edges in opposite relative orders, so no commit order satisfies both
+directions --- the bidirectional list of \cref{sec:wrappers}, and any tree walked
+both up and down, must therefore switch all their reader-visible edges in one
+instant. The single-instant commit is the general answer and the \fliplatch's
+reason for being; the reverse-order rule is the cheaper option available only
+where one order is fixed, as in the descend-then-ascend reader above.
 
 The limits should be equally clear. This is an embedder's discipline, not an
 facility guarantee: the facility cannot know a structure's traversal order, so
