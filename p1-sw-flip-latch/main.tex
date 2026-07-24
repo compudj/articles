@@ -424,7 +424,11 @@ and writes a commit record; before that record the old state is authoritative,
 after it the new state is, and no partial batch is ever authoritative. It calls
 this a transaction, and it has never meant isolation by it. A database or an
 STM means something else: a unit that is atomic \emph{and} isolated, where
-isolation constrains what concurrent \emph{readers} may observe.
+isolation constrains what concurrent \emph{readers} may observe. A journaling
+filesystem can offer that second guarantee too, under a different name --- a
+snapshot, a point-in-time view held consistent against ongoing writes --- and it
+is well known to be expensive, in copy-on-write traffic and in space. Isolation
+is not cheap anywhere; the only question is whether the workload needs it.
 
 Our model is the first of these, essentially point for point:
 
