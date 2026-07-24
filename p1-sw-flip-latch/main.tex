@@ -948,7 +948,7 @@ exactly that.
 The conventional remedy is to drain the readers --- a grace period around the
 update, so that no reader spans the inconsistent window. It is correct, and it
 is expensive: the writer waits out every reader in the system to publish a
-change none of them were looking at.
+change none of them were likely looking at.
 
 \subsection{Mechanism: one level of indirection}
 \label{sec:swmechanism}
