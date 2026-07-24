@@ -207,14 +207,16 @@ Publication is the mirror image. A writer makes an object reachable with
 \code{rcu\_assign\_pointer()}, a release store, and a reader reaches it with
 \code{rcu\_dereference()}, which returns the pointer and guarantees that the
 loads dependent on it see the object's initialized contents rather than
-pre-initialization garbage. On every architecture Userspace \rcu supports, the
+pre-initialization garbage. On every architecture Userspace \rcu supports but one, the
 reader's half of that is free: the dependency between loading a pointer and
 loading through it is respected by the hardware, so \code{rcu\_dereference()}
-emits an ordinary load and no barrier.\footnote{Alpha, which did not respect it,
-is the standing exception and is no longer supported. The C11 \code{consume}
-ordering that was meant to express this in the abstract machine is not usable in
-practice, and compilers promote it to \code{acquire}~\citep{boehm2008memorymodel,batty2011cppconcurrency};
-Userspace \rcu therefore relies on the dependency directly.}
+emits an ordinary load and no barrier.\footnote{The one exception is Alpha, whose
+hardware does not order dependent loads; Userspace \rcu supports it, and enforces
+the dependency there with an explicit \code{cmm\_smp\_read\_barrier\_depends()}. Elsewhere the dependency
+is respected directly: the C11 \code{consume} ordering meant to express it is
+unusable in practice, since compilers promote it to
+\code{acquire}~\citep{boehm2008memorymodel,batty2011cppconcurrency}, so Userspace
+\rcu relies on the dependency itself.}
 
 The whole arrangement rests on one sentence: \emph{readers pay nothing, and in
 exchange a writer gets exactly one atomic operation.} The rest of this paper is about
