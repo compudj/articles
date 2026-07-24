@@ -358,8 +358,8 @@ a window whose width is a grace period.
 
 So the doubly-linked list, the textbook structure, is already past what one
 store can express, and the library's response was to remove the operation from
-the interface. \Cref{sec:fliplatch} makes both edges move at one instant, and
-\cref{sec:wrappers} spends that to give the reverse walk back.
+the interface. \Cref{sec:fliplatch} updates both edges atomically, which
+\cref{sec:wrappers} uses to give the reverse walk back.
 
 % ===========================================================================
 \section{The Pseudo-Transaction Model}
