@@ -784,8 +784,8 @@ reverse-order rule needs a \emph{single} fixed order to reverse; a cyclic
 structure has none. A doubly-linked list read forward and read backward resolves
 its two edges in opposite relative orders, so no commit order satisfies both
 directions --- the bidirectional list of \cref{sec:wrappers}, and any tree walked
-both up and down, must therefore switch all their reader-visible edges in one
-instant. The single-instant commit is the general answer and the \fliplatch's
+both up and down, must therefore switch all their reader-visible edges
+atomically. The atomic commit is the general answer and the \fliplatch's
 reason for being; the reverse-order rule is the cheaper option available only
 where one order is fixed, as in the descend-then-ascend reader above.
 
