@@ -432,7 +432,7 @@ is not cheap anywhere; the only question is whether the workload needs it.
 
 Our model is the first of these, essentially point for point:
 
-\begin{table}[h]
+\begin{table}[tb]
 \centering
 \small
 \begin{tabular}{@{}ll@{}}
@@ -1053,7 +1053,7 @@ worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
 the lifecycle, alongside what a concurrent reader resolving $s$ actually
 obtains.
 
-\begin{table}[ht]
+\begin{table}[tb]
 \centering
 \caption{One transacted slot $s$ through the lifecycle. The reader's column
 changes exactly once. Install and settle both rewrite $s$ --- they are stores to
@@ -1173,6 +1173,14 @@ Which imposes a contract on the embedder, and it is unforgiving:
 \code{(value \& tag) != tag}.} A single value that happens to carry the tag
 pattern is indistinguishable from a proxy, and a reader will follow it into a
 record that does not exist.
+
+A debug build (\code{URCU\_TXN\_SW\_EXCL\_VALIDATE}) does not leave this to
+inspection: before parking a proxy on a single-writer slot, it asserts the slot
+does not already read as parked. Its first purpose is to catch a second writer
+on a slot the caller promised exclusive; but the same test trips on an
+ill-chosen tag, since a legitimate value carrying the tag pattern reads as a
+parked proxy --- so under a single writer, where no second writer exists, that
+abort is the aliasing tag itself, surfaced.
 
 Two further obligations follow. Every write to a transacted slot must go through
 the facility: one raw store breaks atomicity for every participant, not only the
@@ -1301,7 +1309,7 @@ precisely the cost this design exists to avoid.
 % -----------------------------------------------------------------------
 
 % ===========================================================================
-\section{Transacted Data Structures}
+\section{Pseudo-Transacted Data Structures}
 \label{sec:wrappers}
 
 \Cref{sec:onestore} established the gap this facility exists to close: a
@@ -1860,7 +1868,7 @@ tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
 and software transactional memory against this work in turn.
 
-\begin{table}[t]
+\begin{table}[tb]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
