@@ -382,7 +382,8 @@ the interface. \Cref{sec:fliplatch} updates both edges atomically, which
 \label{def:record}
 A \emph{record} is a triple \record{s}{o}{n}, where $s$ is the address of a
 word-sized \emph{slot}, $o$ is the value the slot must hold at the commit
-point, and $n$ is the value it takes afterwards.
+point,\footnote{Why \emph{at}, not \emph{up to} the commit point? See
+\cref{sec:nonguarantees}.} and $n$ is the value it takes afterwards.
 \end{definition}
 
 \begin{definition}[Pseudo-transaction]
