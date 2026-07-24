@@ -652,8 +652,7 @@ dereference. A reader that hops \emph{without} that chain, by re-reading a
 pointer it cached earlier or by walking between two independently-reached
 slots, has no such edge: under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on
 weakly-ordered hardware its two loads may be reordered, and it can observe the
-new value on the later slot and the old on the earlier one. Such a reader owes
-itself an explicit acquire, or a dependency.
+new value on the later slot and the old on the earlier one. To avoid it, such a reader must use an acquire load or a dependency.
 
 We state the build condition rather than relegating it, because it is the
 difference between a guarantee and a hope. An embedder who misses it writes a
