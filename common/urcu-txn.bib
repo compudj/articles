@@ -1764,3 +1764,24 @@
   address      = {Tucson, AZ},
   url          = {https://www2.cs.arizona.edu/icon/ftp/doc/tr93_27.pdf}
 }
+
+% Suggested by McKenney's review for the "weakening is targeted" paragraph, by
+% his perfbook key JadeAlglave2013-WeaknessIsVirtue. Metadata and CONTENT
+% verified 2026-07-24 from the PDF itself (4 pp., titled "Position paper
+% proposed to EC2 2013"); not indexed by dblp, so the venue string follows
+% perfbook's entry. Perfbook records PAGES={3}, which the PDF does not confirm
+% either as a count or a first page, so pages are omitted here.
+% WHAT IT ARGUES, so the citation is not mistaken for support: weak memory is
+% generally believed to make automatic verification of concurrent programs
+% harder, and Alglave argues the reverse -- embracing it yields more efficient
+% verification, because a weak model needs no total order where SC does. The
+% analogy to this series is one of SHAPE (exploit the weakness rather than
+% repair it), not of subject; it is evidence for nothing here.
+@inproceedings{alglave2013weakness,
+  author       = {Jade Alglave},
+  title        = {Weakness is a virtue},
+  booktitle    = {({EC})\textsuperscript{2} 2013: 6th International Workshop on
+                  Exploiting Concurrency Efficiently and Correctly},
+  year         = {2013},
+  url          = {http://www0.cs.ucl.ac.uk/staff/j.alglave/papers/ec213.pdf}
+}

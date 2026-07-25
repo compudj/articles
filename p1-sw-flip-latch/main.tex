@@ -907,7 +907,12 @@ isolation; we declined to charge for it. The structures \rcu serves are
 read-dominated by construction, so paying permanently, in every element, for a
 snapshot those readers never requested spends the one resource they cannot
 spare. A \pseudotxn removes exactly that charge and relocates the cost onto the
-writers, who are by hypothesis the minority.
+writers, who are by hypothesis the minority.\footnote{The sentiment is neither
+ours nor confined to this subject. \citet{alglave2013weakness} makes it of weak
+memory models: a weakness usually treated as an obstacle to verification is
+better embraced than repaired, since a model that needs no total order admits
+cheaper analysis than sequential consistency does. Different domain, and
+evidence for nothing here, but the same shape of argument.}
 
 One qualification belongs here rather than in a footnote, because the argument
 above is otherwise too flattering. What RLU buys with its charge is strictly
