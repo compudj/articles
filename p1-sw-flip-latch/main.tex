@@ -2289,6 +2289,19 @@ leaves the traversal as plain \rcu. That shortfall is an obligation on the
 embedder rather than a cost on the reader, which is the trade the whole facility
 makes.
 
+Nor is STM the only place that reader-side guarantee has been reached for. The
+generation-number patents of \cref{sec:relrcu} give an \rcu reader a
+version-consistent search: it stamps itself with a generation number and is then
+answered as of that stamp, across every element it visits, however many updaters
+have published since. That is not opacity --- there is no read set, no
+validation, and no abort --- but it is a multi-element snapshot, and it is
+therefore something this facility declines to offer and that line of work does
+not. It is worth saying plainly, because the contrast in \cref{sec:fssense} is
+between this facility and STM, and a reader could take from it that snapshots
+are what one buys by leaving \rcu. They are not. They can be had within \rcu,
+and the price is paid where \cref{sec:whyweakening} says it always is: on the
+element and on the reader's path.
+
 Transactional boosting \citep{herlihy2008boosting} is the closest relative on
 the composition axis: coarse abstract locks over cheap physical operations,
 rather than instrumented reads. It is the pattern a lock-plus-\fliplatch design
@@ -2299,15 +2312,18 @@ converges on, and the companion paper takes it up.
 
 \rcu \citep{mckenney1998rcu, desnoyers2012urcu, mckenney2023perfbook} gives
 readers a free ride and gives writers one atomic pointer store. Extending it to
-several pointers at once is an old problem with two established answers, and
-\cref{tab:comparison} places both.
+several pointers at once is an old problem with three established answers.
+\Cref{tab:comparison} places the two whose reader-side costs we could establish
+from running code; the third is disclosed in patents and is treated here on its
+claims.
 
 \textbf{Existence structures} \citep{mckenney2015issaquah,
 mckenney2016beyondissaquah, mckenney2026perfbookcode} give each element a field
 naming an \emph{existence group}, and flip the group's state word to change the
 membership of every element in it at once. The mechanism is the closest prior
-art to this paper: it is a shared word whose single store switches a set's
-visibility to \rcu readers, followed by reclamation after a grace period. The
+art to this paper in what it asks of the reader: it is a shared word whose single
+store switches a set's visibility to \rcu readers, followed by reclamation after
+a grace period. The
 technique has been public since at least January 2015 and was explained at
 length in 2016.
 
@@ -2318,6 +2334,36 @@ RLU's synchronous writeback. Both provide a \emph{coherent snapshot} --- which
 is strictly stronger than \cref{prop:monotone}, and must be said plainly: any
 comparison of throughput between this facility and RLU crosses guarantee classes.
 Against existence structures the classes match and the comparison is clean.
+
+\textbf{Generation-numbered versions} are the third answer and the oldest,
+disclosed in a family of patents naming McKenney and assigned to IBM
+\citep{mckenney2008cyclicsearch511, mckenney2010cyclicsearch082,
+mckenney2011cyclicparallel778, mckenney2014rcucyclic535,
+mckenney2015rcucyclic803}. An updater builds new versions of the elements it is
+changing, stamps them with a generation number, links each to its prior version
+in both directions, splices them in so readers can reach them, and then advances
+a single global generation number; prior versions and their links are freed
+after a grace period. A reader stamps its search with the global generation
+number it starts from and, on meeting an element stamped differently, follows
+the version links to the version matching its own stamp. The parallel-updater
+member \citep{mckenney2011cyclicparallel778} hands generation numbers out in the
+order updaters begin and advances the global number only across the completed
+prefix, so no reader observes a partially published later update; the later two
+\citep{mckenney2014rcucyclic535, mckenney2015rcucyclic803} make the
+pointer-and-generation pair a single word one store can swing.
+
+That last step is a shared word whose single store makes a set of new versions
+current, which is the same shape as the flip of \cref{sec:fliplatch}, and it
+predates the existence-structure disclosures by roughly a decade
+(\cref{sec:relclaims}). The two designs diverge on what the reader does with it.
+An existence flip and a \fliplatch both switch the reader between two states and
+leave the old one unreachable; the generation-number scheme keeps old and new
+versions simultaneously reachable and asks the reader to select among them by
+comparing stamps and walking version links. That is what buys its readers a
+version-consistent search --- and what it costs is exactly the axis
+\cref{sec:whyweakening} argues over: a generation number on the element, version
+links to traverse, and a reader that must compare and may walk rather than
+resolve and proceed.
 
 % ===========================================================================
 \section{Related Work}
@@ -2358,8 +2404,9 @@ work properly.
 
 The atomic-move-under-\rcu problem has been the subject of a series of patents
 naming McKenney and assigned to IBM, and they are prior art whether or not any
-remains in force. Four are directly relevant, and their claims bound what this
-paper may claim.
+remains in force. The generation-number family is treated as a technical answer
+in \cref{sec:relrcu}; four others bound what this paper may claim, and are taken
+in turn here.
 
 \citet{mckenney2008filerename926} (filed 2004) renames a file while permitting
 lock-free lookups by linking a \emph{temporary record} into the hash chain and
@@ -2394,7 +2441,13 @@ ingredient separately is old.
 
 The \emph{flip} is not new: a single store switching a set's visibility to \rcu
 readers is \citet{mckenney2019atomicmove638} and was public at CppCon in 2016
-\citep{mckenney2016beyondissaquah}. The \emph{transient object} is not new: a
+\citep{mckenney2016beyondissaquah}. It is older than that. A single store to a
+shared word that makes a set of independently prepared new versions current is
+the generation-number scheme of \citet{mckenney2008cyclicsearch511}, filed in
+2004, and the parallel-updater member \citep{mckenney2011cyclicparallel778} is
+already a rule for gating that store so that a set becomes current in one step.
+What those readers do after the store differs (\cref{sec:relrcu}); the store
+itself does not. The \emph{transient object} is not new: a
 per-mutation record, removed afterwards, is \citet{mckenney2008filerename926}
 from 2004. \emph{Pointer tagging} is not new; existence structures tag bit~0 of
 their own membership field. The \emph{descriptor-and-status shape} is Harris's

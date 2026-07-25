@@ -1,4 +1,4 @@
-\begin{thebibliography}{33}
+\begin{thebibliography}{38}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -196,23 +196,63 @@ Alexander Matveev, Nir Shavit, Pascal Felber, and Patrick Marlier.
 \newblock \doi{10.1145/2815400.2815406}.
 \newblock URL \url{https://doi.org/10.1145/2815400.2815406}.
 
-\bibitem[McKenney(2010)]{mckenney2010keyupdate851}
+\bibitem[McKenney(2008)]{mckenney2008cyclicsearch511}
+Paul~E. McKenney.
+\newblock Efficient support of consistent cyclic search with read-copy-update.
+\newblock U.S. Patent No. 7,426,511, 2008.
+\newblock URL \url{https://patents.google.com/patent/US7426511B2/en}.
+\newblock Filed 2004-03-08 (priority 2004-03-08); granted 2008-09-16; assignee
+  International Business Machines Corp.; adjusted expiration 2025-11-28;
+  status: Expired - Fee Related (term also run) as of 2026-07-16.
+
+\bibitem[McKenney(2010{\natexlab{a}})]{mckenney2010cyclicsearch082}
+Paul~E. McKenney.
+\newblock Efficient support of consistent cyclic search with read-copy-update.
+\newblock U.S. Patent No. 7,814,082, 2010{\natexlab{a}}.
+\newblock URL \url{https://patents.google.com/patent/US7814082B2/en}.
+\newblock Filed 2008-03-18 (continuation; priority 2004-03-08); granted
+  2010-10-12; assignee International Business Machines Corp.; adjusted
+  expiration 2024-11-25; status: Expired - Fee Related (term also run) as of
+  2026-07-16.
+
+\bibitem[McKenney(2010{\natexlab{b}})]{mckenney2010keyupdate851}
 Paul~E. McKenney.
 \newblock Lockless hash table lookups while performing key update on hash table
   element.
-\newblock U.S. Patent No. 7,668,851, 2010.
+\newblock U.S. Patent No. 7,668,851, 2010{\natexlab{b}}.
 \newblock URL \url{https://www.freepatentsonline.com/7668851.html}.
 \newblock Application Ser. No. 11/564,568, filed 2006-11-29; granted
   2010-02-23; assignee International Business Machines Corp. FPO renders the
   inventor list as ``McKenney et al.''; the full list is unconfirmed.
 
-\bibitem[McKenney(2015)]{mckenney2015issaquah}
+\bibitem[McKenney(2014)]{mckenney2014rcucyclic535}
+Paul~E. McKenney.
+\newblock Performance of {RCU}-based searches and updates of cyclic data
+  structures.
+\newblock U.S. Patent No. 8,874,535, 2014.
+\newblock URL \url{https://patents.google.com/patent/US8874535B2/en}.
+\newblock Filed 2012-10-16 (priority 2012-10-16); granted 2014-10-28; assignee
+  International Business Machines Corp.; anticipated expiration 2032-10-16;
+  status: Expired - Fee Related as of 2026-07-16.
+
+\bibitem[McKenney(2015{\natexlab{a}})]{mckenney2015issaquah}
 Paul~E. McKenney.
 \newblock High-performance and scalable updates: The {Issaquah} challenge.
-\newblock Presented at linux.conf.au, Auckland, New Zealand, January 2015.
+\newblock Presented at linux.conf.au, Auckland, New Zealand, January
+  2015{\natexlab{a}}.
 \newblock URL
   \url{http://www.rdrop.com/users/paulmck/scalability/paper/Updates.2015.01.16b.LCA.pdf}.
 \newblock 92 slides; presented 2015-01-16. Copyright IBM Corporation.
+
+\bibitem[McKenney(2015{\natexlab{b}})]{mckenney2015rcucyclic803}
+Paul~E. McKenney.
+\newblock Performance of {RCU}-based searches and updates of cyclic data
+  structures.
+\newblock U.S. Patent No. 9,081,803, 2015{\natexlab{b}}.
+\newblock URL \url{https://patents.google.com/patent/US9081803B2/en}.
+\newblock Filed 2013-02-22 (continuation; priority 2012-10-16); granted
+  2015-07-14; assignee International Business Machines Corp.; adjusted
+  expiration 2033-02-07; status: Expired - Fee Related as of 2026-07-16.
 
 \bibitem[McKenney(2016)]{mckenney2016beyondissaquah}
 Paul~E. McKenney.
@@ -269,6 +309,16 @@ Paul~E. McKenney and John~D. Slingwine.
   509--518, Las Vegas, NV, USA, October 1998.
 \newblock URL
   \url{http://www.rdrop.com/~paulmck/scalability/paper/rclockpdcsproof.pdf}.
+
+\bibitem[McKenney and Walpole(2011)]{mckenney2011cyclicparallel778}
+Paul~E. McKenney and Jonathan Walpole.
+\newblock Efficient support of consistent cyclic search with read-copy update
+  and parallel updates.
+\newblock U.S. Patent No. 7,953,778, 2011.
+\newblock URL \url{https://patents.google.com/patent/US7953778B2/en}.
+\newblock Filed 2008-05-20 (priority 2008-05-20); granted 2011-05-31; assignee
+  International Business Machines Corp.; adjusted expiration 2029-07-19;
+  status: Expired - Fee Related as of 2026-07-16.
 
 \bibitem[McKenney et~al.(2008)McKenney, Sarma, and
   Soni]{mckenney2008filerename926}
