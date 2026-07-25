@@ -40,8 +40,8 @@ We describe an RCU \pseudotxn: a frozen set of \record{slot}{old}{new} records
 made visible by one commit step, together with a \sw realization---the
 \fliplatch---in which every proxy in a group names one shared selector word, so
 a single store switches the whole set. Two transacted structures follow: a
-bidirectional list whose two chains stay mutually coherent, making the reverse
-walk ordinary, and a hash list.
+bidirectional list whose two chains stay mutually coherent, so a reader may walk
+it backward, and a hash list.
 
 The guarantee is deliberately weaker than software transactional memory. The
 write set is atomic: every record resolves to its old value before the commit
@@ -128,7 +128,8 @@ Specifically:
 
 \item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
       list whose two chains stay mutually coherent --- so the reverse walk
-      \code{rculist} declines to offer becomes ordinary --- and a hash list.
+      \code{rculist} declines to offer becomes one a reader may take, within
+      the guarantee and the scope \cref{sec:coherence} states --- and a hash list.
       Several edits compose into one commit, including edits that touch the same
       slots, through a read-your-own-writes discipline (\cref{sec:swcomposition});
       we give the two obligations that remain.
