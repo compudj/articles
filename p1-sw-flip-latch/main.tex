@@ -1484,40 +1484,60 @@ link through the load and record through the fusing store, so the second delete
 above reads the \emph{pending} \code{P->next}, chains onto that record, and the
 commit unlinks both victims and leaves $P \leftrightarrow N$ coherent.
 
-Two boundaries remain, and both are narrower than the old ``slot-disjoint
-only'' rule they replace.
+Two obligations remain on the caller, and the question of what the first of
+them costs sits between them.
 
-\emph{The caller must name the nodes it means.} Read-your-own-writes reconciles
-the \emph{links} an edit records, but it cannot re-run the caller's search: a
-traversal made with the ordinary \rcu accessors sees the committed structure,
-not this \pseudotxn's pending one, so a caller that walks and edits in the same
-bracket can still hand an edit a node its own earlier edit has displaced. The
-discipline is to identify the victims first and then edit, not to interleave the
-two.
+\emph{The search must go through the transactional load, or precede the edits.}
+A traversal is nothing but a sequence of loads, so a caller that walks through
+\code{urcu\_txn\_sw\_load} sees its own pending edits at every step, and may
+interleave walking and editing freely: this is the same reconciliation that
+serves the edits, applied to the steps between them. What it may not do is walk
+through the ordinary \rcu accessors and edit in the same bracket --- those
+resolve the committed structure, not this \pseudotxn's pending one, so an edit
+can be handed a node an earlier edit has already displaced. The wrappers take
+the cheaper route where it is available: the caller's initial lookup runs on the
+ordinary accessors, before the bracket, and only the neighbour links the edits
+touch are read transactionally. No shape of update is ruled out by this. The
+choice is which accessor the search uses, and it is the caller's to make.
 
-An STM does not owe its caller that discipline, and the difference is the whole
-bargain of this paper in miniature. Its read barrier sits on \emph{every} read,
-so a search run inside a transaction is reconciled against the write set by the
-same machinery that reconciles an edit, and the obligation never reaches the
-caller. Here the traversal is plain \rcu, uninstrumented, indistinguishable from
-a read outside any \pseudotxn{} --- which is why the reader carries none of the
-per-element state and none of the read-path work \cref{sec:costcomparison}
-charges the alternatives. Read-your-own-writes covers the slots a writer
-records, and stops there. Naming the victims first is what the writer pays so
-the reader can pay nothing.
+\emph{Walking transactionally costs a find per step, and the find is cheap.}
+Every transactional load asks the same question the recording store asks ---
+\emph{is this slot already pending?} --- and the phrasing invites a picture of
+searching an array of proxy records, which would indeed not be fast. The search
+is not that. The write set is private to the transaction and to the thread that
+owns it: no atomics, no lock, no line another thread is touching. For the
+typical transaction, a two-edge list operation, it is a handful of records,
+where a linear scan beats anything cleverer, and the facility does exactly that
+scan. Only when a write set grows long enough for the scan to dominate does it
+arm a Bloom filter, which answers the find's overwhelmingly common outcome on a
+traversal --- a miss, this slot is not one I have edited --- in constant time.
+A false positive costs the scan the filter was meant to save and nothing more;
+there are no false negatives, so no pending edit can be walked past. The filter
+is built lazily, on the first lookup
+that would scan a long write set rather than on the record that crosses the
+threshold, so a transaction that stays small never pays for one, and a long
+walk over a large write set pays a hash rather than a scan.
+
+None of this asks the writer to guard its traversal against anyone else. Under
+exclusion (\cref{sec:exclusion}) nothing outside the bracket can change a slot,
+so a transactional walk has only the writer's own pending edits to reconcile;
+there is no dependency a peer could move underneath it, and no reason to
+transact a slot merely because the walk stepped through it. Where writers are
+concurrent the question is real, and the answer is the opt-in per-slot read
+validation of the model (\cref{sec:model}), which enters a slot into the
+transaction's read set to be checked at the commit point. It is opt-in and
+per-slot precisely so that an operation pays for the dependencies it actually
+has rather than for every pointer its traversal crossed. The companion paper
+takes that up.
 
 \emph{Declaring a write set disjoint is a promise the facility keeps you to.}
-Read-your-own-writes costs a find per recorded edit --- \emph{is this slot
-already pending?} --- but not the quadratic scan that first suggests. A typical
-transaction is small, a two-edge list operation, where scanning the handful of
-pending records beats anything cleverer, and the facility does exactly that; only
-when a write set grows large enough for the scan to dominate does it arm a Bloom
-filter, which answers the find's common outcome --- a miss, the slot is new ---
-in constant time. The filter is built lazily, on the first lookup that would
-scan a long write set rather than on the record that crosses the threshold, so a
-transaction that stays small never pays for one. An embedder whose slots are
-distinct \emph{by construction} can skip the find altogether by declaring the
-handle disjoint. The declaration is a contract on slot \emph{addresses}, not on the
+At the other end, an embedder whose slots are distinct \emph{by construction}
+can skip the find altogether by declaring the handle disjoint --- which is to
+say, by giving up read-your-own-writes, since the declaration asserts there is
+nothing to reconcile and the facility then blind-appends. It is the right
+trade for a write set with no self-overlap and no walk over its own pending
+state, and the wrong one everywhere else. The declaration is a contract on slot
+\emph{addresses}, not on the
 logical items an edit names: two edits the caller believes distinct can still
 land on one slot --- the adjacent deletes above both re-point \code{P->next} ---
 so it is safe only where the write set is disjoint by construction, not merely
@@ -1527,6 +1547,19 @@ which is why a debug build
 (\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT}) traps a violated declaration, and why
 the declaration should be made only where disjointness is structural rather than
 merely observed.
+
+An STM offers no such dial, and the difference is the bargain of this paper in
+miniature. Its read barrier sits on \emph{every} read, so a search inside a
+transaction is reconciled whether or not the caller gave it a thought --- and
+every read pays, whether or not it needed to. Here reconciliation follows the
+accessor. A writer that must walk its own pending state loads transactionally
+and pays the find; one that need not, or that knows its slots are disjoint, pays
+nothing; and a \emph{reader} is not in the scheme at all, since its traversal is
+uninstrumented plain \rcu, indistinguishable from a read outside any
+\pseudotxn{} --- which is why the reader carries none of the per-element state
+and none of the read-path work \cref{sec:costcomparison} charges the
+alternatives. The writer chooses per load what the STM applies wholesale, and
+the reader is what the choice buys.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This section was rewritten when the sw facility gained read-your-own-writes
