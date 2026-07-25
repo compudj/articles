@@ -1633,6 +1633,157 @@ only after a grace period.
 % -----------------------------------------------------------------------
 
 % ===========================================================================
+\section{Measured Cost}
+\label{sec:measured}
+
+% ---------------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% This section is an EXISTENCE RESULT and must stay one. Scope decided
+% 2026-07-23 after McKenney asked for numbers: two measurements, same
+% guarantee class only. Do NOT let an editing pass grow it into an evaluation
+% -- no RLU/MV-RLU throughput (crosses guarantee classes, sec:relrcu says so),
+% no writer scaling, no other structures. Those are the evaluation paper's.
+% Every figure here is the mean of two 3s runs from scripts/p1_sw_list.csv in
+% the benchmark tree; the profile figures are from a cycle profile of the
+% single-writer panel. Cite no percentage that is not in one of those two.
+% ---------------------------------------------------------------------------
+
+\Cref{sec:costcomparison} argues on mechanism that this facility charges the
+reader less than the alternatives, and \cref{sec:whyweakening} argues that the
+charge it does levy falls on the writer. This section measures both claims on the
+bidirectional list of \cref{sec:swlist}. It is an existence result and not an
+evaluation: two numbers, one per side, against plain \rcu only.
+
+\paragraph{Setup.} Two AMD EPYC 9654 processors, 96 cores per socket, 24 NUMA
+nodes. The harness pins worker $i$ to physical core $i$ and every sweep stops at
+192, so no measurement below places two threads on one core. Userspace \rcu's
+QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
+per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
+figure is the mean of two three-second runs of the \code{bench\_list\_scale}
+harness, under its \code{txn\_sw\_list} and \code{rculist} selectors, which name
+the transacted list of \cref{sec:swlist} and Userspace \rcu's own
+\code{cds\_list} respectively. The harness checks reader-visible coherence
+on every traversal it performs; it reported no violation in any run reported
+here.
+
+\paragraph{Reads pay nothing for the transaction layer.} \Cref{tab:readcost}
+gives the read ceiling with no writer running, in millions of node visits per
+second, for the transacted list and for \code{rculist}.
+
+% NOT a float, deliberately. As a [tb] table this was placed at the top of the
+% page the section starts on -- above the section heading, reading as a table
+% belonging to sec:reclaim -- and \FloatBarrier did not hold it there. It is
+% small, and it belongs beside the sentence that introduces it, so it is
+% anchored. \captionof (caption, via subcaption) numbers it as a table.
+\par\medskip\noindent\begin{minipage}{\linewidth}
+\captionof{table}{Read ceiling, no writer running: millions of node visits per
+second. The transacted list walks forward and then \emph{backward} --- the
+operation \code{rculist} does not offer --- while \code{rculist} walks forward
+twice, so both visit the same number of nodes and the comparison is per visit.}
+\label{tab:readcost}
+\centering
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Readers & 1 & 8 & 32 & 96 & 192 \\
+\midrule
+\code{txn\_sw\_list} & 724 & 5\,824 & 23\,285 & 68\,141 & 136\,209 \\
+\code{rculist}            & 732 & 5\,897 & 23\,576 & 68\,953 & 137\,466 \\
+\midrule
+Ratio                     & 0.989 & 0.988 & 0.988 & 0.988 & 0.991 \\
+\bottomrule
+\end{tabular}
+\end{minipage}\par\medskip
+
+The transacted list is never more than 1.4\% below plain \rcu{} --- the widest gap
+is 1.39\% at two readers, and no count above two exceeds 1.25\%. Both scale
+essentially linearly across the 192 cores: the transacted list gains a factor of
+188 from one reader to 192, which is 98.0\% of ideal, and \code{rculist} gains
+188, or 97.8\%.
+
+That the two agree is the point, and the construction is what makes it a fair
+statement. The transacted list is not doing the same work more slowly; it is
+walking forward and then backward, which is the traversal \cref{sec:onestore}
+showed \code{rculist} cannot offer at all, and it is being charged about one
+percent for it. One percent is what \cref{tab:comparison}'s zero in the loads
+column predicts: the marker rides in the word the reader had to load anyway, so
+the only residue is the predicted branch, and a branch is what a percent looks
+like.
+
+\paragraph{The writer pays about three times.} On the same list, with a single
+writer:
+
+% Anchored, for the same reason as tab:readcost above.
+\par\medskip\noindent\begin{minipage}{\linewidth}
+\captionof{table}{Single-writer update throughput, millions of operations per
+second. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
+flavor, so the ratio isolates the transaction layer.}
+\label{tab:writecost}
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & No writer lock & Uncontended mutex \\
+\midrule
+\code{rculist}            & 21.8 & 20.2 \\
+\code{txn\_sw\_list} &  7.2 &  7.1 \\
+\midrule
+Ratio                     & 3.03 & 2.84 \\
+\bottomrule
+\end{tabular}
+\end{minipage}\par\medskip
+
+The asymmetry between the two columns is itself informative. Dropping the mutex
+gains plain \rcu 7.0\% and the transacted list 0.7\%: the transaction's own work
+dominates an uncontended lock acquisition, where for plain \rcu the lock is a
+visible share of a much cheaper update. The realistic figure for this facility is
+therefore the mutex column, 2.84, because the single-writer contract
+(\cref{sec:exclusion}) assumes the caller holds a lock over those slots in any
+case.
+
+\paragraph{Where the writer's cost goes.} A threefold writer tax invites the
+conclusion that the flip is expensive. It is worth disposing of that, because the
+profile says the opposite. In a cycle profile of the single-writer run the commit
+itself, \code{urcu\_txn\_sw\_commit\_flavor}, accounts for 3.4\% of cycles. Ahead
+of it sit the allocator, at 10.7\% in jemalloc's \code{malloc}, and the per-CPU
+\code{call\_rcu} plumbing: 7.7\% in \code{sched\_getcpu} and 8.4\% across the two
+lookups that find the current CPU's queue. Those are \rcu's shared
+infrastructure, and plain \rcu pays them too --- just fewer times.
+
+The mechanism sits in the reclaim contract rather than in the commit. A list
+operation moves two edges, so it parks two proxies, and a parked group block must
+outlive a grace period before it can be freed, because a reader that loaded a
+proxy may still be resolving through it (\cref{sec:reclaim}). Every update
+therefore defers a second object --- the descriptor --- in addition to the node it
+unlinked, where plain \rcu defers only the node. A commit that moves a
+\emph{single} edge needs no proxy and frees in place. So the price of a coherent
+backward chain, in this implementation, is largely one extra
+grace-period-deferred free per update.
+
+Two of those costs have known remedies, both in \rcu's own \code{call\_rcu}
+machinery rather than in this facility: an \code{rseq}-supplied CPU id would
+remove the
+\code{sched\_getcpu} call, and an \code{rseq}-based enqueue would shorten the
+rest of the \code{call\_rcu} path. Both would help plain \rcu equally, so neither
+narrows the ratio so much as lowers both sides. The extra deferred free is
+intrinsic to publishing two edges atomically, with one exception the facility
+already admits: an embedder that knows no reader can hold a proxy may pass a
+synchronous reclaim shim and free in place.
+
+\paragraph{What this does not measure.} Two absences are deliberate. There is no
+comparison against RLU or MV-RLU: they give readers a coherent snapshot, and
+\cref{sec:relrcu} has already said that comparing throughput across that
+difference compares different guarantees.
+
+And this workload cannot separate read-side synchronization costs, which is worth
+stating plainly because the same harness reports them. A reader-writer lock and a
+seqlock traversing the same list land within a few percent of plain \rcu, and at
+192 readers the seqlock is the fastest of the four. That is not a finding about
+locks. It is what happens when a 10\,000-node traversal amortizes one acquisition
+to nothing, and it is why the honest read-side comparison in
+\cref{tab:readcost} is against \code{rculist} alone. Separating those costs needs
+a cache-resident list or a concurrent writer, and belongs to the evaluation
+paper along with everything else this section declines to claim.
+
+% ===========================================================================
 \section{Limitations}
 \label{sec:limitations}
 
