@@ -907,12 +907,7 @@ isolation; we declined to charge for it. The structures \rcu serves are
 read-dominated by construction, so paying permanently, in every element, for a
 snapshot those readers never requested spends the one resource they cannot
 spare. A \pseudotxn removes exactly that charge and relocates the cost onto the
-writers, who are by hypothesis the minority.\footnote{The sentiment is neither
-ours nor confined to this subject. \citet{alglave2013weakness} makes it of weak
-memory models: a weakness usually treated as an obstacle to verification is
-better embraced than repaired, since a model that needs no total order admits
-cheaper analysis than sequential consistency does. Different domain, and
-evidence for nothing here, but the same shape of argument.}
+writers, who are by hypothesis the minority.
 
 One qualification belongs here rather than in a footnote, because the argument
 above is otherwise too flattering. What RLU buys with its charge is strictly
@@ -2528,7 +2523,9 @@ What a reader gets instead is monotonicity --- never new-then-old
 merely tolerable: an embedder that commits in the reverse of its readers'
 traversal order gets old-prefix, new-suffix observations and needs no
 per-traversal snapshot at all (\cref{sec:publishorder}). The weakening is
-targeted. Short of copying the structure outright --- which is the cost that
+targeted.\footnote{The sentiment is not ours, and neither is the better title
+for it: \citet{alglave2013weakness}, of weak memory models rather than of
+transactional guarantees.} Short of copying the structure outright --- which is the cost that
 made the operation expensive to begin with --- isolation is a charge on the
 reader, and the reader is what \rcu exists to keep free.
 
@@ -2572,7 +2569,7 @@ evaluation, follow in their own papers.
 The facility described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{b5767298e4d0a6877d1fd6fd3d8e54eeaf11df7d} (2026-07-18), on branch
+\code{6139087ea2c5a340cf32c730aa6814add7ba134f} (2026-07-22), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
@@ -2596,8 +2593,11 @@ Within that tree, the material of this paper is the following headers, all under
 \end{description}
 
 \noindent Three further headers are named here for orientation rather than as
-contributions of this paper: \code{rcu-mcas.h} is the \mw facility taken up in the
-companion paper, \code{rcu-txn.h} is its transaction front-end, and
+contributions of this paper: \code{rcu-txn-mcas.h} is the shared multi-slot
+commit primitive --- one descriptor whose slots install either by
+compare-and-swap, the \mw discipline the companion paper takes up, or by the
+exclusive park this paper uses --- \code{rcu-txn.h} is the transaction front-end
+over it, and
 \code{rcu-txn-sw-bitmap.h} applies the same tag contract to a non-pointer word
 --- outside this paper's pointer-focused scope.
 
