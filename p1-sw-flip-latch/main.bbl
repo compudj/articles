@@ -1,4 +1,4 @@
-\begin{thebibliography}{38}
+\begin{thebibliography}{40}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -98,6 +98,13 @@ Keir Fraser and Tim Harris.
 \newblock \doi{10.1145/1233307.1233309}.
 \newblock URL \url{https://doi.org/10.1145/1233307.1233309}.
 
+\bibitem[Gudeman(1993)]{gudeman1993typeinfo}
+David Gudeman.
+\newblock Representing type information in dynamically typed languages.
+\newblock Technical Report TR 93-27, Department of Computer Science, The
+  University of Arizona, Tucson, AZ, October 1993.
+\newblock URL \url{https://www2.cs.arizona.edu/icon/ftp/doc/tr93_27.pdf}.
+
 \bibitem[Guerraoui and Kapalka(2008)]{guerraoui2008opacity}
 Rachid Guerraoui and Michal Kapalka.
 \newblock On the correctness of transactional memory.
@@ -171,6 +178,14 @@ Jaeho Kim, Ajit Mathew, Sanidhya Kashyap, Madhava~Krishnan Ramanathan, and
   {ACM}, 2019.
 \newblock \doi{10.1145/3297858.3304040}.
 \newblock URL \url{https://doi.org/10.1145/3297858.3304040}.
+
+\bibitem[Levy(1984)]{levy1984capability}
+Henry~M. Levy.
+\newblock \emph{Capability-Based Computer Systems}.
+\newblock Digital Press, 1984.
+\newblock URL \url{https://homes.cs.washington.edu/~levy/capabook/}.
+\newblock Chapter on the {IBM} {System/38}, an early commercial platform with
+  hardware tag bits on pointer-sized words.
 
 \bibitem[{Linux kernel contributors}(2026)]{linux2026rculist}
 {Linux kernel contributors}.

@@ -1722,3 +1722,40 @@
                   idea proposed for Linux. Not merged},
   url          = {http://lkml.iu.edu/hypermail/linux/kernel/1403.0/00780.html}
 }
+
+% --- Pointer tagging: the technique long predates its use here ---
+
+% Cited for the age of the technique, not for a mechanism this paper uses.
+% Chapter "The IBM System/38": the tag is a hardware bit associated with each
+% pointer-sized word, maintained by the machine and outside the pointer value --
+% a different lineage from stealing alignment-guaranteed bits INSIDE the value,
+% which is what this facility does. Wikipedia's "Tagged pointer" article gives
+% this as its earliest cited example of hardware support on a commercial
+% platform; McKenney's review cited that article for "at least 1984".
+% Bibliographic fields verified 2026-07-24. ISBN 0-932376-22-3.
+@book{levy1984capability,
+  author       = {Henry M. Levy},
+  title        = {Capability-Based Computer Systems},
+  publisher    = {Digital Press},
+  year         = {1984},
+  note         = {Chapter on the {IBM} {System/38}, an early commercial platform
+                  with hardware tag bits on pointer-sized words},
+  url          = {https://homes.cs.washington.edu/~levy/capabook/}
+}
+
+% The software side, and the better citation for THIS facility's lineage: a
+% survey of type representation covering object headers, pointer tags, immediate
+% integers and float-encoding tricks. Its own stated purpose is what makes it
+% worth citing here -- it exists to collect a body of implementation folklore
+% that implementers had otherwise absorbed piecemeal or re-invented, so by 1993
+% low-bit pointer tagging was already old and unattributed. Verified 2026-07-24.
+@techreport{gudeman1993typeinfo,
+  author       = {David Gudeman},
+  title        = {Representing Type Information in Dynamically Typed Languages},
+  institution  = {Department of Computer Science, The University of Arizona},
+  number       = {TR 93-27},
+  year         = {1993},
+  month        = oct,
+  address      = {Tucson, AZ},
+  url          = {https://www2.cs.arizona.edu/icon/ftp/doc/tr93_27.pdf}
+}

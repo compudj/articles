@@ -2449,8 +2449,13 @@ already a rule for gating that store so that a set becomes current in one step.
 What those readers do after the store differs (\cref{sec:relrcu}); the store
 itself does not. The \emph{transient object} is not new: a
 per-mutation record, removed afterwards, is \citet{mckenney2008filerename926}
-from 2004. \emph{Pointer tagging} is not new; existence structures tag bit~0 of
-their own membership field. The \emph{descriptor-and-status shape} is Harris's
+from 2004. \emph{Pointer tagging} is not new by any measure. Hardware tag bits on
+pointer-sized words shipped in a commercial platform with the IBM System/38
+\citep{levy1984capability}, and the software practice this facility actually
+uses --- stealing the low bits that alignment guarantees --- was old enough by
+1993 to be surveyed as folklore that implementers had been absorbing piecemeal
+or re-inventing \citep{gudeman1993typeinfo}. Nearer to hand, existence
+structures tag bit~0 of their own membership field. The \emph{descriptor-and-status shape} is Harris's
 \citep{harris2002mcas}.
 
 What we have not found in that prior art is the combination: a marker that is
