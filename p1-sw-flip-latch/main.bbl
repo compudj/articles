@@ -1,4 +1,4 @@
-\begin{thebibliography}{32}
+\begin{thebibliography}{33}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -58,6 +58,12 @@ Mathieu Desnoyers, Paul~E. McKenney, Alan~S. Stern, Michel~R. Dagenais, and
   23\penalty0 (2):\penalty0 375--382, 2012.
 \newblock \doi{10.1109/TPDS.2011.159}.
 \newblock URL \url{https://doi.org/10.1109/TPDS.2011.159}.
+
+\bibitem[Dice et~al.(2006)Dice, Shalev, and Shavit]{dice2006tl2}
+Dave Dice, Ori Shalev, and Nir Shavit.
+\newblock Transactional locking {II}.
+\newblock In \emph{Proc.\ 20th International Symposium on Distributed Computing
+  (DISC)}, pages 194--208, 2006.
 
 \bibitem[Dus\'{\i}kov\'{a}(2026)]{wg21p3125}
 Hana Dus\'{\i}kov\'{a}.

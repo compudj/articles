@@ -1458,12 +1458,27 @@ live structure instead, it believes $E_2$'s predecessor is still $E_1$, records
 publishes a list pointing through deleted nodes. Nothing here is a race; one
 writer, editing in program order, has torn its own commit.
 
-The facility closes this with \emph{read-your-own-writes}. Two accessors form the
-pair: a load that returns a slot's pending new value if this \pseudotxn has
-already recorded one and its committed value otherwise, and a recording store
-that \emph{fuses} a second edit of a slot onto the existing record --- keeping
-the committed old, advancing the new --- rather than appending a duplicate. A
-transaction holds at most one record per slot. The wrappers read every neighbour
+Neither the hazard nor its answer is ours. Every deferred-update transactional
+memory meets it --- writes are buffered until commit, so a later read in the
+same transaction would see stale state unless something intervenes --- and the
+standard fix is that a transactional read consults the transaction's own write
+set first and returns the buffered value when it finds one; object-based designs
+reach the same end by giving the transaction a private working copy to read
+through \citep{shavit1995stm, herlihy2003dstm, fraser2004lockfreedom,
+dice2006tl2}. \emph{Read-your-own-writes} is that answer, adopted here unchanged
+and claimed nowhere in \cref{sec:relclaims}. What is worth stating is where it
+lands in a facility whose reads are not instrumented, which is the rest of this
+section.
+
+Two accessors form the pair: a load that returns a slot's pending new value if
+this \pseudotxn has already recorded one and its committed value otherwise, and
+a recording store that \emph{fuses} a second edit of a slot onto the existing
+record --- keeping the committed old, advancing the new --- rather than
+appending a duplicate. A transaction holds at most one record per slot. Keeping
+the committed old is a constraint a redo log does not have and the \fliplatch
+does: the record's old value is what a reader resolves the proxy to before the
+commit, so it must stay the value the slot would have held all along, however
+many times the writer revises the new one. The wrappers read every neighbour
 link through the load and record through the fusing store, so the second delete
 above reads the \emph{pending} \code{P->next}, chains onto that record, and the
 commit unlinks both victims and leaves $P \leftrightarrow N$ coherent.
@@ -1478,6 +1493,17 @@ not this \pseudotxn's pending one, so a caller that walks and edits in the same
 bracket can still hand an edit a node its own earlier edit has displaced. The
 discipline is to identify the victims first and then edit, not to interleave the
 two.
+
+An STM does not owe its caller that discipline, and the difference is the whole
+bargain of this paper in miniature. Its read barrier sits on \emph{every} read,
+so a search run inside a transaction is reconciled against the write set by the
+same machinery that reconciles an edit, and the obligation never reaches the
+caller. Here the traversal is plain \rcu, uninstrumented, indistinguishable from
+a read outside any \pseudotxn{} --- which is why the reader carries none of the
+per-element state and none of the read-path work \cref{sec:costcomparison}
+charges the alternatives. Read-your-own-writes covers the slots a writer
+records, and stops there. Naming the victims first is what the writer pays so
+the reader can pay nothing.
 
 \emph{Declaring a write set disjoint is a promise the facility keeps you to.}
 Read-your-own-writes costs a find per recorded edit --- \emph{is this slot
@@ -2157,6 +2183,15 @@ naming it is what lets us be precise about what we do not provide.
 means the database sense of \emph{transaction}, which bundles isolation into the
 word; we mean the journaling sense, which never has. The two are different
 contracts, not stronger and weaker versions of one.
+
+What we do take from STM is on the write side. Read-your-own-writes
+(\cref{sec:swcomposition}) is its standard handling of a transaction that reads
+a location it has itself already written, and we adopt it unchanged. It reaches
+less far here: STM instruments every read, so a search made inside a transaction
+is reconciled too, whereas ours reconciles only the slots a writer records and
+leaves the traversal as plain \rcu. That shortfall is an obligation on the
+embedder rather than a cost on the reader, which is the trade the whole facility
+makes.
 
 Transactional boosting \citep{herlihy2008boosting} is the closest relative on
 the composition axis: coarse abstract locks over cheap physical operations,
