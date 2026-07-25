@@ -1123,7 +1123,7 @@ which is why it is worth doing carefully rather than early.
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{c7f428a853ee167954c945bdf86e2337d7711234} (2026-07-18), on branch
+\code{6139087ea2c5a340cf32c730aa6814add7ba134f} (2026-07-22), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
@@ -1132,10 +1132,13 @@ Within that tree, the material of this paper is the following headers, all under
 \code{include/urcu/}:
 
 \begin{description}\setlength{\itemsep}{2pt}
-\item[\code{rcu-mcas.h}] The sole-driver \mcas engine: records, the tri-state
+\item[\code{rcu-txn-mcas.h}] The sole-driver \mcas engine: records, the tri-state
       status word, descriptor-naming installs, the owner-only drive and settle,
       and the no-RDCSS argument in its own header block
-      (\cref{sec:engine,sec:norddcss,sec:settle}).
+      (\cref{sec:engine,sec:norddcss,sec:settle}). At the pinned commit this
+      header carries both install disciplines --- the CAS plant described here
+      and the exclusive park of the single-writer paper --- behind one
+      descriptor and one status word.
 \item[\code{rcu-txn.h}] The transaction front-end: read policy, read-your-own-writes,
       the disjoint and expect-conflict declarations, and the aging-to-fair-mutex
       escalation whose budget scales with operation cost
