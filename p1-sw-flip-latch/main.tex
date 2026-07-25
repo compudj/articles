@@ -2064,6 +2064,15 @@ close to free at either end. Like the budget itself, this is
 architecture-dependent: an instruction set with richer logical immediates prices the two ends
 differently.
 
+Both of those concern the \emph{test}. Recovering the proxy is a separate
+operation, and there the asymmetry does not soften: a low tag is a small
+constant, so clearing it folds into the addressing-mode displacement of the load
+that follows and costs no instruction of its own, where a high tag never folds
+and needs one instruction ahead of that load even as a single bit. This one falls
+on the taken path, which \cref{sec:costcomparison} counts as bounded rather than
+steady state --- and the facility does not collect it in any case, since it
+clears the tag with a mask rather than subtracting it.
+
 C++ standardization has come down on the same side. The pointer-tagging proposal
 noted in \cref{sec:alignment} exposes the low bits only, deriving how many are
 available from the pointee's alignment, after SG1 declined to standardize access
