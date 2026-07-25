@@ -1956,8 +1956,28 @@ cost this facility exists to avoid.
 
 \paragraph{Eager, lazy, or never.} This facility settles eagerly: after the flip,
 every slot is rewritten from the tagged proxy back to the direct target. Settle
-could be deferred, batched across transactions, or omitted entirely --- the
-proxies resolve correctly forever, so a never-settling facility is \emph{correct}.
+could be deferred, batched across transactions, or omitted entirely.
+
+Deferral is the interesting middle, and what limits it is not that two
+transactions may want the same slot. Under exclusion that costs nothing to
+resolve: a writer installing into a slot its own earlier transaction left
+unsettled reads through the stale proxy for its old value, exactly as a reader
+would, overwrites the slot with its own proxy, and drops the pending settle ---
+a local fact, recorded by the only thread entitled to touch that slot at all.
+What limits deferral is that batching moves the settle out of the region the
+exclusion covers. Settle is a plain store only because the caller holds a lock
+over the slot while it runs; accumulate settles across transactions and the
+flush happens once that lock is gone, over slots that may be covered by
+different locks. The batch must then re-acquire each of them --- paying back the
+amortization it was collecting, and inheriting a lock-ordering problem the eager
+form never has --- or make each settle conditional on the slot still naming its
+own proxy, which turns the \sw path's plain store into an atomic and gives up
+precisely what makes that path cheap. Deferral also keeps proxies installed for
+longer, so more descriptors are reader-reachable at once, on the same
+rate-times-window budget as \cref{sec:vartag}.
+
+Omitting settle entirely is the endpoint, and it is \emph{correct}: the proxies
+resolve correctly forever.
 It is also unbounded: every read of that slot pays an indirection permanently,
 the proxies can never be reclaimed, and the structure accumulates a growing
 layer of resolved-but-still-present latches. Settle exists to make the cost
