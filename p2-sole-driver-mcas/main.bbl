@@ -109,13 +109,16 @@ Keir Fraser and Tim Harris.
 \newblock \doi{10.1145/1233307.1233309}.
 \newblock URL \url{https://doi.org/10.1145/1233307.1233309}.
 
-\bibitem[Gleixner et~al.(2025)]{gleixner2025rseqtse}
-Thomas Gleixner et~al.
+\bibitem[Gleixner(2025)]{gleixner2025rseqtse}
+Thomas Gleixner.
 \newblock \code{rseq}: Time slice extension.
-\newblock Linux kernel patch series, 2025.
+\newblock Linux kernel, merged for 7.0, 2025.
+\newblock URL \url{https://git.kernel.org/linus/d7a5da7a0f7f}.
 \newblock Mechanism attribution only. Defers preemption of a userspace thread
   for a bounded window; distinct from classic \code{rseq} (2018), which
-  \emph{restarts} on preemption.
+  \emph{restarts} on preemption. Introduced by commit \code{d7a5da7a0f7f}
+  (2025-12-15); userspace interface \code{RSEQ\_CS\_FLAG\_SLICE\_EXT\_*} in
+  \code{include/uapi/linux/rseq.h}.
 
 \bibitem[Guerraoui et~al.(2020)Guerraoui, Kogan, Marathe, and
   Zablotchi]{guerraoui2020mcas}

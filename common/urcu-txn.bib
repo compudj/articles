@@ -1472,8 +1472,11 @@
 % P2 (sole-driver MCAS) additions. Progress-class lineage, contention
 % management, non-blocking-tree freeze primitives, RCU trees, and the GC
 % relocation barriers the deletion-mark forwarding must be distinguished from.
-% Metadata verified where marked; entries still flagged in the P2 SCOPE's
-% verify-before-cite list carry a NOTE and should be re-checked before arxiv.
+% Metadata verified where marked. The P2 SCOPE's verify-before-cite list is now
+% CLEARED (2026-07-25): brooks1984forwarding, rosenkrantz1978woundwait and
+% gleixner2025rseqtse were each checked against a primary-style record, and each
+% carries the verification and its date. One of the three was wrong and is
+% corrected in place -- the rseq series is merged, not pending.
 % ===========================================================================
 
 @inproceedings{david2013everything,
@@ -1524,7 +1527,8 @@
   pages        = {151--160}
 }
 
-% verify-before-cite (P2 SCOPE): wound-wait page range.
+% Page range VERIFIED 2026-07-25 against dblp: TODS 3(2), 1978, 178--198, as
+% recorded. Authors and title match too. Flag cleared.
 @article{rosenkrantz1978woundwait,
   author       = {Daniel J. Rosenkrantz and Richard E. Stearns and
                   Philip M. Lewis, II},
@@ -1674,17 +1678,27 @@
   pages        = {256--262}
 }
 
-% verify-before-cite (P2 SCOPE): this is the mainline Linux rseq time-slice
-% extension series (Gleixner, 2025); the author took part in it. Cited only to
-% attribute the MECHANISM -- P2 claims nothing on it (see Sec. 4).
+% VERIFIED 2026-07-25 against a local mainline tree, and the entry corrected: it
+% said "Linux kernel patch series", which was true when written and is not now.
+% The series is MERGED -- introducing commit d7a5da7a0f7f, "rseq: Add fields and
+% constants for time slice extension", Thomas Gleixner, 2025-12-15, first
+% appearing in v7.0-rc1 -- and the UAPI is in include/uapi/linux/rseq.h as
+% RSEQ_CS_FLAG_SLICE_EXT_AVAILABLE / _ENABLED, implemented in kernel/rseq.c.
+% Cited only to attribute the MECHANISM -- P2 claims nothing on it (see Sec. 4).
+% Note this says nothing about the urcu tree: P2's drafting note that RSEQ-TSE is
+% absent from the PINNED engine is a separate claim and still holds.
 @misc{gleixner2025rseqtse,
-  author       = {Thomas Gleixner and others},
+  author       = {Thomas Gleixner},
   title        = {\code{rseq}: Time Slice Extension},
-  howpublished = {Linux kernel patch series},
+  howpublished = {Linux kernel, merged for 7.0},
   year         = {2025},
   note         = {Mechanism attribution only. Defers preemption of a userspace
                   thread for a bounded window; distinct from classic
-                  \code{rseq} (2018), which \emph{restarts} on preemption}
+                  \code{rseq} (2018), which \emph{restarts} on preemption.
+                  Introduced by commit \code{d7a5da7a0f7f} (2025-12-15); userspace
+                  interface \code{RSEQ\_CS\_FLAG\_SLICE\_EXT\_*} in
+                  \code{include/uapi/linux/rseq.h}},
+  url          = {https://git.kernel.org/linus/d7a5da7a0f7f}
 }
 
 % ---------------------------------------------------------------------------
