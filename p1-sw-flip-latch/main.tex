@@ -133,6 +133,13 @@ Specifically:
       slots, through a read-your-own-writes discipline (\cref{sec:swcomposition});
       we give the two obligations that remain.
 
+\item \textbf{Two measurements} (\cref{sec:measured}), bounded deliberately to
+      the same guarantee class: readers of the transacted list stay within 1.4\%
+      of plain \rcu{} from one reader to 192, while delivering the reverse walk
+      plain \rcu cannot; a single writer pays 2.84 times, and a profile says
+      where that goes --- 3.4\% of cycles in the commit, the rest in allocation
+      and grace-period reclaim.
+
 \item \textbf{The design space we did not explore} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
       policies, and reclamation schemes, with the cost of each alternative
@@ -152,7 +159,9 @@ Properties that hold only under exclusion are marked where they appear.
 Multi-pointer atomicity under \rcu is not a new goal, and the established
 answers pay for it in the same place: state attached to every element, and
 work on the reader's path. This facility pays in neither. \Cref{sec:costcomparison}
-places it against those answers---existence structures, RLU, and STM---in detail.
+places it against those answers---existence structures, RLU, and STM---in detail,
+and \cref{sec:measured} measures both halves of the claim on a list: what the
+reader does not pay, and what the writer does.
 
 % ===========================================================================
 \section{Background}
@@ -1774,11 +1783,12 @@ comparison against RLU or MV-RLU: they give readers a coherent snapshot, and
 difference compares different guarantees.
 
 And this workload cannot separate read-side synchronization costs, which is worth
-stating plainly because the same harness reports them. A reader-writer lock and a
-seqlock traversing the same list land within a few percent of plain \rcu, and at
-192 readers the seqlock is the fastest of the four. That is not a finding about
-locks. It is what happens when a 10\,000-node traversal amortizes one acquisition
-to nothing, and it is why the honest read-side comparison in
+stating plainly because the same harness reports them. A \emph{reader-biased}
+reader-writer lock and a seqlock traversing the same list land within a few
+percent of plain \rcu, and at 192 readers the seqlock is the fastest of the four.
+That is not a finding about locks --- least of all a flattering one, since a
+reader-preferring lock is exactly the variant a read-only workload suits. It is
+what happens when a 10\,000-node traversal amortizes one acquisition to nothing, and it is why the honest read-side comparison in
 \cref{tab:readcost} is against \code{rculist} alone. Separating those costs needs
 a cache-resident list or a concurrent writer, and belongs to the evaluation
 paper along with everything else this section declines to claim.
