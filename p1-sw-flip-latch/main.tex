@@ -1889,8 +1889,17 @@ instead, leaving the low bits entirely to the embedder.
 The cost is portability --- the number of free high bits is
 architecture-dependent and can change --- so a high-bit scheme needs a runtime
 probe of the address space to establish its budget, and a fallback for
-architectures that offer fewer bits than it wants. A facility could offer both
-and let the embedder choose.
+architectures that offer fewer bits than it wants.
+
+C++ standardization has come down on the same side. The pointer-tagging proposal
+noted in \cref{sec:alignment} exposes the low bits only, deriving how many are
+available from the pointee's alignment, after SG1 declined to standardize access
+to the high bits as dangerous and non-portable and as a constraint on the
+security features that may yet claim them~\citep{wg21p3125}. That is a narrower
+judgement than ours --- it is about what a language should promise, not about
+what an embedder may do on a platform it knows --- but it lands on the same
+asymmetry: the low bits are the ones an implementation can be held to. A
+facility could still offer both and let the embedder choose.
 
 \paragraph{Tagging versus a sentinel range.} Tagging is not the only way to make
 a proxy recognizable. An embedder could reserve a range of values --- a page of
