@@ -1317,7 +1317,7 @@ doubly-linked list has two reader-visible chains, but \rcu can publish only one
 of them atomically, so \code{rculist} maintains a \code{prev} chain no reader may
 walk and ships no \rcu-safe reverse iterator. The \fliplatch moves both edges at
 a single instant --- precisely what that gap needs. This section spends it on two
-structures: a bidirectional list whose reverse walk becomes ordinary, and a hash
+structures: a bidirectional list whose reverse walk readers can take, and a hash
 list.
 
 \subsection{Two edges, one flip}
@@ -1335,8 +1335,9 @@ remove $E$ between $P$ and $N$: & \code{P->next}: \edit{E}{N} \quad and \quad \c
 Two edges is exactly the case \cref{sec:swmechanism} handles. Both slots
 transiently hold tagged proxies sharing one selector word; one release store
 flips the selector and switches both edges together. At every instant the
-forward and backward chains describe the same list, and the reverse walk that
-\code{rculist} cannot offer becomes ordinary.
+forward and backward chains describe the same list, so the reverse walk that
+\code{rculist} cannot offer becomes one a reader may take --- within the
+guarantee, and its scope, that \cref{sec:coherence} states next.
 
 \input{fig-list-insert}
 
@@ -1367,6 +1368,33 @@ architecture, as does any build using the default C11 dereference. A reader
 comparing two independently-reached slots, a cached pointer or a \code{prev} and
 a \code{next} read from nodes it did not chain between, must supply its own
 acquire.
+
+\paragraph{Across updates, not a snapshot.} \Cref{prop:coherence} is per-update:
+one commit switches its own two edges together, so no reader catches a single
+edit half-applied. Whether two edits are \emph{separate} commits, though, is the
+embedder's choice, and the facility's reach is that they need not be --- a single
+commit can carry both (\cref{prop:crossstructure}). Removing \code{A} and \code{D}
+from \code{A}\,$\leftrightarrow$\,\code{B}\,$\leftrightarrow$\,\code{C}\,$\leftrightarrow$\,\code{D}
+in one \pseudotxn, their edge re-points sharing one selector, is atomic to every
+reader: it sees \code{A}\,$\leftrightarrow$\,\code{B}\,$\leftrightarrow$\,\code{C}\,$\leftrightarrow$\,\code{D}
+or \code{B}\,$\leftrightarrow$\,\code{C}, and no state between. That composition is
+what plain \rcu cannot offer --- it publishes one edit at a time and must sequence
+the two, so a reader can straddle them.
+
+Split the removals into separate commits and the straddle returns: a forward walk
+can hold \code{A} after \code{D} has left the tail, reading
+\code{A}\,$\leftrightarrow$\,\code{B}\,$\leftrightarrow$\,\code{C}, a list that
+existed at no instant; and because a reverse walk resolves the edges in the
+opposite order, no commit order spares both directions --- reversing the two
+removals only moves the phantom to
+\code{B}\,$\leftrightarrow$\,\code{C}\,$\leftrightarrow$\,\code{D}.
+\Cref{prop:monotone} and the publish-order rule (\cref{sec:publishorder}) keep a
+single edit's edges ordered; neither makes two separate commits atomic. Where the
+edits genuinely must be separate --- decided by different threads, or far apart in
+time --- coherence across them is the embedder's to add: a grace period to drain
+readers first; where one direction suffices, issuing them in that reader's reverse
+order; or a scheme layered on the value, a generation counter or a double
+traversal that retries on mismatch, which later papers take up.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % Do not bury this. It is the same precondition as Property 5's scope
