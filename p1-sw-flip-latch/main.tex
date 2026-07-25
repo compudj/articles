@@ -1439,7 +1439,7 @@ The plain backlink is not a corner that composition pays for later. When two
 edits land on one bucket, the second reads its neighbour's \code{pprev} directly
 and sees the first edit's store, because under one updater a plain store is
 immediately visible to that same updater --- so adjacent deletes compose without
-the backlink ever entering the transaction. \emph{Deferring} the backlink store
+the backlink ever entering the \pseudotxn. \emph{Deferring} the backlink store
 and then reading it raw would be the bug, the hlist form of the adjacent-delete
 trap of \cref{sec:swcomposition}: a later edit would re-point a slot inside an
 already-unlinked node. Eager-and-raw agree on every committed outcome;
@@ -1523,7 +1523,7 @@ A false positive costs the scan the filter was meant to save and nothing more;
 there are no false negatives, so no pending edit can be walked past. The filter
 is built lazily, on the first lookup
 that would scan a long write set rather than on the record that crosses the
-threshold, so a transaction that stays small never pays for one, and a long
+threshold, so a \pseudotxn that stays small never pays for one, and a long
 walk over a large write set pays a hash rather than a scan.
 
 None of this asks the writer to guard its traversal against anyone else. Under
@@ -2058,8 +2058,18 @@ to the high bits as dangerous and non-portable and as a constraint on the
 security features that may yet claim them~\citep{wg21p3125}. That is a narrower
 judgement than ours --- it is about what a language should promise, not about
 what an embedder may do on a platform it knows --- but it lands on the same
-asymmetry: the low bits are the ones an implementation can be held to. A
-facility could still offer both and let the embedder choose.
+asymmetry: the low bits are the ones an implementation can be held to.
+
+The high route is not hypothetical either, and what it costs in practice is worth
+knowing. ZGC colors every object reference with four metadata bits placed above
+the address bits, and interprets them in a load barrier on every reference load
+\citep{yang2022zgc}. That is a working high-bit tag in a production collector ---
+and it is also the read-side bargain \cref{sec:whyweakening} declines, since the
+barrier runs whether or not any relocation is in flight. The comparison cuts both
+ways: the high bits are usable, and using them for a marker a reader must
+interpret puts work back on the reader, which is the cost this facility exists to
+avoid wherever the marker lives. A facility could still offer both and let the
+embedder choose.
 
 \paragraph{Tagging versus a sentinel range.} Tagging is not the only way to make
 a proxy recognizable. An embedder could reserve a range of values --- a page of
@@ -2095,12 +2105,12 @@ lets many transactions be in flight, and lingering, at once.
 \label{sec:varproxy}
 
 \paragraph{One block versus many.} A proxy is a record in its installed form
-(\cref{sec:fliplatch}): the tagged object a slot points at while the transaction
+(\cref{sec:fliplatch}): the tagged object a slot points at while the \pseudotxn
 is live. Proxies and their group are typically allocated as a single backing
-block with one \code{rcu\_head}, so a transaction costs one allocation and one
+block with one \code{rcu\_head}, so the whole set costs one allocation and one
 deferred free. Individually allocated proxies are
 the alternative: they cost an allocation and a reclamation each, and they permit
-a transaction whose width is not known in advance to grow without moving what it
+a write set whose width is not known in advance to grow without moving what it
 has already built --- which is the problem \cref{sec:tagnotptr} solves the other
 way, by making a move safe.
 

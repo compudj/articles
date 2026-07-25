@@ -1641,6 +1641,13 @@
   pages        = {13:1--13:9}
 }
 
+% Cited in P1 sec:vartag as the production instance of the HIGH-bit tag route,
+% and as what that route charges the reader. Verified 2026-07-25: ZGC's colored
+% pointers carry four metadata bits ABOVE the 42 address bits, interpreted by a
+% load barrier on every reference load. Do NOT present this as a precedent for
+% this facility's marker -- the barrier is unconditional, which is exactly the
+% read-side cost sec:whyweakening refuses; the shared point is only that the
+% upper bits of a pointer are usable in production.
 @article{yang2022zgc,
   author       = {Albert Mingkun Yang and Tobias Wrigstad},
   title        = {Deep Dive into {ZGC}: A Modern Garbage Collector in {OpenJDK}},

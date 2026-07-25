@@ -1,4 +1,4 @@
-\begin{thebibliography}{43}
+\begin{thebibliography}{44}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -412,5 +412,11 @@ Joshua Triplett.
 \newblock Application Ser. No. 11/564,568, filed 2006-11-29 (priority
   2006-11-29); granted 2010-02-23; sole inventor Joshua Triplett; assignee
   International Business Machines Corp.
+
+\bibitem[Yang and Wrigstad(2022)]{yang2022zgc}
+Albert~Mingkun Yang and Tobias Wrigstad.
+\newblock Deep dive into {ZGC}: A modern garbage collector in {OpenJDK}.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+  44\penalty0 (4):\penalty0 22:1--22:34, 2022.
 
 \end{thebibliography}
