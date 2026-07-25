@@ -2046,10 +2046,23 @@ end, where alignment guarantees them. The high end is the alternative: on
 \emph{most} current 64-bit architectures the top bits of a virtual address are
 unused --- though not all, s390x being an exception --- and a tag can live there
 instead, leaving the low bits entirely to the embedder.
-The cost is portability --- the number of free high bits is
+The first cost is portability --- the number of free high bits is
 architecture-dependent and can change --- so a high-bit scheme needs a runtime
 probe of the address space to establish its budget, and a fallback for
 architectures that offer fewer bits than it wants.
+
+The second is that the reader's test is not equally cheap at both ends, and on
+x86-64 the asymmetry falls the way the tag's width decides. A low mask is
+an immediate operand: one \code{test} against an immediate, whatever the reader
+already holds. A mask of several \emph{high} bits does not fit that immediate, so
+it must be materialized into a register first --- an extra instruction and a
+register the reader did not otherwise need, on the fast path, per dereference. A
+\emph{single} high bit escapes this, because a bit-test instruction takes the bit
+index as a small immediate rather than a mask. So the reserved nibble of
+\cref{sec:alignment} is the case that pays for living high, and a lone tag bit is
+close to free at either end. Like the budget itself, this is
+architecture-dependent: an instruction set with richer logical immediates prices the two ends
+differently.
 
 C++ standardization has come down on the same side. The pointer-tagging proposal
 noted in \cref{sec:alignment} exposes the low bits only, deriving how many are
