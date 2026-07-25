@@ -1523,12 +1523,31 @@ exclusion (\cref{sec:exclusion}) no other writer can change a slot, so a
 transactional walk has only this writer's own pending edits to reconcile;
 there is no dependency a peer could move underneath it, and no reason to
 transact a slot merely because the walk stepped through it. Where writers are
-concurrent the question is real, and the answer is the opt-in per-slot read
-validation of the model (\cref{sec:model}), which enters a slot into the
-transaction's read set to be checked at the commit point. It is opt-in and
-per-slot precisely so that an operation pays for the dependencies it actually
-has rather than for every pointer its traversal crossed. The companion paper
-takes that up.
+concurrent the question is real, and it has two answers rather than one,
+because the obvious one does not scale to a traversal.
+
+A slot the operation genuinely depends on can be entered into its read set as a
+guard, checked at the commit point --- the model's opt-in, per-slot read
+validation (\cref{sec:model}). But a guard is not a passive note in a side
+table. It is a record like any other, and it installs in the slot exactly as a
+store does, so a peer that writes that slot fails its own install and retries.
+That is what makes it a guarantee rather than a hope, and it is why it costs
+what a write costs. Guarding \emph{every} pointer a traversal crossed would
+therefore be close to the literal reading of the question: the walk would leave
+a proxy on every slot it stepped through, and every peer that touched any of
+them would abort. An operation guards the few dependencies it has, for the same
+reason it does not write words it has no business writing.
+
+The traversal itself takes the other route, and it is a coarse one. It stays
+ordinary uninstrumented reads, cheap and unguarded, and the transaction commits
+optimistically; where peers keep invalidating it, it escalates. Past a retry
+budget scaled by its loads as well as its records, a handle takes a per-domain
+FIFO-fair lane, every writer in that domain funnels through the lane behind it,
+and the whole operation --- traversal and mutation together --- re-runs inside
+that turn. The guarantee the traversal gets is the turn, not a proxy on each of
+its steps; and the budget counts the loads precisely because the traversal, not
+the write set, is most of what the lane would serialize. Both routes belong to
+the companion paper.
 
 \emph{Declaring a write set disjoint is a promise the facility keeps you to.}
 At the other end, an embedder whose slots are distinct \emph{by construction}
