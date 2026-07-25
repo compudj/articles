@@ -48,8 +48,10 @@
 % ---- resolution ------------------------------------------------------------
 \node[old] (o1) at (11.6, 1.15) {$o_1$};
 \node[new] (n1) at (11.6, 0.05) {$n_1$};
-\draw[arr, gray!70!black] (sel.east) -- node[above, font=\scriptsize, pos=0.55] {\code{sel}=0} (o1.west);
-\draw[arr, thick] (sel.east) -- node[below, font=\scriptsize, pos=0.55] {\code{sel}=1} (n1.west);
+% Labels are sloped: the sel=0 arrow rises about 27 degrees, and a horizontal
+% label placed "above" its midpoint is crossed by the arrow's own line.
+\draw[arr, gray!70!black] (sel.east) -- node[above, sloped, font=\scriptsize, pos=0.5] {\code{sel}=0} (o1.west);
+\draw[arr, thick] (sel.east) -- node[below, sloped, font=\scriptsize, pos=0.5] {\code{sel}=1} (n1.west);
 
 \node[align=left, font=\footnotesize, anchor=north west] at (9.7, -0.9)
   {Every proxy reads the \emph{same} \code{sel}.\\

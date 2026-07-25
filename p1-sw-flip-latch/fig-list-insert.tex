@@ -70,11 +70,15 @@
 \draw[pick] (rec1.west) to[out=180,in=180] (selB.west);
 \draw[pick] (rec2.west) to[out=180,in=180] (selB.south west);
 
-% install -- a copy of the list; its pointers redirected into the record rows
-\node[lnode] (iP) at (5.15, 1.50) {\code{P}};
-\node[lnode] (iN) at (5.15, 0.90) {\code{N}};
+% install -- a copy of the list; its pointers redirected into the record rows.
+% P/N sit at the right of the install span rather than its centre: at the centre
+% the arrows were 6mm, shorter than the labels riding on them, so next/prev were
+% squeezed against the table edge. prev is labelled below, so the two labels
+% cannot stack on each other in the 6mm gap between the rows.
+\node[lnode] (iP) at (5.75, 1.50) {\code{P}};
+\node[lnode] (iN) at (5.75, 0.90) {\code{N}};
 \draw[ptr] (iP.west) -- (rec1.east) node[midway, above, font=\scriptsize] {\code{next}};
-\draw[ptr] (iN.west) -- (rec2.east) node[midway, above, font=\scriptsize] {\code{prev}};
+\draw[ptr] (iN.west) -- (rec2.east) node[midway, below, font=\scriptsize] {\code{prev}};
 
 % commit -- the same selector, flipped (aligned above the commit phase)
 \node[selbox, minimum width=27mm] (selC) at (7.30, 2.72) {selector:~$0 \to 1$};
@@ -96,7 +100,8 @@
 
 % the commit store, rising from the commit phase into the flipped selector
 \draw[-latex, very thick, orange!70!black] (7.3, 0.55) -- (selC.south);
-\node[left, font=\scriptsize, text=black] at (7.15, 1.5) {one store};
+% Raised clear of the install P/N, which now reach further right.
+\node[left, font=\scriptsize, text=black] at (7.15, 2.15) {one store};
 
 % ---- legend for the record notation ---------------------------------------
 \node[anchor=west, align=left, font=\scriptsize, text=black!75] at (-1.9, -0.55)

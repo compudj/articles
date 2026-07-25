@@ -49,6 +49,7 @@
 
 \usepackage[ruled,vlined,linesnumbered]{algorithm2e}
 \usepackage{listings}
+\usepackage{etoolbox}
 
 \usepackage[numbers,sort&compress]{natbib}
 
@@ -77,6 +78,18 @@
   morekeywords={uint64_t,uintptr_t,bool,struct,static,inline,_Atomic},
 }
 \lstset{style=c}
+
+% ---------------------------------------------------------------------------
+% Listings must not split across a page boundary. The excerpts in this series
+% are short (a handful of lines each) and are read as single units -- a
+% __list_del() whose two stores land on different pages defeats the entire
+% point of showing them together. listings has no option for this, so wrap
+% every listing in an unbreakable box. If a listing ever grows longer than a
+% page this will overfull rather than break: that is the correct failure, since
+% such a listing wants to be a float with a caption instead.
+% ---------------------------------------------------------------------------
+\BeforeBeginEnvironment{lstlisting}{\par\noindent\begin{minipage}{\linewidth}}
+\AfterEndEnvironment{lstlisting}{\end{minipage}\par}
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
