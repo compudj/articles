@@ -1512,9 +1512,9 @@ choice is which accessor the search uses, and it is the caller's to make.
 Every transactional load asks the same question the recording store asks ---
 \emph{is this slot already pending?} --- and the phrasing invites a picture of
 searching an array of proxy records, which would indeed not be fast. The search
-is not that. The write set is private to the transaction and to the thread that
-owns it: no atomics, no lock, no line another thread is touching. For the
-typical transaction, a two-edge list operation, it is a handful of records,
+is not that. The write set is private to the \pseudotxn and to the thread that
+owns it: no atomics, no lock, no line another thread is touching. For a typical
+one, a two-edge list operation, it is a handful of records,
 where a linear scan beats anything cleverer, and the facility does exactly that
 scan. Only when a write set grows long enough for the scan to dominate does it
 arm a Bloom filter, which answers the find's overwhelmingly common outcome on a
@@ -1547,7 +1547,7 @@ them would abort. An operation guards the few dependencies it has, for the same
 reason it does not write words it has no business writing.
 
 The traversal itself takes the other route, and it is a coarse one. It stays
-ordinary uninstrumented reads, cheap and unguarded, and the transaction commits
+ordinary uninstrumented reads, cheap and unguarded, and the \pseudotxn commits
 optimistically; where peers keep invalidating it, it escalates. Past a retry
 budget scaled by its loads as well as its records, a handle takes a per-domain
 FIFO-fair lane, every writer in that domain funnels through the lane behind it,
@@ -1675,7 +1675,7 @@ the transacted list of \cref{sec:swlist} and Userspace \rcu's own
 on every traversal it performs; it reported no violation in any run reported
 here.
 
-\paragraph{Reads pay nothing for the transaction layer.} \Cref{tab:readcost}
+\paragraph{Reads pay nothing for the \pseudotxn layer.} \Cref{tab:readcost}
 gives the read ceiling with no writer running, in millions of node visits per
 second, for the transacted list and for \code{rculist}.
 
@@ -1725,7 +1725,7 @@ writer:
 \par\medskip\noindent\begin{minipage}{\linewidth}
 \captionof{table}{Single-writer update throughput, millions of operations per
 second. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
-flavor, so the ratio isolates the transaction layer.}
+flavor, so the ratio isolates the \pseudotxn layer.}
 \label{tab:writecost}
 \centering
 \begin{tabular}{@{}lrr@{}}
@@ -1741,7 +1741,7 @@ Ratio                     & 3.03 & 2.84 \\
 \end{minipage}\par\medskip
 
 The asymmetry between the two columns is itself informative. Dropping the mutex
-gains plain \rcu 7.0\% and the transacted list 0.7\%: the transaction's own work
+gains plain \rcu 7.0\% and the transacted list 0.7\%: the \pseudotxn's own work
 dominates an uncontended lock acquisition, where for plain \rcu the lock is a
 visible share of a much cheaper update. The realistic figure for this facility is
 therefore the mutex column, 2.84, because the single-writer contract
@@ -2079,7 +2079,7 @@ tag's mask-and-compare, and the carve-out becomes the low addresses no allocator
 returns anyway. What anchoring does not change is the pool. The allocator behind
 it must be a real one, not a fixed table indexed by the handle, because a proxy
 must outlive a grace period: a reader that loaded a handle before the commit
-settled may still be resolving it, and a table sized to a transaction's width
+settled may still be resolving it, and a table sized to a \pseudotxn's width
 would recycle that index under such a reader --- silently, since the recycled
 index resolves to a well-formed proxy belonging to a different transaction. The
 bound is therefore not the widest transaction but the number of proxies live
