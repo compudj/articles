@@ -1492,12 +1492,12 @@ A traversal is nothing but a sequence of loads, so a caller that walks through
 \code{urcu\_txn\_sw\_load} sees its own pending edits at every step, and may
 interleave walking and editing freely: this is the same reconciliation that
 serves the edits, applied to the steps between them. What it may not do is walk
-through the ordinary \rcu accessors and edit in the same bracket --- those
-resolve the committed structure, not this \pseudotxn's pending one, so an edit
-can be handed a node an earlier edit has already displaced. The wrappers take
-the cheaper route where it is available: the caller's initial lookup runs on the
-ordinary accessors, before the bracket, and only the neighbour links the edits
-touch are read transactionally. No shape of update is ruled out by this. The
+through the ordinary \rcu accessors while staging edits into the same
+\pseudotxn{} --- those resolve the committed structure, not the pending one, so an
+edit can be handed a node an earlier edit has already displaced. The wrappers
+take the cheaper route where it is available: the caller's initial lookup runs
+on the ordinary accessors, before the first record is staged, and only the
+neighbour links the edits touch are read transactionally. No shape of update is ruled out by this. The
 choice is which accessor the search uses, and it is the caller's to make.
 
 \emph{Walking transactionally costs a find per step, and the find is cheap.}
@@ -1519,8 +1519,8 @@ threshold, so a transaction that stays small never pays for one, and a long
 walk over a large write set pays a hash rather than a scan.
 
 None of this asks the writer to guard its traversal against anyone else. Under
-exclusion (\cref{sec:exclusion}) nothing outside the bracket can change a slot,
-so a transactional walk has only the writer's own pending edits to reconcile;
+exclusion (\cref{sec:exclusion}) no other writer can change a slot, so a
+transactional walk has only this writer's own pending edits to reconcile;
 there is no dependency a peer could move underneath it, and no reason to
 transact a slot merely because the walk stepped through it. Where writers are
 concurrent the question is real, and the answer is the opt-in per-slot read
@@ -1764,9 +1764,9 @@ not a shortfall.
 must hold \emph{at} the commit point, not one it must have held throughout. An
 operation whose correctness requires \emph{detecting} an away-and-back change
 must carry its own version in the word. Under exclusion the requirement does not
-arise: the one thing that could invalidate a recorded old --- an earlier edit in
-the writer's own bracket --- is exactly what read-your-own-writes reconciles
-(\cref{sec:swcomposition}), and nothing outside the bracket can change the slot
+arise: the one thing that could invalidate a recorded old --- an earlier edit
+the writer staged in the same \pseudotxn{} --- is exactly what read-your-own-writes
+reconciles (\cref{sec:swcomposition}), and no other writer can change the slot
 at all. The distinction earns its keep only where writers are concurrent and a
 peer can move a slot away and back between a read and the commit; under
 exclusion it is inert.
