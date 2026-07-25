@@ -26,15 +26,15 @@
 % scoped to the commit itself, never to a read+write transaction. Overclaiming
 % here is the single most damaging error available to this paper.
 % ---------------------------------------------------------------------------
-Read-copy-update (RCU) makes a \emph{single} pointer store atomic with respect
-to concurrent readers, and readers pay nothing for it in the absence of updates.
+Read-copy-update (RCU) makes a \emph{single} pointer store atomic to concurrent
+readers, and readers pay nothing for it in the absence of updates.
 This works only when an update is expressible as one store. Updates that must
 change several words coherently---a doubly-linked list's back edge, a skip
 list's tower---fall
 back to copying a larger region, a grace-period drain, or omitting the
 operation. Linux's list does the last: it ships no RCU-safe reverse iterator,
 because \code{\_\_list\_del()} publishes its forward edge with a marked store
-and its back edge with a plain assignment. Userspace RCU's is identical.
+and its back edge with a plain assignment.
 
 We describe an RCU \pseudotxn: a frozen set of \record{slot}{old}{new} records
 made visible by one commit step, together with a \sw realization---the
@@ -55,8 +55,7 @@ a read-side cost: state on every element, work on every dereference---and the
 read side is what RCU exists to keep free. A \pseudotxn's marker instead rides
 in spare bits of the slot itself, the word the reader loads anyway, so it adds
 no per-element state and, absent a concurrent commit on that slot, no extra
-load---a reader that meets one resolves through the proxy and the shared selector
-instead. The bulk of the cost moves to the writer, in the width of a commit.
+load. The bulk of the cost moves to the writer, in the width of a commit.
 \end{abstract}
 
 % ===========================================================================
