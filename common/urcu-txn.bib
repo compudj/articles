@@ -896,7 +896,8 @@
 %
 % FAMILY STRUCTURE
 % ----------------
-% The ten patents fall into four families:
+% Nine of the ten name McKenney; US 7,668,851 is Joshua Triplett's alone (see
+% its entry -- corrected 2026-07-24). They fall into four families:
 %   - generation-number / cyclic search: US 7,426,511 -> US 7,814,082
 %     (continuation), then US 7,953,778 (parallel updaters), then
 %     US 8,874,535 -> US 9,081,803 (generation-number element).
@@ -922,7 +923,10 @@
 % ----------------------------------------------
 % Both patents that the earlier sweep could not reach (Google Patents was
 % returning HTTP 503) have since been verified and are now recorded as
-% mckenney2008filerename926 and mckenney2010keyupdate851.
+% mckenney2008filerename926 and triplett2010keyupdate851. NOTE: the latter's
+% inventor was corrected 2026-07-24 -- it is Joshua Triplett's, not McKenney's;
+% see the entry. It entered this list by subject matter, not by the
+% inventor-name sweep described below.
 %
 % Source note: Google Patents was still 503 at the retry, and Justia 403s.
 % USPTO's own PDF endpoint (image-ppubs.uspto.gov) serves these as SCANNED
@@ -931,9 +935,20 @@
 % freepatentsonline.com, cross-checked against the application serial numbers
 % quoted in the continuation's own text (which independently confirms
 % 7,349,926's Ser. No. 10/813,470 and its 2004-03-30 filing date).
-% Inventor lists: FPO renders these as "McKenney et al." and the full list
-% could not be extracted; 7,349,926's inventors are taken from its own
-% continuation US 7,987,166, which is DBLP-independent but verified.
+% Inventor lists: FPO rendered both as "McKenney et al." and the full list
+% could not be extracted. That gap produced one real error -- 7,668,851 was
+% attributed to McKenney and is Joshua Triplett's alone -- caught by McKenney's
+% review and corrected 2026-07-24.
+%
+% INVENTOR AUDIT 2026-07-24. Google Patents was reachable this time, so every
+% entry whose inventor list rested on anything short of a read record was
+% re-checked against it. Results: 7,668,851 WRONG (fixed, see its entry);
+% 7,349,926 correct (McKenney, Sarma, Soni -- the continuation was a sound
+% source after all); and the five generation-number patents, newly load-bearing
+% in sec:relrcu, all correct, including the two-inventor 7,953,778 (McKenney and
+% Walpole). The single failure was the single entry that documented its own
+% uncertainty, which is the argument for writing such notes rather than for
+% trusting them.
 % The sweep itself covered 96 patents naming Paul E. McKenney as inventor. A
 % full-text search for "existence group" returned exactly two hits
 % (US 9,910,907 and US 10,452,638) and for "existence structure" exactly one
@@ -1280,9 +1295,8 @@
   year         = {2008},
   note         = {Application Ser. No. 10/813,470, filed 2004-03-30; granted
                   2008-03-25; assignee International Business Machines Corp.;
-                  parent of U.S. Patent No. 7,987,166. Inventor list taken from
-                  the continuation; FPO renders it as ``McKenney et al.''},
-  url          = {https://www.freepatentsonline.com/7349926.html}
+                  parent of U.S. Patent No. 7,987,166},
+  url          = {https://patents.google.com/patent/US7349926B2/en}
 }
 
 % ---------------------------------------------------------------------------
@@ -1300,17 +1314,25 @@
 % notion in embryo, six years before the 2015 family. NOT close to idea (a):
 % there is no shared state word and no single-store flip; membership is changed
 % by physical cross-linking and key update, not by flipping a status field.
-@misc{mckenney2010keyupdate851,
-  author       = {Paul E. McKenney},
+% INVENTOR CORRECTED 2026-07-24. This entry read "Paul E. McKenney", on the
+% strength of FPO rendering the inventor field as "McKenney et al." while the
+% note admitted the full list was unconfirmed. McKenney's review: "US Patent
+% 7,668,851 is not one of mine. The sole inventor is Joshua Triplett." Verified
+% against the Google Patents record, which was reachable on this attempt where
+% it 503'd in 2026-07-16: the inventor field reads "Joshua Triplett", sole, and
+% every other field matches what FPO gave. LESSON: an "et al." rendering is not
+% an inventor list, and this entry should have carried no author until one was
+% read from a primary-style record.
+@misc{triplett2010keyupdate851,
+  author       = {Joshua Triplett},
   title        = {Lockless Hash Table Lookups While Performing Key Update on
                   Hash Table Element},
   howpublished = {U.S. Patent No. 7,668,851},
   year         = {2010},
-  note         = {Application Ser. No. 11/564,568, filed 2006-11-29; granted
-                  2010-02-23; assignee International Business Machines Corp.
-                  FPO renders the inventor list as ``McKenney et al.''; the
-                  full list is unconfirmed},
-  url          = {https://www.freepatentsonline.com/7668851.html}
+  note         = {Application Ser. No. 11/564,568, filed 2006-11-29 (priority
+                  2006-11-29); granted 2010-02-23; sole inventor Joshua
+                  Triplett; assignee International Business Machines Corp.},
+  url          = {https://patents.google.com/patent/US7668851B2/en}
 }
 
 % ===== McKENNEY TALKS: THE PUBLIC EXPOSITION OF THE EXISTENCE APPROACH =====

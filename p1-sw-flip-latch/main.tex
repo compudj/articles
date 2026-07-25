@@ -2419,17 +2419,17 @@ work properly.
 \label{sec:relpatents}
 
 The atomic-move-under-\rcu problem has been the subject of a series of patents
-naming McKenney and assigned to IBM, and they are prior art whether or not any
-remains in force. The generation-number family is treated as a technical answer
-in \cref{sec:relrcu}; four others bound what this paper may claim, and are taken
-in turn here.
+assigned to IBM --- most naming McKenney, one Triplett --- and they are prior art
+whether or not any remains in force. The generation-number family is treated as a
+technical answer in \cref{sec:relrcu}; four others bound what this paper may
+claim, and are taken in turn here.
 
 \citet{mckenney2008filerename926} (filed 2004) renames a file while permitting
 lock-free lookups by linking a \emph{temporary record} into the hash chain and
 removing it afterwards --- a transient object, erected for the mutation and gone
 after. Its readers, however, \emph{wait}: the claim recites that the temporary
 record ``causes the look-ups to wait'' until the rename completes.
-\citet{mckenney2010keyupdate851} (filed 2006) moves an element between lists by
+\citet{triplett2010keyupdate851} (filed 2006) moves an element between lists by
 making it ``appear simultaneously'' in both under one key and then changing the
 key --- appear-in-both, belong-to-one, which is the existence notion in embryo.
 \citet{mckenney2018atomicmove907} (filed 2015) atomically updates a

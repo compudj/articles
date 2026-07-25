@@ -244,25 +244,15 @@ Paul~E. McKenney.
   International Business Machines Corp.; adjusted expiration 2025-11-28;
   status: Expired - Fee Related (term also run) as of 2026-07-16.
 
-\bibitem[McKenney(2010{\natexlab{a}})]{mckenney2010cyclicsearch082}
+\bibitem[McKenney(2010)]{mckenney2010cyclicsearch082}
 Paul~E. McKenney.
 \newblock Efficient support of consistent cyclic search with read-copy-update.
-\newblock U.S. Patent No. 7,814,082, 2010{\natexlab{a}}.
+\newblock U.S. Patent No. 7,814,082, 2010.
 \newblock URL \url{https://patents.google.com/patent/US7814082B2/en}.
 \newblock Filed 2008-03-18 (continuation; priority 2004-03-08); granted
   2010-10-12; assignee International Business Machines Corp.; adjusted
   expiration 2024-11-25; status: Expired - Fee Related (term also run) as of
   2026-07-16.
-
-\bibitem[McKenney(2010{\natexlab{b}})]{mckenney2010keyupdate851}
-Paul~E. McKenney.
-\newblock Lockless hash table lookups while performing key update on hash table
-  element.
-\newblock U.S. Patent No. 7,668,851, 2010{\natexlab{b}}.
-\newblock URL \url{https://www.freepatentsonline.com/7668851.html}.
-\newblock Application Ser. No. 11/564,568, filed 2006-11-29; granted
-  2010-02-23; assignee International Business Machines Corp. FPO renders the
-  inventor list as ``McKenney et al.''; the full list is unconfirmed.
 
 \bibitem[McKenney(2014)]{mckenney2014rcucyclic535}
 Paul~E. McKenney.
@@ -365,11 +355,10 @@ Paul~E. McKenney, Dipankar Sarma, and Maneesh Soni.
 \newblock Atomic renaming and moving of data files while permitting lock-free
   look-ups.
 \newblock U.S. Patent No. 7,349,926, 2008.
-\newblock URL \url{https://www.freepatentsonline.com/7349926.html}.
+\newblock URL \url{https://patents.google.com/patent/US7349926B2/en}.
 \newblock Application Ser. No. 10/813,470, filed 2004-03-30; granted
   2008-03-25; assignee International Business Machines Corp.; parent of U.S.
-  Patent No. 7,987,166. Inventor list taken from the continuation; FPO renders
-  it as ``McKenney et al.''.
+  Patent No. 7,987,166.
 
 \bibitem[Michael(2004)]{michael2004hazard}
 Maged~M. Michael.
@@ -413,5 +402,15 @@ Josh Triplett.
   Concurrent Data Structures}.
 \newblock PhD thesis, Portland State University, 2012.
 \newblock URL \url{https://doi.org/10.15760/etd.497}.
+
+\bibitem[Triplett(2010)]{triplett2010keyupdate851}
+Joshua Triplett.
+\newblock Lockless hash table lookups while performing key update on hash table
+  element.
+\newblock U.S. Patent No. 7,668,851, 2010.
+\newblock URL \url{https://patents.google.com/patent/US7668851B2/en}.
+\newblock Application Ser. No. 11/564,568, filed 2006-11-29 (priority
+  2006-11-29); granted 2010-02-23; sole inventor Joshua Triplett; assignee
+  International Business Machines Corp.
 
 \end{thebibliography}
