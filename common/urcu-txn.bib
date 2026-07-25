@@ -1629,8 +1629,13 @@
   pages        = {22:1--22:34}
 }
 
-% verify-before-cite (P2 SCOPE): venue is a Lisp \& Functional Programming
-% paper; the forwarding-pointer read barrier is the load-bearing reference.
+% Metadata VERIFIED 2026-07-24 against dblp and the ACM DL record: Conference
+% Record of the 1984 ACM Symposium on LISP and Functional Programming, Austin
+% TX, August 1984, pp. 256--262, doi 10.1145/800055.802042. The
+% forwarding-pointer read barrier is the load-bearing reference: a header word
+% in every object naming itself or its relocated copy, followed
+% UNCONDITIONALLY rather than tested. Cited in P1 sec:varproxy as the real,
+% shipped instance of the object-header design that sec:whyweakening declines.
 @inproceedings{brooks1984forwarding,
   author       = {Rodney A. Brooks},
   title        = {Trading Data Space for Reduced Time and Code Space in

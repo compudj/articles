@@ -1946,10 +1946,21 @@ way, by making a move safe.
 
 \paragraph{Referenced versus embedded.} A slot here points at a proxy. A proxy
 could instead be embedded in the target object, so the slot points at the object
-as usual and the object's header says whether an indirection is in flight ---
-which is what an object-header scheme does, and it is the design
-\cref{sec:whyweakening} rejects: it reintroduces per-element state, which is the
-cost this facility exists to avoid.
+as usual and the object's header says whether an indirection is in flight. That
+is not a hypothetical design. It is the forwarding pointer of
+\citet{brooks1984forwarding}: a word in every object's header naming either the
+object itself or its relocated copy, which a reader follows
+\emph{unconditionally} rather than testing --- and it shipped that way in
+Shenandoah's concurrent compacting collector for OpenJDK
+\citep{flood2016shenandoah}.
+
+The trade is the one \cref{sec:whyweakening} declines: a header word on every
+object for as long as it lives, and an indirection on the read path whether or
+not any mutation is in flight. That is a good trade in a collector, where any
+object may have to become relocatable at any moment and the barrier must
+therefore be unconditional anyway. A \pseudotxn needs the indirection only while
+a commit is in flight on a particular slot, which is why it puts the indirection
+in the slot instead of the object and takes it away at settle.
 
 \subsection{Settle}
 \label{sec:varsettle}

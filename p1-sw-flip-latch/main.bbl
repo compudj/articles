@@ -1,4 +1,4 @@
-\begin{thebibliography}{40}
+\begin{thebibliography}{42}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -49,6 +49,13 @@ Christian Brauner.
   \code{\_\_ns\_tree\_adjoined\_rcu()} in \code{kernel/nstree.c}, which takes
   one adjacency hop.
 
+\bibitem[Brooks(1984)]{brooks1984forwarding}
+Rodney~A. Brooks.
+\newblock Trading data space for reduced time and code space in real-time
+  garbage collection on stock hardware.
+\newblock In \emph{Proc.\ ACM Symposium on LISP and Functional Programming
+  (LFP)}, pages 256--262, 1984.
+
 \bibitem[Desnoyers et~al.(2012)Desnoyers, McKenney, Stern, Dagenais, and
   Walpole]{desnoyers2012urcu}
 Mathieu Desnoyers, Paul~E. McKenney, Alan~S. Stern, Michel~R. Dagenais, and
@@ -80,6 +87,16 @@ Steven~D. Feldman, Pierre LaBorde, and Damian Dechev.
   (4):\penalty0 572--596, 2015.
 \newblock \doi{10.1007/s10766-014-0308-7}.
 \newblock URL \url{https://doi.org/10.1007/s10766-014-0308-7}.
+
+\bibitem[Flood et~al.(2016)Flood, Kennke, Dinn, Haley, and
+  Westrelin]{flood2016shenandoah}
+Christine~H. Flood, Roman Kennke, Andrew Dinn, Andrew Haley, and Roland
+  Westrelin.
+\newblock Shenandoah: An open-source concurrent compacting garbage collector
+  for {OpenJDK}.
+\newblock In \emph{Proc.\ 13th International Conference on Principles and
+  Practices of Programming on the Java Platform (PPPJ)}, pages 13:1--13:9,
+  2016.
 
 \bibitem[Fraser(2004)]{fraser2004lockfreedom}
 Keir Fraser.
