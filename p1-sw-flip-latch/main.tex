@@ -2065,13 +2065,24 @@ architecture-dependent: an instruction set with richer logical immediates prices
 differently.
 
 Both of those concern the \emph{test}. Recovering the proxy is a separate
-operation, and there the asymmetry does not soften: a low tag is a small
-constant, so clearing it folds into the addressing-mode displacement of the load
-that follows and costs no instruction of its own, where a high tag never folds
-and needs one instruction ahead of that load even as a single bit. This one falls
-on the taken path, which \cref{sec:costcomparison} counts as bounded rather than
-steady state --- and the facility does not collect it in any case, since it
-clears the tag with a mask rather than subtracting it.
+operation, and there the asymmetry does not soften. This facility recovers it by
+\emph{subtracting} the tag rather than masking it off, which is exact because the
+two ends of the encoding meet: a value is untagged only once the test above has
+proven every tag bit set in it, and a proxy's own address has every tag bit
+clear, so the tag is precisely the difference. With a compile-time-constant tag
+the subtraction then folds into the addressing-mode displacement of the load that
+follows, and the head of the resolve's dependency chain issues straight off the
+raw tagged value --- where a mask cannot fold, and sits as an ALU operation
+between the slot's load and the first load that depends on it.
+
+The subtraction is the better instruction even where it does not fold, because it
+leaves the proxy at a constant offset from the value the reader loaded, which
+address generation can follow and a mask's bitwise rewrite does not. A high tag
+gets none of this: too large for a displacement, it needs an instruction of its
+own ahead of that load even as a single bit. All of which lands on the taken
+path, and \cref{sec:costcomparison} counts that path as bounded rather than
+steady state --- so this decides nothing on its own. It is offered because the
+same reasoning that puts the tag in the low bits pays a second time there.
 
 C++ standardization has come down on the same side. The pointer-tagging proposal
 noted in \cref{sec:alignment} exposes the low bits only, deriving how many are
@@ -2761,7 +2772,7 @@ evaluation, follow in their own papers.
 The facility described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in commit
-\code{6139087ea2c5a340cf32c730aa6814add7ba134f} (2026-07-22), on branch
+\code{b3e23f9f558ce895aebe300ddb33aee9281137dc} (2026-07-25), on branch
 \code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
