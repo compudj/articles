@@ -1673,7 +1673,7 @@ only after a grace period.
 % writers, and ONE writer. There is deliberately NO writer-scaling panel -- the
 % facility is single-writer by contract (sec:exclusion), so N writers would
 % serialise on a mutex and measure the mutex, not the flip-latch. Concurrent
-% writers are the MW engine's story and the evaluation paper's.
+% writers are the multi-writer facility's story and the evaluation paper's.
 %
 % Restricting to the reader axis is what admits the cross-scheme comparison in
 % tab:readclass: on this axis the comparison is sound in the direction that
@@ -1811,7 +1811,7 @@ and readers running concurrently:
 % Anchored, for the same reason as tab:readcost above.
 \par\medskip\noindent\begin{minipage}{\linewidth}
 \captionof{table}{Single-writer update throughput with concurrent readers,
-millions of operations per second, each engine under an uncontended writer
+millions of operations per second, each side under an uncontended writer
 mutex. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
 flavor, so the ratio isolates the \pseudotxn layer.}
 \label{tab:writecost}
@@ -1875,7 +1875,7 @@ synchronous reclaim shim and free in place.
 There is no writer-scaling panel. The facility is single-writer by contract
 (\cref{sec:exclusion}), so running $N$ writers against it would serialize them
 on a lock and measure that lock. Concurrent writers are a real question and this
-is not the design that answers them; they belong to the multi-writer engine and
+is not the design that answers them; they belong to the multi-writer facility and
 to the evaluation paper. The reader axis is where a read-mostly facility earns
 or loses its keep, and it is the axis measured here.
 
