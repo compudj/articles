@@ -2566,15 +2566,46 @@ the readers traverse --- and footprint is a read-side cost, paid in cache rather
 than in instructions. A \pseudotxn adds no per-element state at all, so in the
 steady state both the structure a reader traverses and the path it takes through
 it are byte-for-byte what they would be with no facility present.
+And the cost is \emph{density} rather than size: what matters is how much of
+each cache line the reader fetches is data it actually reads. Existence's own
+structure makes the point, because the effect can be measured on one algorithm
+by moving its fields. Its reference layout places the per-element header at
+offset 16, which pushes the element's key out to offset 128 --- a second cache
+line --- so a traversal touches two lines per element. Reordering so that the
+link pointers, the key and the existence word share the first line, at
+\emph{identical} size and semantics, is worth a factor of 1.9 to 2.2 in read
+throughput. Segregating the state the reader never touches --- only the tagged
+word is read during traversal; the group linkage, the reclamation head, the
+callbacks and the writer's lock are not --- takes the element from 136 bytes to
+32 and gains a factor of 2.1 to 2.5 over the reference layout.
+
+That progression is why \cref{tab:readclass} reports existence at 1.14--1.21
+rather than the 2.4--2.9 its reference layout yields: the larger number
+measures a struct layout, not the design. What survives the tuning is the part
+that cannot be tuned away --- one word per element, which is 8 bytes, which is
+what takes a 24-byte element to 32 and puts fewer of them in each line. A
+\pseudotxn has no such word to place well or badly.
+
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% This is where the rcu_head layout experiment belongs -- it isolates
-% exactly this effect (segregated vs inline: roughly 2x read throughput at
-% 1000 nodes) under our own control. It is not the same field, so present it
-% as evidence for the MECHANISM (per-element growth costs read throughput),
-% not as a measurement of existence or RLU. Overclaiming it as a direct
-% measurement of either would be the same error as the RLU read-path claim
-% we already had to retract. Cross-reference the evaluation paper.
+% The paragraph above REPLACES the older plan to cite the rcu_head
+% segregated-vs-inline experiment (~2x at 1000 nodes) as a proxy for this
+% effect. We no longer need a proxy: scripts/run_existence_layout.sh measures
+% the SAME algorithm under three per-element layouts, so the spread is layout
+% and nothing else (scripts/existence_layout.csv, engine b3e23f9f):
+%
+%   Mvisits/s, mean of 2      1 rdr        32       192
+%   perfbook  136 B, 3 lines    326    10 311    50 205
+%   packed    136 B, 1 line     623    20 023   108 942
+%   split      32 B, 1 line     692    22 230   123 077
+%   txn_sw_list 24 B            778    25 025   145 772
+%
+% The old caution still applies in spirit and must not be dropped: present
+% this as evidence for the MECHANISM. It IS now a direct measurement of
+% existence -- but of OUR builds of it, so the honest framing is what the
+% concept costs when implemented well, which is why tab:readclass uses the
+% split arm and says so in its caption. Do NOT quote the perfbook column as
+% "existence's read cost".
 % -----------------------------------------------------------------------
 
 \paragraph{A pseudo-transaction charges the reader no memory.} The facility adds
