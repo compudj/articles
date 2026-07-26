@@ -930,7 +930,7 @@ bought. A reader who needs a snapshot cannot take this facility and economize --
 they need a different facility.
 
 What can be said across that boundary is what the stronger guarantee costs the
-\emph{reader}, and \cref{tab:readclass} says it: 27--50\% against RLU, and
+\emph{reader}, and \cref{fig:readclass} says it: 27--50\% against RLU, and
 14--21\% against existence, whose per-element guarantee is likewise stronger
 than ours. Those figures are sound in the only direction that matters here,
 because they run in our favor and against the grain of the trade --- the other
@@ -949,7 +949,7 @@ interchangeable; they are not (\cref{sec:relrcu}).
 % must say so.
 %
 % REVISED 2026-07-26, and the distinction is the point: crossing is sound on
-% the READER AXIS and only there. tab:readclass reports what the stronger
+% the READER AXIS and only there. fig:readclass reports what the stronger
 % guarantee costs the reader, and those numbers run AGAINST the grain of the
 % trade -- the other schemes charge readers more and deliver more -- so they
 % cannot flatter us by construction. Ranking WRITE throughput across the same
@@ -1676,7 +1676,7 @@ only after a grace period.
 % writers are the multi-writer facility's story and the evaluation paper's.
 %
 % Restricting to the reader axis is what admits the cross-scheme comparison in
-% tab:readclass: on this axis the comparison is sound in the direction that
+% fig:readclass: on this axis the comparison is sound in the direction that
 % matters (they charge readers MORE and deliver MORE), and the MV-RLU figure is
 % nearly independent of its clock variant, since a reader reads the clock once
 % per section and mvrlu_deref only compares against that cached value.
@@ -1725,33 +1725,50 @@ forward twice, matching it exactly, and the ratio is then the resolve alone.
 Against the schemes that \emph{do} offer a coherent backward walk it walks
 forward and backward, which is the operation they share.
 
-\paragraph{Reads pay nothing for the \pseudotxn layer.} \Cref{tab:readcost}
+\paragraph{Reads pay nothing for the \pseudotxn layer.} \Cref{fig:readcost}
 gives the read ceiling with no writer running, in millions of node visits per
 second, both engines walking forward twice.
 
-% NOT a float, deliberately. As a [tb] table this was placed at the top of the
-% page the section starts on -- above the section heading, reading as a table
-% belonging to sec:reclaim -- and \FloatBarrier did not hold it there. It is
-% small, and it belongs beside the sentence that introduces it, so it is
-% anchored. \captionof (caption, via subcaption) numbers it as a table.
+% NOT a float, deliberately. As a [tb] float this was placed at the top of the
+% page the section starts on -- above the section heading, reading as belonging
+% to sec:reclaim -- and \FloatBarrier did not hold it there. It is small, and it
+% belongs beside the sentence that introduces it, so it is anchored.
+% \captionof (caption, via subcaption) numbers it as a figure.
+% Linear on both axes, deliberately: the claim is that the two curves coincide,
+% and a log y would compress exactly the region where a gap would show.
 \par\medskip\noindent\begin{minipage}{\linewidth}
-\captionof{table}{Read ceiling, no writer running: millions of node visits per
-second, \emph{both engines walking forward twice}. The two elements are
-byte-identical --- 24 bytes, two pointers and an \code{int} --- so there is no
-footprint difference and no access-pattern difference between the rows, and the
-ratio is the resolve alone.}
-\label{tab:readcost}
 \centering
-\begin{tabular}{@{}lrrrrr@{}}
-\toprule
-Readers & 1 & 8 & 32 & 96 & 192 \\
-\midrule
-\code{txn\_sw\_list} & 778 & 6\,250 & 24\,991 & 71\,774 & 146\,191 \\
-\code{rculist}       & 761 & 6\,131 & 24\,518 & 71\,369 & 142\,367 \\
-\midrule
-Ratio                & 1.022 & 1.019 & 1.019 & 1.006 & 1.027 \\
-\bottomrule
-\end{tabular}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\linewidth, height=5.2cm,
+  xlabel={Readers}, ylabel={Millions of node visits/s},
+  xmin=0, xmax=196, ymin=0, ymax=160000,
+  scaled y ticks={base 10:-3}, ytick scale label code/.code={},
+  yticklabel={\pgfmathprintnumber{\tick}\,k},
+  xtick={0,32,64,96,128,160,192},
+  legend pos=north west, legend cell align=left,
+  legend style={draw=none, fill=none, font=\footnotesize},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  grid=major, grid style={gray!20},
+  axis lines=left,
+]
+\addplot[mark=*, mark size=1.5pt, thick, color=blue!65!black]
+  table[x=readers, y=txn, col sep=comma] {data/fig-readcost.csv};
+\addlegendentry{\code{txn\_sw\_list}}
+\addplot[mark=square, mark size=1.5pt, thick, color=black!55, dashed]
+  table[x=readers, y=rcu, col sep=comma] {data/fig-readcost.csv};
+\addlegendentry{\code{rculist}}
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Read ceiling, no writer running, \emph{both engines walking
+forward twice}. The two elements are byte-identical --- 24 bytes, two pointers
+and an \code{int} --- so there is no footprint difference and no access-pattern
+difference between the curves, and what separates them is the resolve alone.
+They coincide: the widest ratio over the sweep is 1.027 and the narrowest 1.006,
+against a run-to-run drift of about 0.8\%. Both axes are linear, so the absence
+of a gap is the result rather than an artifact of compression.}
+\label{fig:readcost}
 \end{minipage}\par\medskip
 
 The two are indistinguishable: every ratio lies within 3\% of unity, and
@@ -1760,7 +1777,7 @@ linearly across the 192 cores --- the transacted list gains a factor of 188 from
 one reader to 192, or 97.8\% of ideal, and \code{rculist} gains 187, or 97.4\%.
 
 That the two agree is the point, and the construction is what makes it a fair
-statement. The rows are not merely close; they are running the same traversal
+statement. The curves are not merely close; they are running the same traversal
 over elements of the same size. \Cref{tab:comparison}'s zero in the loads column
 predicts exactly this: the marker rides in the word the reader had to load
 anyway, so the only residue is a predicted branch. We do not claim the small
@@ -1769,7 +1786,7 @@ real advantage would need a mechanism we cannot name, and the margin wanders
 without pattern. The claim is parity.
 
 \paragraph{What the stronger guarantees cost the reader.}
-\Cref{tab:readclass} places the same traversal against the schemes that also
+\Cref{fig:readclass} places the same traversal against the schemes that also
 deliver a coherent bidirectional walk. All of them give readers strictly more
 than this facility does --- a coherent snapshot, or per-element existence, where
 a \pseudotxn gives only monotone resolution (\cref{prop:monotone}) --- so the
@@ -1777,25 +1794,46 @@ gaps are what that extra guarantee costs on the read side, which is the
 comparison \cref{sec:whyweakening} promises and never quantifies.
 
 \par\medskip\noindent\begin{minipage}{\linewidth}
-\captionof{table}{Read ceiling, no writer, all engines walking forward then
-backward: millions of node visits per second, and the ratio to the transacted
-list. Existence is measured in its best per-element layout, carrying only its
-tagged word (a 32-byte element) with the writer-only state segregated; charging
-it for the reference implementation's 136-byte element would measure a struct
-layout rather than the design. MV-RLU runs its global-clock configuration, which
-needs no calibrated per-machine constant.}
-\label{tab:readclass}
 \centering
-\begin{tabular}{@{}lrrrr@{}}
-\toprule
-Readers & 1 & 32 & 192 & Ratio \\
-\midrule
-\code{txn\_sw\_list}    & 788 & 25\,339 & 148\,190 & 1.00 \\
-Existence               & 691 & 22\,215 & 123\,035 & 1.14--1.21 \\
-RLU                     & 622 & 19\,943 &  99\,017 & 1.27--1.50 \\
-MV-RLU                  & 293 &  9\,165 &  46\,699 & 2.69--3.23 \\
-\bottomrule
-\end{tabular}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\linewidth, height=5.6cm,
+  xlabel={Readers}, ylabel={Millions of node visits/s},
+  xmin=0, xmax=196, ymin=0, ymax=162000,
+  scaled y ticks={base 10:-3}, ytick scale label code/.code={},
+  yticklabel={\pgfmathprintnumber{\tick}\,k},
+  xtick={0,32,64,96,128,160,192},
+  legend pos=north west, legend cell align=left,
+  legend style={draw=none, fill=none, font=\footnotesize},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  grid=major, grid style={gray!20},
+  axis lines=left,
+]
+\addplot[mark=*, mark size=1.5pt, thick, color=blue!65!black]
+  table[x=readers, y=txn, col sep=comma] {data/fig-readclass.csv};
+\addlegendentry{\code{txn\_sw\_list}}
+\addplot[mark=triangle, mark size=2pt, thick, color=teal!70!black]
+  table[x=readers, y=existence, col sep=comma] {data/fig-readclass.csv};
+\addlegendentry{Existence}
+\addplot[mark=square, mark size=1.5pt, thick, color=orange!80!black]
+  table[x=readers, y=rlu, col sep=comma] {data/fig-readclass.csv};
+\addlegendentry{RLU}
+\addplot[mark=diamond, mark size=2pt, thick, color=purple!70!black]
+  table[x=readers, y=mvrlu, col sep=comma] {data/fig-readclass.csv};
+\addlegendentry{MV-RLU}
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Read ceiling, no writer, all four walking forward then
+backward --- the operation they share. Every curve is linear in the reader
+count, so the separations are per-dereference constants rather than scaling
+collapses: at 192 readers the transacted list leads existence by 1.20, RLU by
+1.50 and MV-RLU by 3.17. Existence is measured in its best per-element layout,
+carrying only its tagged word (a 32-byte element) with the writer-only state
+segregated; charging it for the reference implementation's 136-byte element
+would measure a struct layout rather than the design. MV-RLU runs its
+global-clock configuration, which needs no calibrated per-machine constant.}
+\label{fig:readclass}
 \end{minipage}\par\medskip
 
 Existence is the closest, and the residue is precisely what
@@ -1808,24 +1846,38 @@ a larger number would be --- it says the \pseudotxn wins because it attaches
 \paragraph{The writer pays about twice.} On the same list, with a single writer
 and readers running concurrently:
 
-% Anchored, for the same reason as tab:readcost above.
+% Anchored, for the same reason as fig:readcost above.
 \par\medskip\noindent\begin{minipage}{\linewidth}
-\captionof{table}{Single-writer update throughput with concurrent readers,
-millions of operations per second, each side under an uncontended writer
-mutex. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
-flavor, so the ratio isolates the \pseudotxn layer.}
-\label{tab:writecost}
 \centering
-\begin{tabular}{@{}lrrrrr@{}}
-\toprule
-Readers & 1 & 8 & 32 & 96 & 191 \\
-\midrule
-\code{rculist}       & 14.25 & 4.02 & 3.93 & 3.21 & 2.92 \\
-\code{txn\_sw\_list} &  7.12 & 3.05 & 2.71 & 1.71 & 1.27 \\
-\midrule
-Ratio                & 2.00 & 1.31 & 1.45 & 1.88 & 2.30 \\
-\bottomrule
-\end{tabular}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\linewidth, height=5.2cm,
+  xlabel={Readers}, ylabel={Millions of updates/s},
+  xmin=0, xmax=196, ymin=0, ymax=15.6,
+  xtick={0,32,64,96,128,160,192},
+  legend pos=north east, legend cell align=left,
+  legend style={draw=none, fill=none, font=\footnotesize},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  grid=major, grid style={gray!20},
+  axis lines=left,
+]
+\addplot[mark=square, mark size=1.5pt, thick, color=black!55, dashed]
+  table[x=readers, y=rcu, col sep=comma] {data/fig-writecost.csv};
+\addlegendentry{\code{rculist}}
+\addplot[mark=*, mark size=1.5pt, thick, color=blue!65!black]
+  table[x=readers, y=txn, col sep=comma] {data/fig-writecost.csv};
+\addlegendentry{\code{txn\_sw\_list}}
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{One writer, with concurrent readers: update throughput, each
+side under an uncontended writer mutex. Both reclaim through \code{call\_rcu()}
+and neither changes \rcu flavor, so the separation isolates the \pseudotxn
+layer. Note the collapse between one reader and eight, which both sides suffer
+and the cheaper writer suffers more --- plain \rcu falls from 14.25 to 4.02
+while the transacted writer falls only from 7.12 to 3.05, which is why the
+ratio is 2.00 at one reader, 1.31 at eight, and 2.30 by 191.}
+\label{fig:writecost}
 \end{minipage}\par\medskip
 
 The tax is about twice, and it is not a constant: it falls to 1.31 at eight
@@ -1879,11 +1931,11 @@ is not the design that answers them; they belong to the multi-writer facility an
 to the evaluation paper. The reader axis is where a read-mostly facility earns
 or loses its keep, and it is the axis measured here.
 
-The cross-scheme figures in \cref{tab:readclass} are read-side only, and are not
+The cross-scheme figures in \cref{fig:readclass} are read-side only, and are not
 a throughput evaluation of RLU, MV-RLU or existence. Their write sides differ in
 ways this workload does not isolate --- MV-RLU reclaims through a single
 background thread, existence and this facility defer a group object per update
---- and the guarantees differ, so a write-side ranking across these rows would
+--- and the guarantees differ, so a write-side ranking across these curves would
 compare quantities that are not commensurable. What the reader axis supports is
 the narrow claim made above: what the stronger reader guarantee costs the
 reader.
@@ -1896,7 +1948,7 @@ That is not a finding about locks --- least of all a flattering one, since a
 reader-preferring lock is exactly the variant a read-only workload suits. It is
 what happens when a 10\,000-node traversal amortizes one acquisition to nothing,
 and it is why the read-side comparison in
-\cref{tab:readcost} is against \code{rculist} alone. Separating those costs needs
+\cref{fig:readcost} is against \code{rculist} alone. Separating those costs needs
 a cache-resident list or a concurrent writer, and belongs to the evaluation
 paper along with everything else this section declines to claim.
 
@@ -2635,7 +2687,7 @@ word is read during traversal; the group linkage, the reclamation head, the
 callbacks and the writer's lock are not --- takes the element from 136 bytes to
 32 and gains a factor of 2.1 to 2.5 over the reference layout.
 
-That progression is why \cref{tab:readclass} reports existence at 1.14--1.21
+That progression is why \cref{fig:readclass} reports existence at 1.14--1.21
 rather than the 2.4--2.9 its reference layout yields: the larger number
 measures a struct layout, not the design. What survives the tuning is the part
 that cannot be tuned away --- one word per element, which is 8 bytes, which is
@@ -2659,7 +2711,7 @@ what takes a 24-byte element to 32 and puts fewer of them in each line. A
 % The old caution still applies in spirit and must not be dropped: present
 % this as evidence for the MECHANISM. It IS now a direct measurement of
 % existence -- but of OUR builds of it, so the honest framing is what the
-% concept costs when implemented well, which is why tab:readclass uses the
+% concept costs when implemented well, which is why fig:readclass uses the
 % split arm and says so in its caption. Do NOT quote the perfbook column as
 % "existence's read cost".
 % -----------------------------------------------------------------------
@@ -2740,7 +2792,7 @@ clock. \textbf{MV-RLU} \citep{kim2019mvrlu} adds multi-versioning to relieve
 RLU's synchronous writeback. Both provide a \emph{coherent snapshot} --- which
 is strictly stronger than \cref{prop:monotone}, and must be said plainly: a
 comparison of \emph{write} throughput between this facility and RLU would cross
-guarantee classes and mean little. What \cref{tab:readclass} does compare is the
+guarantee classes and mean little. What \cref{fig:readclass} does compare is the
 read side, where the crossing is informative precisely because it runs against
 us: RLU charges the reader more and delivers more, and the gap is the price of
 the snapshot. Against existence structures the classes are nearer still and the
