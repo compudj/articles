@@ -2394,7 +2394,14 @@ branches, statically hinted in their respective sources, and each costs a
 branch-predictor entry. The first column is the unconditional cost, and is where
 the designs differ permanently: existence and RLU attach state to every element
 for as long as the structure lives, whereas a \pseudotxn attaches nothing and
-confines its state to the mutation. MV-RLU is the one entry whose counts are not
+confines its state to the mutation. The existence row names what the mechanism
+\emph{requires}, which is the one word the reader tests; a reader who consults
+the reference implementation will find considerably more embedded beside it ---
+group linkage, a reclamation head, callbacks and the writer's lock, 112 bytes in
+all, of which only the 8-byte word is ever read on the traversal path. That
+surplus is an implementation choice rather than a property of the design, and
+it is separable: \cref{sec:costwalk} measures what separating it is worth.
+MV-RLU is the one entry whose counts are not
 constants: its dereference reads the object header unconditionally --- it has no
 counterpart to RLU's pure-reader bypass --- and then may walk a version chain
 whose length the reader does not control, so its figures are floors rather than
@@ -2421,6 +2428,26 @@ typical cases.}
 % in the group. Note also: existence uses pointer tagging in bit 0 of eh_egi
 % ("Dmitry Vjukov's pointer-tagging trick", per its own comment). Say so.
 % Tagging is not our invention and claiming it would be trivially refuted.
+%
+% STRUCT SIZE, verified with pahole 2026-07-26, because the "eh_egi field"
+% cell understates what the reference implementation actually embeds:
+%   struct existence_head = 112 bytes, 2 cachelines, 1 four-byte hole
+%     eh_egi   0   8   <- the ONLY field on the read path
+%     eh_list  8  16   group linkage, live only while a flip assembles
+%     eh_add/eh_remove/eh_free 24 24   compile-time constants for an embedder
+%     eh_gone 48   4   + 4-byte hole
+%     eh_lock 56  40   spinlock_t, and perfbook/api.h:188 typedefs that to
+%                      pthread_mutex_t -- so 40 bytes, straddling the 64-byte
+%                      boundary. NOT our inflation; check api.h before doubting.
+%     eh_rh   96  16   reclamation
+% Embedded in a list element that also carries two pointers and a key, the
+% reference layout puts the key at offset 128 -- cacheline 2 -- so a traversal
+% touches TWO lines per element. That is worth ~2x (scripts/existence_layout.csv
+% in the benchmark tree). The caption now says the surplus is separable and
+% points at sec:costwalk; do NOT "correct" the first column to 112 bytes, which
+% would charge the DESIGN for an implementation choice, and do not drop the
+% clause either, which would leave a reader who greps existence.h thinking the
+% row is wrong.
 %
 % RLU_DEREF_INTERNAL  --  third_party/rlu/rlu.h:221
 %     if (rlu_likely(self->is_check_locks == 0)) { p_cur_obj = p_obj; }
