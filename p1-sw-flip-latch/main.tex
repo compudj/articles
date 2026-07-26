@@ -133,12 +133,16 @@ Specifically:
       slots, through a read-your-own-writes discipline (\cref{sec:swcomposition});
       we give the two obligations that remain.
 
-\item \textbf{Two measurements} (\cref{sec:measured}), bounded deliberately to
-      the same guarantee class: readers of the transacted list stay within 1.4\%
-      of plain \rcu{} from one reader to 192, while delivering the reverse walk
-      plain \rcu cannot; a single writer pays 2.84 times, and a profile says
-      where that goes --- 3.4\% of cycles in the commit, the rest in allocation
-      and grace-period reclaim.
+\item \textbf{Measurements on the reader axis} (\cref{sec:measured}), scaling to
+      192 cores: on the same traversal and a byte-identical element, readers of
+      the transacted list are indistinguishable from plain \rcu{} --- within 3\%
+      throughout, against a machine drift of 0.8\% --- while the facility also
+      delivers the reverse walk plain \rcu cannot offer under mutation at all.
+      Against the schemes that \emph{do} offer it, and which give readers
+      strictly more, the reader pays 14--21\% for existence and 27--50\% for
+      RLU. A single writer with readers running pays about twice, and a profile
+      says where that goes --- 3.4\% of cycles in the commit, the rest in
+      allocation and grace-period reclaim.
 
 \item \textbf{The design space we did not explore} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
@@ -923,9 +927,17 @@ more than what we provide: a coherent snapshot, where we give only monotone
 resolution (\cref{prop:monotone}). "We declined to charge for it" is therefore
 an honest description of the trade only if it travels with what the charge
 bought. A reader who needs a snapshot cannot take this facility and economize ---
-they need a different facility. The comparison holds where the guarantee classes
-match, as they do against existence structures (\cref{sec:costcomparison}); a
-comparison against RLU crosses them (\cref{sec:relrcu}).
+they need a different facility.
+
+What can be said across that boundary is what the stronger guarantee costs the
+\emph{reader}, and \cref{tab:readclass} says it: 27--50\% against RLU, and
+14--21\% against existence, whose per-element guarantee is likewise stronger
+than ours. Those figures are sound in the only direction that matters here,
+because they run in our favor and against the grain of the trade --- the other
+schemes charge the reader more \emph{and} deliver more, so the gap is a price,
+not a defect. What would not be sound is ranking write throughput across the
+same boundary, or reading these numbers as a claim that the facilities are
+interchangeable; they are not (\cref{sec:relrcu}).
 
 % ---------------------------------------------------------------------------
 % GUARDRAIL (do not delete in an editing pass).
@@ -934,10 +946,20 @@ comparison against RLU crosses them (\cref{sec:relrcu}).
 % it must stay IN THE TEXT rather than become a footnote. RLU's tax buys
 % strictly MORE than ours does -- a coherent snapshot, where we give "never
 % new-then-old" -- so a comparison against RLU crosses guarantee classes and
-% must say so. The comparison against existence structures is class-matched and
-% needs no such qualification. Sec. 9 states the same asterisk for the
-% throughput comparison specifically; both are needed, because Sec. 3.7 is
-% where a reader forms the impression that the trade was free.
+% must say so.
+%
+% REVISED 2026-07-26, and the distinction is the point: crossing is sound on
+% the READER AXIS and only there. tab:readclass reports what the stronger
+% guarantee costs the reader, and those numbers run AGAINST the grain of the
+% trade -- the other schemes charge readers more and deliver more -- so they
+% cannot flatter us by construction. Ranking WRITE throughput across the same
+% boundary would not be sound, and neither would any reading that treats the
+% facilities as interchangeable; both are ruled out in the text above.
+% Do NOT let an editing pass restore a blanket "no comparison against RLU":
+% that was the earlier scope, and it left Sec. 3.7's central trade unquantified.
+% Sec. 9 states the same asterisk for the measurement specifically; both are
+% needed, because Sec. 3.7 is where a reader forms the impression that the
+% trade was free.
 % ---------------------------------------------------------------------------
 
 % ===========================================================================
@@ -1647,21 +1669,36 @@ only after a grace period.
 
 % ---------------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% This section is an EXISTENCE RESULT and must stay one. Scope decided
-% 2026-07-23 after McKenney asked for numbers: two measurements, same
-% guarantee class only. Do NOT let an editing pass grow it into an evaluation
-% -- no RLU/MV-RLU throughput (crosses guarantee classes, sec:relrcu says so),
-% no writer scaling, no other structures. Those are the evaluation paper's.
-% Every figure here is the mean of two 3s runs from scripts/p1_sw_list.csv in
-% the benchmark tree; the profile figures are from a cycle profile of the
-% single-writer panel. Cite no percentage that is not in one of those two.
+% SCOPE, revised 2026-07-26. This section measures the READER AXIS only: zero
+% writers, and ONE writer. There is deliberately NO writer-scaling panel -- the
+% facility is single-writer by contract (sec:exclusion), so N writers would
+% serialise on a mutex and measure the mutex, not the flip-latch. Concurrent
+% writers are the MW engine's story and the evaluation paper's.
+%
+% Restricting to the reader axis is what admits the cross-scheme comparison in
+% tab:readclass: on this axis the comparison is sound in the direction that
+% matters (they charge readers MORE and deliver MORE), and the MV-RLU figure is
+% nearly independent of its clock variant, since a reader reads the clock once
+% per section and mvrlu_deref only compares against that cached value.
+%
+% TRAVERSAL ORDER IS LOAD-BEARING, do not "simplify" the two txn arms into one.
+% Order is worth ~15% here, an order of magnitude more than the per-dereference
+% cost being measured. An earlier version of this table compared the transacted
+% list's forward+backward walk against rculist's forward+forward and showed the
+% facility ~8% AHEAD of plain RCU, which was an artifact of the access pattern.
+%
+% Every figure is the mean of two 3 s runs from scripts/p1_readers.csv in the
+% benchmark tree, generated by scripts/run_p1_readers.sh, engine b3e23f9f. The
+% superseded scripts/p1_sw_list.csv was taken on engine 5fc3cadf with the
+% mismatched traversal and must not be cited. Profile figures are from a cycle
+% profile of a single-writer, no-reader run. Cite no percentage not in those.
 % ---------------------------------------------------------------------------
 
 \Cref{sec:costcomparison} argues on mechanism that this facility charges the
 reader less than the alternatives, and \cref{sec:whyweakening} argues that the
 charge it does levy falls on the writer. This section measures both claims on the
-bidirectional list of \cref{sec:swlist}. It is an existence result and not an
-evaluation: two numbers, one per side, against plain \rcu only.
+bidirectional list of \cref{sec:swlist}, along the axis the facility is built
+for: readers scaling to 192 cores, against zero writers and against one.
 
 \paragraph{Setup.} Two AMD EPYC 9654 processors, 96 cores per socket, 24 NUMA
 nodes. The harness pins worker $i$ to physical core $i$ and every sweep stops at
@@ -1669,15 +1706,28 @@ nodes. The harness pins worker $i$ to physical core $i$ and every sweep stops at
 QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
 per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
 figure is the mean of two three-second runs of the \code{bench\_list\_scale}
-harness, under its \code{txn\_sw\_list} and \code{rculist} selectors, which name
-the transacted list of \cref{sec:swlist} and Userspace \rcu's own
-\code{cds\_list} respectively. The harness checks reader-visible coherence
-on every traversal it performs; it reported no violation in any run reported
-here.
+harness. The harness checks reader-visible coherence on every traversal it
+performs, in both directions; it reported no violation in any run reported here.
+
+\paragraph{Traversal order, and why two transacted arms.} The transacted list
+walks forward and then \emph{backward} --- the traversal \cref{sec:onestore}
+showed \code{rculist} cannot offer under mutation at all --- while
+\code{rculist} can only walk forward twice. Both visit the same number of nodes,
+but not in the same order, and order is not free: a backward second pass
+re-touches the tail first, the hottest lines it just loaded, while a second
+forward pass restarts at the head, the coldest. On this machine that difference
+is worth about 15\%, which is an order of magnitude more than the
+per-dereference cost this section exists to measure. Comparing across it would
+measure the access pattern.
+
+So the transacted list is measured twice. Against \code{rculist} it walks
+forward twice, matching it exactly, and the ratio is then the resolve alone.
+Against the schemes that \emph{do} offer a coherent backward walk it walks
+forward and backward, which is the operation they share.
 
 \paragraph{Reads pay nothing for the \pseudotxn layer.} \Cref{tab:readcost}
 gives the read ceiling with no writer running, in millions of node visits per
-second, for the transacted list and for \code{rculist}.
+second, both engines walking forward twice.
 
 % NOT a float, deliberately. As a [tb] table this was placed at the top of the
 % page the section starts on -- above the section heading, reading as a table
@@ -1686,71 +1736,114 @@ second, for the transacted list and for \code{rculist}.
 % anchored. \captionof (caption, via subcaption) numbers it as a table.
 \par\medskip\noindent\begin{minipage}{\linewidth}
 \captionof{table}{Read ceiling, no writer running: millions of node visits per
-second. The transacted list walks forward and then \emph{backward} --- the
-operation \code{rculist} does not offer --- while \code{rculist} walks forward
-twice, so both visit the same number of nodes and the comparison is per visit.}
+second, \emph{both engines walking forward twice}. The two elements are
+byte-identical --- 24 bytes, two pointers and an \code{int} --- so there is no
+footprint difference and no access-pattern difference between the rows, and the
+ratio is the resolve alone.}
 \label{tab:readcost}
 \centering
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
 Readers & 1 & 8 & 32 & 96 & 192 \\
 \midrule
-\code{txn\_sw\_list} & 724 & 5\,824 & 23\,285 & 68\,141 & 136\,209 \\
-\code{rculist}            & 732 & 5\,897 & 23\,576 & 68\,953 & 137\,466 \\
+\code{txn\_sw\_list} & 778 & 6\,250 & 24\,991 & 71\,774 & 146\,191 \\
+\code{rculist}       & 761 & 6\,131 & 24\,518 & 71\,369 & 142\,367 \\
 \midrule
-Ratio                     & 0.989 & 0.988 & 0.988 & 0.988 & 0.991 \\
+Ratio                & 1.022 & 1.019 & 1.019 & 1.006 & 1.027 \\
 \bottomrule
 \end{tabular}
 \end{minipage}\par\medskip
 
-The transacted list is never more than 1.4\% below plain \rcu{} --- the widest gap
-is 1.39\% at two readers, and no count above two exceeds 1.25\%. Both scale
-essentially linearly across the 192 cores: the transacted list gains a factor of
-188 from one reader to 192, which is 98.0\% of ideal, and \code{rculist} gains
-188, or 97.8\%.
+The two are indistinguishable: every ratio lies within 3\% of unity, and
+run-to-run drift on this machine is itself about 0.8\%. Both scale essentially
+linearly across the 192 cores --- the transacted list gains a factor of 188 from
+one reader to 192, or 97.8\% of ideal, and \code{rculist} gains 187, or 97.4\%.
 
 That the two agree is the point, and the construction is what makes it a fair
-statement. The transacted list is not doing the same work more slowly; it is
-walking forward and then backward, which is the traversal \cref{sec:onestore}
-showed \code{rculist} cannot offer at all, and it is being charged about one
-percent for it. One percent is what \cref{tab:comparison}'s zero in the loads
-column predicts: the marker rides in the word the reader had to load anyway, so
-the only residue is the predicted branch, and a branch is what a percent looks
-like.
+statement. The rows are not merely close; they are running the same traversal
+over elements of the same size. \Cref{tab:comparison}'s zero in the loads column
+predicts exactly this: the marker rides in the word the reader had to load
+anyway, so the only residue is a predicted branch. We do not claim the small
+positive margin --- the facility does strictly more work than plain \rcu, so a
+real advantage would need a mechanism we cannot name, and the margin wanders
+without pattern. The claim is parity.
 
-\paragraph{The writer pays about three times.} On the same list, with a single
-writer:
+\paragraph{What the stronger guarantees cost the reader.}
+\Cref{tab:readclass} places the same traversal against the schemes that also
+deliver a coherent bidirectional walk. All of them give readers strictly more
+than this facility does --- a coherent snapshot, or per-element existence, where
+a \pseudotxn gives only monotone resolution (\cref{prop:monotone}) --- so the
+gaps are what that extra guarantee costs on the read side, which is the
+comparison \cref{sec:whyweakening} promises and never quantifies.
+
+\par\medskip\noindent\begin{minipage}{\linewidth}
+\captionof{table}{Read ceiling, no writer, all engines walking forward then
+backward: millions of node visits per second, and the ratio to the transacted
+list. Existence is measured in its best per-element layout, carrying only its
+tagged word (a 32-byte element) with the writer-only state segregated; charging
+it for the reference implementation's 136-byte element would measure a struct
+layout rather than the design. MV-RLU runs its global-clock configuration, which
+needs no calibrated per-machine constant.}
+\label{tab:readclass}
+\centering
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Readers & 1 & 32 & 192 & Ratio \\
+\midrule
+\code{txn\_sw\_list}    & 788 & 25\,339 & 148\,190 & 1.00 \\
+Existence               & 691 & 22\,215 & 123\,035 & 1.14--1.21 \\
+RLU                     & 622 & 19\,943 &  99\,017 & 1.27--1.50 \\
+MV-RLU                  & 293 &  9\,165 &  46\,699 & 2.69--3.23 \\
+\bottomrule
+\end{tabular}
+\end{minipage}\par\medskip
+
+Existence is the closest, and the residue is precisely what
+\cref{tab:comparison} attributes to it: one acquire load per dereference, and a
+32-byte element against 24, so fewer elements share a cache line. That the
+margin is only 14--21\% is the honest form of the claim, and a stronger one than
+a larger number would be --- it says the \pseudotxn wins because it attaches
+\emph{no} per-element state, not because an implementation chose a fat one.
+
+\paragraph{The writer pays about twice.} On the same list, with a single writer
+and readers running concurrently:
 
 % Anchored, for the same reason as tab:readcost above.
 \par\medskip\noindent\begin{minipage}{\linewidth}
-\captionof{table}{Single-writer update throughput, millions of operations per
-second. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
+\captionof{table}{Single-writer update throughput with concurrent readers,
+millions of operations per second, each engine under an uncontended writer
+mutex. Both sides reclaim through \code{call\_rcu()} and neither changes \rcu
 flavor, so the ratio isolates the \pseudotxn layer.}
 \label{tab:writecost}
 \centering
-\begin{tabular}{@{}lrr@{}}
+\begin{tabular}{@{}lrrrrr@{}}
 \toprule
- & No writer lock & Uncontended mutex \\
+Readers & 1 & 8 & 32 & 96 & 191 \\
 \midrule
-\code{rculist}            & 21.8 & 20.2 \\
-\code{txn\_sw\_list} &  7.2 &  7.1 \\
+\code{rculist}       & 14.25 & 4.02 & 3.93 & 3.21 & 2.92 \\
+\code{txn\_sw\_list} &  7.12 & 3.05 & 2.71 & 1.71 & 1.27 \\
 \midrule
-Ratio                     & 3.03 & 2.84 \\
+Ratio                & 2.00 & 1.31 & 1.45 & 1.88 & 2.30 \\
 \bottomrule
 \end{tabular}
 \end{minipage}\par\medskip
 
-The asymmetry between the two columns is itself informative. Dropping the mutex
-gains plain \rcu 7.0\% and the transacted list 0.7\%: the \pseudotxn's own work
-dominates an uncontended lock acquisition, where for plain \rcu the lock is a
-visible share of a much cheaper update. The realistic figure for this facility is
-therefore the mutex column, 2.84, because the single-writer contract
-(\cref{sec:exclusion}) assumes the caller holds a lock over those slots in any
-case.
+The tax is about twice, and it is not a constant: it falls to 1.31 at eight
+readers before climbing back to 2.30 at 191. The shape is informative. Plain
+\rcu's writer collapses from 14.25 to 4.02 between one reader and eight, while
+the transacted writer only falls from 7.12 to 3.05 --- grace periods lengthen
+for both, and the cheaper writer has more to lose. They converge under reader
+load and diverge again as the grace period stretches further.
 
-\paragraph{Where the writer's cost goes.} A threefold writer tax invites the
-conclusion that the flip is expensive. It is worth disposing of that, because the
-profile says the opposite. In a cycle profile of the single-writer run the commit
+With no reader at all the ratio is wider, 2.84 under the same mutex. We report
+the figures with readers because that is the regime the facility is for: a
+structure with no readers has no use for reader-visible coherence.
+
+\paragraph{Where the writer's cost goes.} A writer tax of two to three times
+invites the conclusion that the flip is expensive. It is worth disposing of
+that, because the profile says the opposite. In a cycle profile of a
+single-writer run with no reader --- the widest ratio, and so the least
+favorable place to look --- the commit
 itself, \code{urcu\_txn\_sw\_commit\_flavor}, accounts for 3.4\% of cycles. Ahead
 of it sit the allocator, at 10.7\% in jemalloc's \code{malloc}, and the per-CPU
 \code{call\_rcu} plumbing: 7.7\% in \code{sched\_getcpu} and 8.4\% across the two
@@ -1777,10 +1870,22 @@ intrinsic to publishing two edges atomically, with one exception the facility
 already admits: an embedder that knows no reader can hold a proxy may pass a
 synchronous reclaim shim and free in place.
 
-\paragraph{What this does not measure.} Two absences are deliberate. There is no
-comparison against RLU or MV-RLU: they give readers a coherent snapshot, and
-\cref{sec:relrcu} has already said that comparing throughput across that
-difference compares different guarantees.
+\paragraph{What this does not measure.} Three absences are deliberate.
+
+There is no writer-scaling panel. The facility is single-writer by contract
+(\cref{sec:exclusion}), so running $N$ writers against it would serialize them
+on a lock and measure that lock. Concurrent writers are a real question and this
+is not the design that answers them; they belong to the multi-writer engine and
+to the evaluation paper. The reader axis is where a read-mostly facility earns
+or loses its keep, and it is the axis measured here.
+
+The cross-scheme figures in \cref{tab:readclass} are read-side only, and are not
+a throughput evaluation of RLU, MV-RLU or existence. Their write sides differ in
+ways this workload does not isolate --- MV-RLU reclaims through a single
+background thread, existence and this facility defer a group object per update
+--- and the guarantees differ, so a write-side ranking across these rows would
+compare unlike things. What the reader axis supports is the narrow claim made
+above: what the stronger reader guarantee costs the reader.
 
 And this workload cannot separate read-side synchronization costs, which is worth
 stating plainly because the same harness reports them. A \emph{reader-biased}
@@ -1788,7 +1893,8 @@ reader-writer lock and a seqlock traversing the same list land within a few
 percent of plain \rcu, and at 192 readers the seqlock is the fastest of the four.
 That is not a finding about locks --- least of all a flattering one, since a
 reader-preferring lock is exactly the variant a read-only workload suits. It is
-what happens when a 10\,000-node traversal amortizes one acquisition to nothing, and it is why the honest read-side comparison in
+what happens when a 10\,000-node traversal amortizes one acquisition to nothing,
+and it is why the read-side comparison in
 \cref{tab:readcost} is against \code{rculist} alone. Separating those costs needs
 a cache-resident list or a concurrent writer, and belongs to the evaluation
 paper along with everything else this section declines to claim.
@@ -2545,9 +2651,13 @@ length in 2016.
 newer copy, logs a writer's copies, and makes them visible by advancing a global
 clock. \textbf{MV-RLU} \citep{kim2019mvrlu} adds multi-versioning to relieve
 RLU's synchronous writeback. Both provide a \emph{coherent snapshot} --- which
-is strictly stronger than \cref{prop:monotone}, and must be said plainly: any
-comparison of throughput between this facility and RLU crosses guarantee classes.
-Against existence structures the classes match and the comparison is clean.
+is strictly stronger than \cref{prop:monotone}, and must be said plainly: a
+comparison of \emph{write} throughput between this facility and RLU would cross
+guarantee classes and mean little. What \cref{tab:readclass} does compare is the
+read side, where the crossing is informative precisely because it runs against
+us: RLU charges the reader more and delivers more, and the gap is the price of
+the snapshot. Against existence structures the classes are nearer still and the
+comparison is cleaner.
 
 \textbf{Generation-numbered versions} are the third answer and the oldest,
 disclosed in a family of patents naming McKenney and assigned to IBM
