@@ -1884,8 +1884,9 @@ a throughput evaluation of RLU, MV-RLU or existence. Their write sides differ in
 ways this workload does not isolate --- MV-RLU reclaims through a single
 background thread, existence and this facility defer a group object per update
 --- and the guarantees differ, so a write-side ranking across these rows would
-compare unlike things. What the reader axis supports is the narrow claim made
-above: what the stronger reader guarantee costs the reader.
+compare quantities that are not commensurable. What the reader axis supports is
+the narrow claim made above: what the stronger reader guarantee costs the
+reader.
 
 And this workload cannot separate read-side synchronization costs, which is worth
 stating plainly because the same harness reports them. A \emph{reader-biased}
