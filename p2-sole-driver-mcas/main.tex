@@ -462,7 +462,11 @@ optimistic path, which aborts far more often but retries in parallel. On a
 three-structure skip-list move, the optimistic path beats the serialized lane by
 a factor of roughly $2.6$.\footnote{Measured on the engine's own
 \code{bench\_txn\_3skiplist} microbenchmark; see \cref{sec:availability}. The
-comprehensive study is deferred to the evaluation paper.} So the more a
+comprehensive study is deferred to the evaluation paper.}%
+% STALE TOO -- same vintage and same problem as the +21.7% figure; see the note
+% in sec:varhelping. This one is a round "roughly 2.6", so it is likelier to
+% survive a refresh than the two-decimal figures are, but it has not been
+% re-measured on b3e23f9f either and must not be presented as if it had. So the more a
 transaction costs, the longer it should stay optimistic---the budget encodes
 exactly that.
 
@@ -590,6 +594,54 @@ on, jemalloc, best-of-three over one second, on a 2\,$\times$\,96-core EPYC (384
 hardware threads). The helping engine is the former default (full help and
 steal); the sole-driver engine is the shipped \code{NO\_HELP}\,$+$\,\code{NO\_STEAL}
 install. See \cref{sec:availability}.}
+
+% ---------------------------------------------------------------------------
+% NOTE (drafting; retained deliberately -- see README framing rule).
+% THESE NUMBERS ARE STALE AND MUST BE REFRESHED BEFORE SUBMISSION.
+%
+% 39.9 vs 32.8 Mkey-moves/s (+21.7%, widening to +25.8%) comes from
+% efficios-trie-benchmark scripts/txn_vs_existence_skiplist_engine.csv, captured
+% 2026-07-10 (bench commit cce5bd3), when the engine tip was 97443472. This
+% paper's Availability section pins b3e23f9f (2026-07-25). Fourteen engine
+% commits separate them, and several are not cosmetic:
+%
+%   d5c5b2de  promote the mixed engine to the canonical front-end
+%   5c156120  retire rcu-txn-mw.h, fold its tests onto rcu-txn.h
+%   610d4792  skip the partition for a non-mixed write-set   <- commit path
+%   6139087e  fold rcu-mcas.h in; retire the duplicate MCAS engine  <- THE engine
+%   7be75ff6  re-verb the read policy from helping to waiting <- THE mechanism
+%   b3e23f9f  resolve a proxy by subtracting the tag
+%
+% So the paper pins one engine and reports another's numbers. P1 had exactly
+% this defect (text pinned b3e23f9f, tab:readcost came from 5fc3cadf) and it was
+% fixed by re-measuring, not by re-pinning: re-pinning to the OLD commit would
+% describe an engine nobody can now build from the shipped tree.
+%
+% REFRESHING IS NOT JUST RE-RUNNING. P1's re-measurement turned up two
+% methodology faults, each of which moved the result by MORE than the effect
+% being measured:
+%   - traversal-order asymmetry between the arms (~15%), which had made the
+%     facility look 8% faster than plain RCU when it is at parity;
+%   - per-iteration loads of harness globals in some readers and not others,
+%     which had made existence look like 2 extra loads per dereference when its
+%     mechanism costs 1.
+% Neither applies verbatim here -- bench_txn_3skiplist has no g_random_pos or
+% STEP_LIMIT in its inner loop (checked) -- but the lesson does: before trusting
+% a refreshed number, confirm the two arms do identical work apart from the
+% mechanism under test.
+%
+% AND THE HARDER PROBLEM, which is why this is a note and not a chore. The
+% helping engine is the arm being compared against, and it has been RETIRED
+% from the tree (6139087e). A refresh therefore cannot just rebuild both arms
+% at b3e23f9f. Either the helping engine is reconstructed at a pinned old commit
+% for the comparison -- in which case say so, and say that the sole-driver arm
+% is the old one too, so the pair is internally consistent -- or the claim is
+% restated as what it actually is: a historical falsification, measured on the
+% engine as it stood at 97443472, which is why helping is not in the shipped
+% engine today. The second is honest and cheaper, and it is what the paper
+% already argues (a measured falsification trail, sec:varhelping). It only needs
+% the engine version stated beside the numbers rather than left to Availability.
+% ---------------------------------------------------------------------------
 
 \subsection{Abort-others instead of waiting}
 \label{sec:varabort}

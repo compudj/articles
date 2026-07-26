@@ -392,6 +392,37 @@ Israeli–Rappoport spelling; wound-wait page range.
    app paper; candidate order; same-user convention). *Open, deliberately:* the P4
    identity fork (standalone comparative paper vs. folded into the dcache paper).
 4. **Uncommitted, held while iterating:** README (ordering pass) + this SCOPE.md.
+5. **BLOCKING BEFORE SUBMISSION — every throughput number in P2 is stale.**
+   The headline `+21.7%` / `+25.8%` (sole-driver vs helping, §varhelping) and the
+   `roughly 2.6` optimistic-vs-serialized factor (§escalation) were captured
+   **2026-07-10** on engine tip `97443472`. P2's Availability section pins
+   **`b3e23f9f`** (2026-07-25) — fourteen engine commits later, including
+   `610d4792` (skip the partition for a non-mixed write-set), `6139087e` (fold
+   `rcu-mcas.h` in, **retire the duplicate MCAS engine**) and `7be75ff6`
+   (re-verb the read policy from helping to waiting). The paper pins one engine
+   and reports another's numbers.
+
+   P1 had exactly this defect and it was fixed by **re-measuring, not
+   re-pinning** — re-pinning to the old commit would describe an engine nobody
+   can build from the shipped tree.
+
+   Two cautions, both learned the hard way on P1 (see its §7 notes):
+   - *Refreshing is not just re-running.* P1's re-measurement exposed two
+     methodology faults, each moving the result by more than the effect under
+     test: a traversal-order asymmetry between arms (~15%, which had made the
+     facility look 8% faster than plain RCU when it is at parity), and
+     per-iteration loads of harness globals in some readers but not others.
+     Neither applies verbatim (`bench_txn_3skiplist` has neither in its inner
+     loop — checked) but confirm the two arms do identical work apart from the
+     mechanism under test before trusting any refreshed figure.
+   - *The helping arm no longer exists.* It was retired in `6139087e`, so a
+     refresh cannot simply rebuild both arms at `b3e23f9f`. Either reconstruct
+     helping at a pinned old commit **and** measure sole-driver there too, so the
+     pair is internally consistent; or restate the claim as what it already is —
+     a historical falsification measured at `97443472`, which is *why* helping is
+     not in the shipped engine — and put the engine version beside the numbers
+     instead of leaving it to Availability. The second is honest, cheaper, and
+     matches the argument the section already makes.
 
 ---
 
