@@ -2605,9 +2605,9 @@ which is sound only because no writer is running, removes exactly that: RLU's
 dereference then costs the one extra load \cref{tab:comparison} states.
 
 The table is therefore right about RLU's dereference and silent about RLU's
-traversal, and the silence flatters RLU rather than us. A \pseudotxn has no such
-cost, for the same reason it has no per-element state: a resolved slot is the
-node itself, so a reader compares two pointers with \code{!=}. The general point
+traversal, and the silence favors RLU over the \pseudotxn. The facility has no
+such cost, for the same reason it has no per-element state: a resolved slot is
+the node itself, so a reader compares two pointers with \code{!=}. The general point
 is that a design which lets an object be represented by more than one address
 must pay to establish identity, everywhere identity is needed --- and a
 traversal needs it on every step.
