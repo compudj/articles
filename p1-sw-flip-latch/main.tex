@@ -2405,7 +2405,14 @@ MV-RLU is the one entry whose counts are not
 constants: its dereference reads the object header unconditionally --- it has no
 counterpart to RLU's pure-reader bypass --- and then may walk a version chain
 whose length the reader does not control, so its figures are floors rather than
-typical cases.}
+typical cases. These counts are \emph{measured}, not inferred from the sources:
+hardware counters over a single-reader traversal, differenced against a longer
+run so that startup cancels, give the marginal loads and branches per node
+visit, and the figure quoted is each design's count minus plain \rcu's. Every
+entry in the two count columns survives that check --- this work at exactly
+zero extra loads and one extra branch, existence at one and one, RLU's
+dereference at one --- and MV-RLU exceeds its floors by a wide margin, at ten
+extra loads and fifteen extra branches.}
 \label{tab:comparison}
 \end{table}
 
@@ -2583,6 +2590,27 @@ is decided. What separates this design is that its test operates on a value the
 reader already had, while every other design must first go and fetch the thing
 it will test --- from a per-element field, a per-thread flag, or an object
 header. The marker rides the dereference the reader had to perform regardless.
+
+\paragraph{One cost the table cannot express: comparing two pointers.} Counting
+per dereference is the right unit for \cref{tab:comparison}, but it hides
+something a traversal cannot avoid. A walk must also decide when it has
+returned to where it started, and under RLU that comparison is not free: either
+operand may be a copy rather than the object itself, so the two cannot be
+compared directly and the walk must ask the library, which resolves both sides
+to their originals --- reading an object header for each --- in an out-of-line
+call, once per iteration. Measured on the list of \cref{sec:swlist}, that
+comparison costs 5.5 loads and 6.0 branches per node visit, considerably more
+than the dereference it accompanies. Substituting a plain pointer comparison,
+which is sound only because no writer is running, removes exactly that: RLU's
+dereference then costs the one extra load \cref{tab:comparison} states.
+
+The table is therefore right about RLU's dereference and silent about RLU's
+traversal, and the silence flatters RLU rather than us. A \pseudotxn has no such
+cost, for the same reason it has no per-element state: a resolved slot is the
+node itself, so a reader compares two pointers with \code{!=}. The general point
+is that a design which lets an object be represented by more than one address
+must pay to establish identity, everywhere identity is needed --- and a
+traversal needs it on every step.
 
 \paragraph{The unconditional cost is space.} Instruction counts are the smaller
 half of the argument, because the state is the part that cannot be made
