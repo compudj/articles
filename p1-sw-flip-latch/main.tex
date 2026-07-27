@@ -2391,7 +2391,12 @@ tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
 and software transactional memory against this work in turn.
 
-\begin{table}[tb]
+% ANCHORED, not a [tb] float, for the reason documented at fig:readcost: as a
+% float this landed at the top of the page the section starts on, ABOVE the
+% section heading, with the tail of the previous section beneath it -- reading
+% as a table belonging to that section rather than to this one.  It belongs
+% beside the sentence that introduces it.  \captionof numbers it as a table.
+\par\medskip\noindent\begin{minipage}{\linewidth}
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -2427,47 +2432,22 @@ MV-RLU~\citep{kim2019mvrlu}
   & selector \\
 \bottomrule
 \end{tabular}
-\caption{Where each design pays for multi-pointer atomicity, on the read-side
-fast path, per dereference. Each publishes with a single store to the shared word
-named in the last column, so publish is one store for every design, not only
-this one. \emph{Extra loads} counts additional memory
-references over and above the load the reader must issue anyway; \emph{extra
-branches} counts conditional branches. Every design tests something, this one
-included --- the honest difference is in the loads column, not the branches
-column. Existence's load is an \emph{acquire} of a per-element field; RLU's is a
-plain load from its per-thread state. A \pseudotxn's is absent because its
-marker rides in the value \code{v} that \code{rcu\_dereference} already
-returned, so its test is arithmetic on a register the reader already holds ---
-but the test is still a branch, and \textbf{0} in the loads column means zero
-loads, not zero instructions. That \textbf{0} is the no-update figure: a reader
-that meets a commit in flight on the slot resolves it through the proxy and
-selector, the pair of loads this path avoids. All three single-branch entries are
-predicted
-branches, statically hinted in their respective sources, and each costs a
-branch-predictor entry. The first column is the unconditional cost, and is where
-the designs differ permanently: existence and RLU attach state to every element
-for as long as the structure lives, whereas a \pseudotxn attaches nothing and
-confines its state to the mutation. The existence row names what the mechanism
-\emph{requires}, which is the one word the reader tests; a reader who consults
-the reference implementation will find considerably more embedded beside it ---
-group linkage, a reclamation head, callbacks and the writer's lock, 112 bytes in
-all, of which only the 8-byte word is ever read on the traversal path. That
-surplus is an implementation choice rather than a property of the design, and
-it is separable: \cref{sec:costwalk} measures what separating it is worth.
-MV-RLU is the one entry whose counts are not
-constants: its dereference reads the object header unconditionally --- it has no
-counterpart to RLU's pure-reader bypass --- and then may walk a version chain
-whose length the reader does not control, so its figures are floors rather than
-typical cases. These counts are \emph{measured}, not inferred from the sources:
-hardware counters over a single-reader traversal, differenced against a longer
-run so that startup cancels, give the marginal loads and branches per node
-visit, and the figure quoted is each design's count minus plain \rcu's. Every
-entry in the two count columns survives that check --- this work at exactly
-zero extra loads and one extra branch, existence at one and one, RLU's
-dereference at one --- and MV-RLU exceeds its floors by a wide margin, at ten
-extra loads and fifteen extra branches.}
+% CAPTION LENGTH IS LOAD-BEARING, do not let it grow back. This caption was once
+% 465 words and duplicated nearly all of sec:costwalk below it; a [tb] float
+% whose caption exceeds a page cannot be set anywhere, so LaTeX deferred it past
+% the bibliography. It now says only what the table needs to be read on its own,
+% and the argument lives in sec:costwalk, where it belongs and already was.
+\captionof{table}{Where each design pays for multi-pointer atomicity, on the read-side
+fast path, per dereference. \emph{Extra loads} counts memory references over and
+above the load the reader must issue anyway; \emph{extra branches} counts
+conditional branches. Both are measured, not read off the sources
+(\cref{sec:costwalk}). MV-RLU's counts are floors rather than constants: its
+dereference reads the object header unconditionally, with no counterpart to
+RLU's pure-reader bypass, and may then walk a version chain whose length the
+reader does not control. \Cref{sec:costwalk} discusses what each column means
+and what it omits.}
 \label{tab:comparison}
-\end{table}
+\end{minipage}\par\medskip
 
 % ---------------------------------------------------------------------------
 % PROVENANCE OF EVERY CELL IN tab:comparison -- VERIFIED FROM SOURCE 2026-07-16.
@@ -2604,6 +2584,21 @@ but it is narrower than "some designs check the read path and this one does
 not". Every row of \cref{tab:comparison} checks it, this one included. What
 differs is what the check costs to reach its operand.
 
+Two things the table does not single this design out for, before the ones it
+does. Each design publishes with a single store, to the shared word named in the
+table's last column: one store is what publication costs everywhere here, not
+only here. And the branch column is 1 for three of the four rows, this one among
+them --- the honest difference is in the loads column, not the branches column.
+
+The two count columns are measured rather than read off the sources. Hardware
+counters over a single-reader traversal, differenced against a longer run so
+that startup cancels, give the marginal loads and branches per node visit; the
+figure quoted is each design's count minus plain \rcu's, since the table counts
+what a traversal pays \emph{over} what it must pay anyway. Every entry survives
+that check --- this work at exactly zero extra loads and one extra branch,
+existence at one and one, RLU's dereference at one --- and MV-RLU exceeds its
+floors widely, at ten extra loads and fifteen extra branches.
+
 Existence's fast path is one acquire load of a per-element field, then a branch
 on it. RLU's fast path, for a thread with no writes of its own, never touches
 the object header --- but it still loads a flag from its per-thread state, once
@@ -2674,7 +2669,16 @@ the readers traverse --- and footprint is a read-side cost, paid in cache rather
 than in instructions. A \pseudotxn adds no per-element state at all, so in the
 steady state both the structure a reader traverses and the path it takes through
 it are byte-for-byte what they would be with no facility present.
-And the cost is \emph{density} rather than size: what matters is how much of
+
+\Cref{tab:comparison}'s existence row names what the mechanism \emph{requires},
+which is the one word the reader tests. A reader who consults the reference
+implementation will find considerably more embedded beside it --- group linkage,
+a reclamation head, callbacks and the writer's lock, 112 bytes in all, of which
+only the 8-byte word is ever read on a traversal. That surplus is an
+implementation choice rather than a property of the design, and being separable
+is what makes the effect measurable at all.
+
+The cost is then \emph{density} rather than size: what matters is how much of
 each cache line the reader fetches is data it actually reads. Existence's own
 structure makes the point, because the effect can be measured on one algorithm
 by moving its fields. Its reference layout places the per-element header at
