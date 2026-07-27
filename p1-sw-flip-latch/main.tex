@@ -445,7 +445,12 @@ is not cheap anywhere; the only question is whether the workload needs it.
 
 Our model is the first of these, essentially point for point:
 
-\begin{table}[tb]
+% ANCHORED, not a [tb] float, for the reason documented at fig:readcost and
+% tab:comparison.  This table is introduced by the colon above it and by nothing
+% else -- it carries no \cref anywhere -- so as a float it read correctly only by
+% the accident of landing on the same page as its own introduction.  Anchoring
+% makes that structural instead of lucky.  \captionof numbers it as a table.
+\par\medskip\noindent\begin{minipage}{\linewidth}
 \centering
 \small
 \begin{tabular}{@{}ll@{}}
@@ -462,11 +467,11 @@ readers are not transactional    & readers are plain \rcu readers \\
 gives atomicity, not isolation   & gives atomicity, not opacity \\
 \bottomrule
 \end{tabular}
-\caption{The model is the journaling sense of \emph{transaction}, not the
+\captionof{table}{The model is the journaling sense of \emph{transaction}, not the
 database sense. The staged record set is the journal; the commit step is the
 commit record.}
 \label{tab:fssense}
-\end{table}
+\end{minipage}\par\medskip
 
 This is why we say \pseudotxn rather than transaction. The prefix is not an
 apology for an incomplete STM; it is a disambiguation for readers who take
@@ -1370,6 +1375,14 @@ forward and backward chains describe the same list, so the reverse walk that
 \code{rculist} cannot offer becomes one a reader may take --- within the
 guarantee, and its scope, that \cref{sec:coherence} states next.
 
+\Cref{fig:listinsert,fig:listremove} trace the two operations through that
+lifecycle, each showing the reader's view above the updater's. They differ in
+one respect worth the second diagram: an insert reclaims only the transaction's
+own descriptor records, while a remove also retires a list node, and that node's
+own pointers must outlive the commit so that a reader already standing on it
+reads through to the neighbours it no longer sits between
+(\cref{sec:reclaim}).
+
 \input{fig-list-insert}
 
 \input{fig-list-remove}
@@ -1843,8 +1856,8 @@ margin is only 14--21\% is the honest form of the claim, and a stronger one than
 a larger number would be --- it says the \pseudotxn wins because it attaches
 \emph{no} per-element state, not because an implementation chose a fat one.
 
-\paragraph{The writer pays about twice.} On the same list, with a single writer
-and readers running concurrently:
+\paragraph{The writer pays about twice.} \Cref{fig:writecost} measures the same
+list with a single writer and readers running concurrently.
 
 % Anchored, for the same reason as fig:readcost above.
 \par\medskip\noindent\begin{minipage}{\linewidth}
