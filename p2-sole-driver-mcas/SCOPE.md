@@ -392,7 +392,11 @@ Israeli–Rappoport spelling; wound-wait page range.
    app paper; candidate order; same-user convention). *Open, deliberately:* the P4
    identity fork (standalone comparative paper vs. folded into the dcache paper).
 4. **Uncommitted, held while iterating:** README (ordering pass) + this SCOPE.md.
-5. **BLOCKING BEFORE SUBMISSION — every throughput number in P2 is stale.**
+5. **RESOLVED 2026-07-28 — re-measured; see the "THROUGHPUT RE-MEASURE" section
+   at the end of this file. Three numbers held, one was wrong.** The text below
+   is the original statement of the problem, kept for the record.
+
+   ~~**BLOCKING BEFORE SUBMISSION — every throughput number in P2 is stale.**~~
    The headline `+21.7%` / `+25.8%` (sole-driver vs helping, §varhelping) and the
    `roughly 2.6` optimistic-vs-serialized factor (§escalation) were captured
    **2026-07-10** on engine tip `97443472`. P2's Availability section pins
@@ -571,3 +575,64 @@ what the MW-only engine did — that is a DESIGN property read off the commit pa
 **NOT a measurement**, and must not be presented as one.
 
 Build: 23 pp, refs OK, escapes OK, abstract 1910/1920.
+
+---
+
+## 2026-07-28 — THROUGHPUT RE-MEASURE (closes BLOCKING item 5)
+
+Same 2×96-core EPYC 9654, idle. `DUR=2000 RUNS=5`, **240 runs, 0 failures**, all
+four arms through a conservation gate before any timing was trusted. Data and
+scripts in `efficios-trie-benchmark`: `scripts/p2_engine_remeasure.csv`,
+`scripts/p2_lane_scaling.csv`, `build_p2_remeasure_arms.sh`,
+`run_p2_engine_remeasure.sh`, `analyze_p2_remeasure.py`.
+
+**Three of four numbers held:**
+
+| claim | was | now (median of 5) |
+|---|---|---|
+| §varhelping @192 writers | +21.7% | **+22.1%** (best +22.0%) |
+| §varhelping under contention | +25.8% | **+27.0%** |
+| §escalation lane factor | ~2.6× | **WRONG — see below** |
+
+Run-to-run spread within a point ≤2.3%, so the A/B separation is real. The
+margin also grows with writer count (+5% at 1 → +22% at 192), which is the shape
+a contention argument should have, and it is now stated that way.
+
+**Why the A/B is at `97443472`, and the drift check.** Helping was *deleted* in
+`a07b67ba`, so it cannot be built at the pin at all; `97443472` is the last
+commit carrying both disciplines. To answer "but that tree is retired", the
+sole-driver arm was measured at BOTH commits: at the pin it is **0.5–3.1%
+faster** at every writer count. So the A/B's winner is the shipped engine,
+slightly improved. **Do not cut that paragraph** — without it the A/B describes
+a dead tree.
+
+**The `2.6×` lane factor was wrong, and wrong in the engine header too.** It is
+not a workload property: the lane is one global critical section, so its
+throughput is FLAT in the writer count while the optimistic path scales. The
+ratio is a function of scale and means nothing without one —
+
+    writers    1     2     4     8    16    32    64   128   192
+    factor   1.0x  2.3x 25.4x 50.9x 97.6x  172x  303x  946x 1029x
+
+`2.6×` is about the **two-writer** point. At the 192-writer scale P2 otherwise
+discusses it is **~1029×**. Sanity check that the always-escalate arm measures
+the funnel and not itself: at one writer the two builds are identical (1.30032 vs
+1.30030). Origin of the bad figure: engine commit `d4150ee8` states it with no
+core count and `rcu-txn.h`'s escalation comment repeated it — **the engine header
+is fixed in the same batch**. §escalation now carries the curve as a small table.
+The correction *strengthens* the section: funnelling a traversal mutator is
+catastrophic at scale, which is exactly why the budget scales with cost.
+
+**Three preparation traps** — each would have produced a plausible wrong number
+rather than an error. Documented in `run_p2_engine_remeasure.sh`; read it before
+refreshing again. (1) the committed A/B script passes the retired `--ryw 1` and
+the parser's `else usage()` exits, writing zeros into the CSV as data; (2) the
+historical arms need `-DURCU_TXN_RYW_DEFAULT=1` or `movesper 3` runs without
+read-your-own-writes and corrupts; (3) `-DURCU_MCAS_STOCK` flips five things, so
+the helping arm must restore the txn-layer defaults or the win absorbs the Bloom
+widening. Arms verified distinct by counting `uatomic_cmpxchg` sites (7 vs 13),
+and the build script fails if they are equal.
+
+**Still open:** P2 has not had Mathieu's own first read, and nothing has gone to
+Paul. The `existence` / RLU / MV-RLU comparative axis remains the evaluation
+paper's, deliberately not measured here.

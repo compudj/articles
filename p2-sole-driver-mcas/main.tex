@@ -573,15 +573,37 @@ length of the critical section it serializes. A single-edge operation commits
 with a bare CAS: serializing it is nearly free, the lane is just orderly queueing,
 and escalating early turns wasted CAS collisions into turns. A traversal mutator
 is the opposite: funnelling those destroys the $N$-way parallelism of the
-optimistic path, which aborts far more often but retries in parallel. On a
-three-structure skip-list move, the optimistic path beats the serialized lane by
-a factor of roughly $2.6$.\footnote{Measured on the facility's own
-\code{bench\_txn\_3skiplist} microbenchmark; see \cref{sec:availability}. The
-comprehensive study is deferred to the evaluation paper.}%
-% STALE TOO -- same vintage and same problem as the +21.7% figure; see the note
-% in sec:varhelping. This one is a round "roughly 2.6", so it is likelier to
-% survive a refresh than the two-decimal figures are, but it has not been
-% re-measured on b3e23f9f either and must not be presented as if it had. So the more a
+optimistic path, which aborts far more often but retries in parallel.
+
+How much that costs is a question with no single answer, and the shape of the
+answer is the argument. The lane is one global critical section, so its
+throughput is flat in the writer count while the optimistic path scales; the
+ratio between them is therefore a function of scale, and quoting it without one
+says nothing. Measured on a three-structure skip-list move, optimistic against a
+build that escalates on its first attempt:
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}l rrrrrrrrr@{}}
+\toprule
+writers & 1 & 2 & 4 & 8 & 16 & 32 & 64 & 128 & 192 \\
+\midrule
+optimistic $/$ lane & $1.0\times$ & $2.3\times$ & $25\times$ & $51\times$ &
+  $98\times$ & $172\times$ & $303\times$ & $946\times$ & $1029\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent At a single writer the two are identical---an uncontended lane costs
+nothing, which is also the check that the always-escalate build is measuring the
+funnel rather than itself---and by 192 writers the optimistic path is three
+orders of magnitude ahead.\footnote{\code{bench\_txn\_3skiplist}, width~3, 3840
+keys per skip list, median of three 2\,s runs, on the machine of
+\cref{sec:varhelping}. The always-escalate arm forces the lane from the first
+attempt (a zero budget); it is the limit case, not the shipped policy, which
+escalates only a losing handle. The comprehensive study is deferred to the
+evaluation paper.} So the more a
 transaction costs, the longer it should stay optimistic---the budget encodes
 exactly that.
 
@@ -664,12 +686,15 @@ next section is the evidence, because the losing end was built too.
 % then rejected for a throughput or portability reason. Disclosing an
 % implemented-then-rejected approach enables it as prior art for free.
 %
-% MEASUREMENT (SCOPE DECISION #1) -- RESOLVED 2026-07-19: the decisive number is
-% the help+steal -> sole-driver A/B, +21.7% at 192 cores (to +25.8% under
-% contention), from efficios-trie-benchmark txn_vs_existence_skiplist_engine.csv
-% (txn-default = help+steal, txn-spin = sole-driver); retire commit a07b67ba.
+% MEASUREMENT (SCOPE DECISION #1) -- RESOLVED 2026-07-19, RE-MEASURED 2026-07-28:
+% the decisive number is the help+steal -> sole-driver A/B, now +22.1% at 192
+% writers (to +27.0% under contention), from
+% efficios-trie-benchmark scripts/p2_engine_remeasure.csv; both arms built from
+% engine 97443472 and differing in one flag. Retire commit a07b67ba.
 % abort-others (= stealing) is folded into that bundle; age-as-resolution has no
 % isolated run and is rejected on the correctness trap. No \UNVERIFIED remain.
+% See the long note in sec:varhelping for why the A/B is at 97443472 and for the
+% three preparation traps -- read it before refreshing these numbers again.
 % ---------------------------------------------------------------------------
 
 The mechanism of \cref{sec:facility} is one point in a design space, and unusually
@@ -707,63 +732,66 @@ leaving one driver per transaction and a single coarse settle-wait.
 
 The removal is a measured win, and it is what retired the helping path. On a
 three-structure skip-list move at 192 cores, the sole-driver engine sustains
-$39.9$ against the helping engine's $32.8$ million key-moves per second---$+21.7\%$---and
-the margin widens to $+25.8\%$ as the structures shrink and the shared upper
-levels grow hotter; a full rebench across the suite found no workload where
-helping won.\footnote{\code{bench\_txn\_3skiplist}, width~3, read-your-own-writes
-on, jemalloc, best-of-three over one second, on a 2\,$\times$\,96-core EPYC (384
-hardware threads). The helping engine is the former default (full help and
-steal); the sole-driver engine is the shipped \code{NO\_HELP}\,$+$\,\code{NO\_STEAL}
-install. See \cref{sec:availability}.}
+$40.8$ against the helping engine's $33.4$ million key-moves per
+second---$+22.1\%$---and the margin grows as the structures shrink and the
+shared upper levels grow hotter, reaching $+27.0\%$; it also grows with the
+writer count, from $+5\%$ at a single writer to $+22\%$ at 192, which is the
+shape a contention argument should have.\footnote{\code{bench\_txn\_3skiplist},
+width~3, jemalloc, median of five 2\,s runs, on a 2\,$\times$\,96-core EPYC 9654
+(384 hardware threads). Run-to-run spread within a point is at most 2.3\%, so
+the separation is not noise; medians are reported rather than the best of a
+batch. Both arms are built from engine commit \code{97443472} and differ in one
+compile-time flag, the install discipline. See \cref{sec:availability}.}
+
+The comparison has to be made at that older commit, and it is worth saying why
+rather than burying it. The helping install was \emph{deleted} from the engine
+once it lost, so there is no build of the shipped tree that still contains it:
+\code{97443472} is the last commit carrying both disciplines, which is what makes
+a one-flag A/B possible at all. That leaves the obvious objection---that a
+retired tree may not describe the shipped one---so we measured the sole-driver
+arm on both. At the disclosed commit it is between $0.5\%$ and $3.1\%$
+\emph{faster} than at \code{97443472}, at every writer count from 1 to 192. The
+winner of the A/B is the engine that ships, slightly improved; nothing in the
+intervening work moved it.
 
 % ---------------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% THESE NUMBERS ARE STALE AND MUST BE REFRESHED BEFORE SUBMISSION.
+% RE-MEASURED 2026-07-28.  The stale 2026-07-10 numbers (39.9 vs 32.8, +21.7%,
+% +25.8%) are gone; these are fresh.  Data + scripts live in
+% efficios-trie-benchmark: scripts/p2_engine_remeasure.csv (240 runs, 0
+% failures), scripts/build_p2_remeasure_arms.sh, run_p2_engine_remeasure.sh,
+% analyze_p2_remeasure.py.  DUR=2000 RUNS=5, same 2x96c EPYC 9654, idle.
 %
-% 39.9 vs 32.8 Mkey-moves/s (+21.7%, widening to +25.8%) comes from
-% efficios-trie-benchmark scripts/txn_vs_existence_skiplist_engine.csv, captured
-% 2026-07-10 (bench commit cce5bd3), when the engine tip was 97443472. This
-% paper's Availability section pins b3e23f9f (2026-07-25). Fourteen engine
-% commits separate them, and several are not cosmetic:
+% WHY THE A/B IS AT 97443472 AND NOT AT THE PIN.  Helping was DELETED in
+% a07b67ba, so it cannot be built at b3e23f9f at all.  97443472 is the last
+% commit carrying both disciplines (-DURCU_MCAS_STOCK reverts to helping), so it
+% is the only place a one-flag A/B exists.  The drift paragraph above is what
+% answers the "but that tree is retired" objection: sole-driver measured at the
+% pin too, and it is 0.5-3.1% FASTER there at every core count.  Do not delete
+% that paragraph to save space -- without it the A/B describes a dead tree.
 %
-%   d5c5b2de  promote the mixed engine to the canonical front-end
-%   5c156120  retire rcu-txn-mw.h, fold its tests onto rcu-txn.h
-%   610d4792  skip the partition for a non-mixed write-set   <- commit path
-%   6139087e  fold rcu-mcas.h in; retire the duplicate MCAS engine  <- THE engine
-%   7be75ff6  re-verb the read policy from helping to waiting <- THE mechanism
-%   b3e23f9f  resolve a proxy by subtracting the tag
+% THREE TRAPS FOUND WHILE PREPARING THE RE-RUN.  Each would have produced a
+% plausible WRONG number rather than an error, and each is documented in
+% run_p2_engine_remeasure.sh.  If these numbers are ever refreshed again, read
+% that header first:
+%   1. The committed engine A/B script still passes --ryw 1, a flag the bench
+%      retired (1c1b124); the arg parser's `else usage()` exit(2)s, so re-running
+%      it writes ZEROS into the CSV as if they were data.
+%   2. At 97443472 URCU_TXN_RYW_DEFAULT is 0 and the bench's enable_ryw() call is
+%      gone, so the historical arms need -DURCU_TXN_RYW_DEFAULT=1 or movesper 3
+%      runs WITHOUT read-your-own-writes and corrupts instead of failing.
+%   3. -DURCU_MCAS_STOCK flips FIVE things (install, AGE_ESCALATE, Bloom 16->1
+%      words, Bloom k 3->1, AGE0_TRYLATCH).  The A/B must vary only the install,
+%      so the helping arm restores the txn-layer defaults explicitly; otherwise
+%      the "sole-driver win" silently absorbs the Bloom widening.  Arms are
+%      verified distinct by counting uatomic_cmpxchg sites (7 vs 13).
 %
-% So the paper pins one engine and reports another's numbers. P1 had exactly
-% this defect (text pinned b3e23f9f, tab:readcost came from 5fc3cadf) and it was
-% fixed by re-measuring, not by re-pinning: re-pinning to the OLD commit would
-% describe an engine nobody can now build from the shipped tree.
-%
-% REFRESHING IS NOT JUST RE-RUNNING. P1's re-measurement turned up two
-% methodology faults, each of which moved the result by MORE than the effect
-% being measured:
-%   - traversal-order asymmetry between the arms (~15%), which had made the
-%     facility look 8% faster than plain RCU when it is at parity;
-%   - per-iteration loads of harness globals in some readers and not others,
-%     which had made existence look like 2 extra loads per dereference when its
-%     mechanism costs 1.
-% Neither applies verbatim here -- bench_txn_3skiplist has no g_random_pos or
-% STEP_LIMIT in its inner loop (checked) -- but the lesson does: before trusting
-% a refreshed number, confirm the two arms do identical work apart from the
-% mechanism under test.
-%
-% AND THE HARDER PROBLEM, which is why this is a note and not a chore. The
-% helping engine is the arm being compared against, and it has been RETIRED
-% from the tree (6139087e). A refresh therefore cannot just rebuild both arms
-% at b3e23f9f. Either the helping engine is reconstructed at a pinned old commit
-% for the comparison -- in which case say so, and say that the sole-driver arm
-% is the old one too, so the pair is internally consistent -- or the claim is
-% restated as what it actually is: a historical falsification, measured on the
-% engine as it stood at 97443472, which is why helping is not in the shipped
-% engine today. The second is honest and cheaper, and it is what the paper
-% already argues (a measured falsification trail, sec:varhelping). It only needs
-% the engine version stated beside the numbers rather than left to Availability.
+% P1's lesson held: confirm the two arms do identical work apart from the
+% mechanism under test.  Here that meant checking the 1-writer point, where
+% optimistic and always-escalate come out identical (1.30032 vs 1.30030) -- an
+% uncontended lane costs nothing, so the lane arm is measuring the funnel and
+% not itself.
 % ---------------------------------------------------------------------------
-
 \subsection{Abort-others instead of waiting}
 \label{sec:varabort}
 
@@ -859,7 +887,7 @@ mechanism.
 Helping (co-install) &
   forced a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch $\Rightarrow$
   bounded-blocking anyway; hot-cache-line traffic; duplicated work. Removing help
-  and steal: \textbf{$+21.7\%$} at 192 cores, to $+25.8\%$ under contention &
+  and steal: \textbf{$+22.1\%$} at 192 writers, to $+27.0\%$ under contention &
   \citet{harris2002mcas}; \citet{barnes1993method} \\
 Abort-others &
   the same subsystem as helping (steal $=$ evict a foreign txn); removed with it
@@ -886,7 +914,7 @@ Pure lock-freedom &
 the last was built or seriously considered here and then rejected; the last is
 independent, concurrent work, recorded because it answers the same hazard the
 opposite way and is not ours to reject. The decisive help-and-steal
-removal ($+21.7\%$, \cref{sec:varhelping}) is the throughput evidence this paper
+removal ($+22.1\%$, \cref{sec:varhelping}) is the throughput evidence this paper
 carries; the remaining rejected rows fall on portability or correctness grounds
 that hold independently of a number, and the broader comparative study is
 deferred. Disclosing each rejected approach is what makes the map defensive prior
