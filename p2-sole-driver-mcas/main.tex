@@ -575,12 +575,12 @@ and escalating early turns wasted CAS collisions into turns. A traversal mutator
 is the opposite: funnelling those destroys the $N$-way parallelism of the
 optimistic path, which aborts far more often but retries in parallel.
 
-How much that costs is a question with no single answer, and the shape of the
-answer is the argument. The lane is one global critical section, so its
-throughput is flat in the writer count while the optimistic path scales; the
-ratio between them is therefore a function of scale, and quoting it without one
-says nothing. Measured on a three-structure skip-list move, optimistic against a
-build that escalates on its first attempt:
+How much that costs is not one number. The lane is a single global critical
+section, so its throughput is flat in the writer count while the optimistic path
+scales with it. Their ratio therefore grows with the writer count, and any
+single factor is only a reading taken at one point on that curve. Measured on a
+three-structure skip-list move, optimistic against a build that escalates on its
+first attempt:
 
 \begin{center}
 \footnotesize
