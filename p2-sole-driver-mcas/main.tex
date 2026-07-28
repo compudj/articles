@@ -174,9 +174,14 @@ programming model it forward-references---the read-policy taxonomy, the
 general à-la-carte guard facility, and the conflict and aging
 \emph{declarations} that tune escalation---is the subject of the next paper in
 the series; this one introduces exactly the one guard its own worked example
-forces, and no more. The comprehensive comparative evaluation---scaling, tail
-latency, and comparison against existence, RLU, and MV-RLU---is later still. What
-appears here is only the throughput that justifies each design choice made here.
+forces, and no more. The comprehensive comparative evaluation---tail latency, and
+comparison against existence, RLU, and MV-RLU---is later still. What appears here
+is only the throughput that justifies a choice made \emph{in this paper}: a
+design against the alternative we built and rejected, or the facility against
+itself. \Cref{sec:writerscaling} is of the second kind and is the one figure the
+paper's premise rests on; it compares this facility with the companion paper's
+and with nothing else, which is why it belongs here and not with the
+comparisons.
 The facility and the companion \fliplatch share the model and the status
 vocabulary---and, at the pinned commit, one descriptor and one status
 word---so that an embedder that outgrows exclusion changes which discipline a
@@ -701,8 +706,8 @@ next section is the evidence, because the losing end was built too.
 % implemented-then-rejected approach enables it as prior art for free.
 %
 % MEASUREMENT (SCOPE DECISION #1) -- RESOLVED 2026-07-19, RE-MEASURED 2026-07-28:
-% the decisive number is the help+steal -> sole-driver A/B, now +22.1% at 192
-% writers (to +27.0% under contention), from
+% the decisive number is the help+steal -> sole-driver A/B, now +22.0% at 192
+% writers (to roughly +30% under contention), from
 % efficios-trie-benchmark scripts/p2_engine_remeasure.csv; both arms built from
 % engine 97443472 and differing in one flag. Retire commit a07b67ba.
 % abort-others (= stealing) is folded into that bundle; age-as-resolution has no
@@ -716,6 +721,43 @@ for such a section the neighbouring points are not hypothetical: several were
 implemented and measured, then removed. That is what makes the map defensively
 load-bearing---an implemented-then-rejected approach is disclosed and dated
 here---and it is what makes the coarseness thesis evidence rather than assertion.
+It begins, though, with the premise rather than the alternatives: whether
+dropping the exclusion buys anything at all.
+
+\subsection{What dropping the exclusion buys}
+\label{sec:writerscaling}
+
+The companion paper's \fliplatch requires writer exclusion. That is not a
+property of its implementation that a later version might relax---it is the
+precondition the whole mechanism rests on, which is why a commit there can be a
+single store with no compare-and-swap, no conflict detection and no abort. So the
+question this paper exists to answer has a measurable form: with a second writer,
+and a hundredth, what does the difference amount to?
+
+\Cref{fig:writerscale} is that comparison on the bidirectional list, which both
+papers use. The single-writer facility is measured with its writers serialized
+through a mutex, because that is what its precondition means once a second writer
+exists; the alternative is not to run the workload at all. At one writer the two
+are within $3\%$, so the transacted facility is not buying its scaling by
+degrading the uncontended case---it starts level. From there they separate: the
+transacted list reaches $321$ million updates per second at 192 writers, a factor
+of $50$ over its own one-writer figure, while the excluded one peaks at its
+\emph{first} writer and declines thereafter, ending at a sixth of its own
+one-writer throughput on 192 times the hardware. Serialization is not slow growth; it is negative growth, and
+a plain mutex list behaves the same way.
+
+Two things about that figure should be read narrowly, and are drawn so they
+cannot be read otherwise. The writers are \emph{disjoint by construction}---each
+owns its own churn slots, and no two ever touch the same one---so this measures
+what exclusion costs when there is nothing to serialize, which is the strongest
+form of the objection to it and not a favourable case for us. And there are no
+readers at all: the workload is pure mutation, which for a facility built to
+serve read-mostly structures is close to an anti-workload. What the figure
+supports is exactly one claim, that concurrent writers proceed concurrently. It
+is not a comparative evaluation, and the sublinearity it also shows---$26\%$ of
+ideal at 192 writers---belongs to this facility as much as the scaling does.
+
+\input{fig-writerscale}
 
 \subsection{Helping, and the latch it forced}
 \label{sec:varhelping}

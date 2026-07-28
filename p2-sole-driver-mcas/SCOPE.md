@@ -636,3 +636,48 @@ and the build script fails if they are equal.
 **Still open:** P2 has not had Mathieu's own first read, and nothing has gone to
 Paul. The `existence` / RLU / MV-RLU comparative axis remains the evaluation
 paper's, deliberately not measured here.
+
+---
+
+## 2026-07-28 — WRITER SCALING ADDED (§5.1), and the numbers pinned
+
+**`sec:writerscaling` + `fig:writerscale` now measure the paper's premise.** P2
+asserted that dropping exclusion buys writer scaling and never showed it. On the
+companion paper's own bidirectional list: **6.40 → 321.34 M updates/s over 1→192
+writers (50×)**, against the flip-latch-plus-exclusion arm **peaking at its FIRST
+writer and declining to 1.02** — a sixth of its one-writer throughput on 192×
+the hardware. The two are within 3% at one writer, so the scaling is not bought
+by degrading the uncontended case.
+
+**Three caveats are IN the figure and prose, not left to be discovered:**
+writers are disjoint by construction (the strongest form of the objection to
+exclusion, not a favourable case for us); there are **no readers at all**, which
+for a read-mostly facility is close to an anti-workload; and the dotted ideal
+guide shows the facility reaching only **26% of ideal** at 192 writers. Log-log
+is deliberate — a linear *y* would erase the excluded curve onto the axis.
+
+`mutex` was measured but is NOT plotted: the lock engines recycle a node in place
+where the RCU ones defer every free, so its absolute level is not comparable. Its
+*shape* (flat) is in the caption in words.
+
+**§1 Scope was reconciled**, since it deferred "scaling" to the evaluation paper.
+The rule it now states is the one to keep: what appears in P2 is throughput
+justifying a choice made *in this paper* — against an alternative we built and
+rejected, or the facility against itself. Comparative evaluation against
+existence/RLU/MV-RLU stays deferred.
+
+**Number corrections in the same batch** (benchmark `65aa758`, layout pinned):
+- `sec:escalation`'s lane table: **64 writers REMOVED**, 48 and 80 added. That
+  cell printed 303×; the serialized lane is bistable there (0.161 at 48, 0.046 at
+  80, both ±0.1%; at 64 it flips run to run, ratio spanning ~270–810×).
+- `sec:varhelping` contended margin: **+27.0% → "roughly +30%"**, deliberately
+  loose. It read +27.0/+28.5/+29.9% across three sessions with the peak moving
+  1920→960 keys/sl, while holding ~1.5% *within* a session. **Do not tighten
+  without a fourth session agreeing twice.**
+- Headline +22.1% → **+22.0%**; now reproduced across three sessions
+  (+22.1/+21.2/+22.0), which the footnote states.
+
+**Still open:** Mathieu's first read; nothing to Paul. And `fig:writerscale`'s
+alignment caveat — cacheline-aligning nodes lowered the low-writer baseline while
+leaving the peak, so the scaling ratio is slightly flattered; that is disclosed
+in the benchmark commit but NOT yet in the paper.

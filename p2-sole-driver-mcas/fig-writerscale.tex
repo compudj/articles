@@ -1,0 +1,72 @@
+% Writer scaling on the bidirectional list: what dropping the exclusion buys.
+%
+% This is the paper's PREMISE measured.  Everything else here argues about how
+% the facility should be built; this is the evidence that building it at all was
+% worth doing, and until now the paper asserted it.
+%
+% The structure is the companion paper's, deliberately -- the series keeps the
+% same worked structures so what changes between papers is the facility and not
+% the example.  The single-writer arm is that paper's flip-latch with its writers
+% serialized through a mutex, which is not a handicap imposed on it: it is what
+% exclusion MEANS once there is more than one writer.
+%
+% LOG-LOG, and for a reason.  The two curves end up three orders of magnitude
+% apart, so a linear y would erase the single-writer curve entirely -- it would
+% sit on the axis and the reader would have to take its shape on trust.  The
+% ideal-scaling guide is drawn for the same reason it would be tempting to omit:
+% on log-log, perfect scaling is a straight line of slope 1, so the gap between
+% the measured curve and that line IS the sublinearity, stated rather than
+% hidden.  At 192 writers the facility reaches 26% of ideal.
+%
+% A plain pthread_mutex list is NOT plotted, though it was measured and the data
+% file carries it.  Its absolute level is not comparable: the lock engines
+% recycle a permanent node in place while the RCU engines defer frees through
+% call_rcu, so it starts far above both curves at one writer and would invite
+% exactly the wrong reading.  Its SHAPE is the useful part -- flat from two
+% writers on, like the flip-latch -- and the caption says so in words instead.
+\par\medskip\noindent\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\linewidth, height=5.6cm,
+  xmode=log, ymode=log, log basis x=2,
+  xlabel={Concurrent writers}, ylabel={Millions of updates/s},
+  xmin=0.85, xmax=230, ymin=0.7, ymax=1600,
+  xtick={1,2,4,8,16,32,64,128,192},
+  xticklabels={1,2,4,8,16,32,64,128,192},
+  ytick={1,10,100,1000},
+  yticklabels={1,10,100,1000},
+  legend pos=north west, legend cell align=left,
+  legend style={draw=none, fill=none, font=\footnotesize},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  grid=major, grid style={gray!20},
+  axis lines=left,
+]
+\addplot[no marks, thin, gray!55, densely dotted, domain=1:192, samples=2]
+  {6.40*x};
+\addlegendentry{ideal scaling}
+\addplot[mark=*, mark size=1.5pt, thick, color=blue!65!black]
+  table[x=writers, y=mw, col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\code{rcu-txn-list} (this paper)}
+\addplot[mark=square, mark size=1.5pt, thick, color=black!55, dashed]
+  table[x=writers, y=sw, col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\fliplatch $+$ writer exclusion}
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Writer scaling on the bidirectional list of
+\cref{sec:structures}, the structure the companion paper also uses. The
+single-writer \fliplatch is shown with its writers serialized through a mutex,
+which is what its exclusion precondition amounts to once a second writer exists.
+The two are within $3\%$ of each other at one writer and diverge from there: the
+transacted list reaches $321$ million updates per second at 192 writers, a factor
+of $50$, while exclusion turns the second writer into a loss and every writer
+after it into a smaller one. A plain \code{pthread\_mutex} list, measured but not
+drawn, has the same flat shape---serialization is flat whatever sits behind
+it---but its absolute level is not comparable, because the lock engines recycle a
+node in place where the \rcu ones defer every free through a grace period. The
+dotted guide is ideal scaling from the one-writer point: the measured curve
+reaches $26\%$ of it at 192 writers, and the distance between them is this
+facility's own sublinearity, which no amount of dropping exclusion removes.}
+\label{fig:writerscale}
+\end{minipage}\par\medskip
