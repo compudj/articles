@@ -3021,8 +3021,9 @@ commit is one store and the hard parts are contracts rather than machinery. A
 companion paper takes up the \mw facility, which realizes the same model for
 concurrent writers, paying in machinery this paper has no need of for the
 exclusion it drops. Because the two share the model of \cref{sec:model} and the
-status vocabulary, an embedder that outgrows exclusion changes which facility it
-links, not how it reasons. The programming model the two facilities share, and the
+status vocabulary---and, at the pinned commit, one descriptor and one status
+word---an embedder that outgrows exclusion changes which discipline a slot
+records under, not how it reasons. The programming model the two facilities share, and the
 evaluation, follow in their own papers.
 
 % ===========================================================================
