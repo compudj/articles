@@ -1,0 +1,104 @@
+% Inserting E between P and N under concurrent writers, and the same insert
+% aborting.  The companion paper's fig:listinsert adapted to the multi-writer
+% case, which changes what the figure is FOR.
+%
+% P1's version is a four-phase lifecycle (build | install | commit | settle),
+% because under exclusion the interesting thing is that a commit cannot fail and
+% the reader sees one coherent list either side of it.  Here the commit CAN fail,
+% so the interesting thing is the fork: one write set, one store, two outcomes.
+% Drawing the two outcomes as separate figures would duplicate the shared write
+% set and split the comparison across a page break; forking shows that the
+% install is common and only the terminal value differs, which is the point.
+%
+% Two things this must make obvious that no other figure in the paper does:
+%   (a) the GUARD -- a record whose old and new are the SAME value, read but not
+%       written (sec:guard).  A table row with v in both columns explains
+%       load-validate faster than the paragraph does.
+%   (b) an abort is not a partial edit.  The FAILED branch leaves the list
+%       byte-for-byte as it was found, which is what makes a losing writer's
+%       retry safe.
+%
+% Deliberately NOT redrawn here: the slot -> record -> status anatomy, which is
+% fig:tristate's job.  This figure starts from the write set and assumes it.
+%
+% Layout note: render the page and LOOK at it.  Every fault in this paper's other
+% two figures passed a clean build.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  lnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8},
+  nnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=green!14},
+  sel/.style     = {draw, very thick, minimum width=15mm, minimum height=8mm, fill=orange!18},
+  trow/.style    = {anchor=west, inner sep=0pt, minimum height=6mm, font=\footnotesize},
+  biarr/.style   = {latex-latex, semithick},
+  arr/.style     = {-latex, thin},
+  phase/.style   = {font=\footnotesize\itshape, text=black!70},
+]
+
+% ===== the write set: two writes and one guard ==============================
+\node[trow, fill=blue!14] (hdr)  at (0, 3.30)
+  {\makebox[15mm][c]{\textit{slot}}\makebox[12mm][c]{\textit{old}}\makebox[12mm][c]{\textit{new}}};
+\node[trow, fill=blue!6]  (rec1) at (0, 2.70)
+  {\makebox[15mm][c]{\code{P.next}}\makebox[12mm][c]{\code{N}}\makebox[12mm][c]{\code{E}}};
+\node[trow, fill=blue!6]  (rec2) at (0, 2.10)
+  {\makebox[15mm][c]{\code{N.prev}}\makebox[12mm][c]{\code{P}}\makebox[12mm][c]{\code{E}}};
+\node[trow, fill=orange!10] (rec3) at (0, 1.50)
+  {\makebox[15mm][c]{\code{N.next}}\makebox[12mm][c]{$v$}\makebox[12mm][c]{$v$}};
+\draw[thin, blue!45] (0, 1.2) rectangle (3.9, 3.6);
+\draw[thin, blue!45] (1.5, 1.2) -- (1.5, 3.6);
+\draw[thin, blue!45] (2.7, 1.2) -- (2.7, 3.6);
+\draw[thin, blue!45] (0, 3.0) -- (3.9, 3.0);
+\draw[thin, blue!45] (0, 1.8) -- (3.9, 1.8);
+
+% Under the table, not beside it: to the right of rec3 is where the FAILED
+% branch runs, and the note printed straight over it.
+\node[font=\scriptsize, text=orange!45!black] at (1.95, 0.8)
+  {\textbf{guard}: read, never written};
+\node[above=0.5mm of hdr, font=\footnotesize\itshape] {the write set};
+
+% ===== the status word, forking =============================================
+% Elbow arrows, not diagonals: the two branches leave the status word vertically
+% and run out horizontally, which keeps their labels on a clear vertical segment
+% instead of riding a slope through the outcome text.
+\node[sel] (st) at (7.0, 2.4) {\code{status}};
+\draw[arr] (3.9, 2.4) -- node[above, font=\scriptsize] {install} (st.west);
+
+\draw[-latex, semithick] (7.0, 2.8) -- (7.0, 4.0) -- (9.25, 4.0);
+\node[right, font=\scriptsize] at (7.05, 3.45) {\SUCCEEDED};
+
+\draw[-latex, semithick, gray!60!black] (7.0, 2.0) -- (7.0, 0.6) -- (9.8, 0.6);
+\node[right, font=\scriptsize, text=gray!45!black] at (7.05, 1.35) {\FAILED};
+
+% ===== outcome 1: committed =================================================
+\node[lnode] (cP) at ( 9.8, 4.0) {\code{P}};
+\node[nnode] (cE) at (10.9, 4.0) {\code{E}};
+\node[lnode] (cN) at (12.0, 4.0) {\code{N}};
+\draw[biarr] (cP) -- (cE);
+\draw[biarr] (cE) -- (cN);
+\node[font=\scriptsize, text=green!35!black] at (10.9, 3.35)
+  {\code{E} linked, both directions};
+
+% ===== outcome 2: aborted ===================================================
+\node[lnode] (aP) at (10.35, 0.6) {\code{P}};
+\node[lnode] (aN) at (11.45, 0.6) {\code{N}};
+\draw[biarr] (aP) -- (aN);
+\node[font=\scriptsize, text=gray!45!black] at (10.9, -0.05)
+  {unchanged: every record resolves to \textit{old}};
+\node[font=\scriptsize, text=gray!55!black, align=center] at (10.9, -0.8)
+  {a concurrent delete of \code{N} marked it,\\so the guard's \textit{old} no longer holds};
+
+\end{tikzpicture}
+\caption{One write set, one store, two outcomes---the companion paper's insert
+under concurrent writers. Inserting \code{E} between \code{P} and \code{N} moves
+two edges, and needs one thing more that the single-writer case did not: a
+\emph{guard} on \code{N}'s forward pointer, a record whose old and new are the
+same value $v$. The insert reads that slot but never writes it, so nothing else
+in the transaction would notice a concurrent deletion of \code{N} marking it
+(\cref{sec:guard}). On \SUCCEEDED\ every record resolves to its new value and
+\code{E} is linked in both directions at once. On \FAILED---here because the
+guard's expected value no longer holds---every record resolves to its old value
+instead, so the list is left exactly as it was found and the writer may simply
+re-descend and retry. An abort is never a partial edit.}
+\label{fig:listinsert}
+\end{figure}

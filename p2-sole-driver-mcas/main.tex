@@ -1129,6 +1129,8 @@ no check to fail and could not carry one. That is not a limitation: a slot the
 embedder holds a lock over needs no guard, because the lock already excludes the
 writer the guard would have caught.
 
+\input{fig-listinsert}
+
 This is deliberately the minimal, functional form of a general facility. The
 guard exists here for one reason---to make this paper's own worked example
 correct under concurrent writers---and it is presented as exactly that: a single
