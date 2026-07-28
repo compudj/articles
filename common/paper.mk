@@ -50,7 +50,15 @@ force:
 # more than just running them.
 # $(BIB) via wildcard: the bibliography is assembled separately, and a missing
 # one must not block a skeleton build.
-$(PAPER).pdf: $(PAPER).tex $(COMMON)/preamble.tex $(COMMON)/macros.tex $(wildcard $(BIB)) mode.txt
+# fig-*.tex / tab-*.tex are \input by the paper, so a change to one changes the
+# PDF -- but make cannot see through \input, and without them listed here an
+# edit to a figure leaves the PDF untouched while the build reports success.
+# That is worse than a plain failure: you render the page, see the OLD diagram,
+# and conclude the change did not work. The arxiv target already stages exactly
+# this glob, so the naming convention is one the build already relies on.
+$(PAPER).pdf: $(PAPER).tex $(COMMON)/preamble.tex $(COMMON)/macros.tex \
+              $(wildcard fig-*.tex) $(wildcard tab-*.tex) \
+              $(wildcard $(BIB)) mode.txt
 	$(LATEX) $(PAPER).tex
 	@# bibtex's exit code is ignored on purpose -- a skeleton with no \cite yet
 	@# makes it exit nonzero ("I found no \citation commands"), which is fine.
