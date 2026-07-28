@@ -257,6 +257,11 @@ its old value. Resolution goes through the status word, so \textbf{a slot's plai
 value is never load-bearing}: one transaction's new value is the next
 transaction's old value, and only the descriptor's identity disambiguates them.
 
+\Cref{fig:tristate} is the mechanism in one picture, and it is deliberately the
+companion paper's diagram with the selector replaced by a status word.
+
+\input{fig-tristate}
+
 This is the shape the companion paper inherited from practical \mcas
 \citep{harris2002mcas, fraser2004lockfreedom}: a descriptor of records, a status
 word whose transition decides the outcome, and resolution routed through the
@@ -398,6 +403,8 @@ point has been reached.
 
 \subsection{Two install disciplines, one linearization point}
 \label{sec:kinds}
+
+\input{fig-kinds}
 
 Everything above assumed every slot has concurrent writers. Real structures are
 rarely so uniform: an edit often spans slots the embedder already holds a lock

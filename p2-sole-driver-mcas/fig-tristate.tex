@@ -1,0 +1,91 @@
+% The sole-driver descriptor, installed: N slots -> N records -> ONE status word.
+%
+% DELIBERATELY the same picture as the companion paper's fig:fliplatch, in the
+% same visual vocabulary (identical node styles, identical left-to-right layout:
+% slots -> indirection -> one shared word -> resolution).  The series claims in
+% prose that the two papers realize ONE model with the engine swapped; a reader
+% who has seen P1's figure should recognize this one and see that exactly one
+% thing changed -- the shared word gained a third state.  Do not "improve" the
+% styling independently of P1's figure; the sameness IS the argument.
+%
+% The one thing this must show that P1's cannot: TWO of the three states resolve
+% identically.  Hence the two arrows on the right and not three -- the gray one
+% is labelled with both states that take it, so the convergence is visible rather
+% than stated.  That asymmetry is the non-obvious part of sec:status.
+%
+% Layout note: annotations are anchored to nodes, never to guessed absolute
+% coordinates.  An earlier draft placed two text blocks by hand and they
+% overprinted each other in the rendered PDF.  If you add anything here, render
+% the page and LOOK at it before believing the build's silence.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  slot/.style   = {draw, minimum width=15mm, minimum height=6mm, fill=gray!8},
+  proxy/.style  = {draw, minimum width=26mm, minimum height=9mm, fill=blue!6},
+  target/.style = {draw, rounded corners=2pt, minimum width=11mm, minimum height=5.5mm},
+  old/.style    = {target, fill=gray!15},
+  new/.style    = {target, fill=green!12},
+  sel/.style    = {draw, very thick, minimum width=17mm, minimum height=8mm, fill=orange!18},
+  arr/.style    = {-latex, thin},
+  dep/.style    = {-latex, thin, densely dotted, gray!70!black},
+]
+
+% ---- slots (the words the reader loads) -------------------------------------
+\node[slot] (s1) at (0, 1.6)  {\code{s$_1$}};
+\node[slot] (s2) at (0, 0)    {\code{s$_2$}};
+\node[slot] (s3) at (0, -1.6) {\code{s$_3$}};
+\node[above=1.5mm of s1, align=center, font=\footnotesize\itshape] {slots\\(tagged)};
+
+% ---- records ---------------------------------------------------------------
+\node[proxy] (p1) at (3.9, 1.6)  {$\{o_1,\, n_1\}$};
+\node[proxy] (p2) at (3.9, 0)    {$\{o_2,\, n_2\}$};
+\node[proxy] (p3) at (3.9, -1.6) {$\{o_3,\, n_3\}$};
+\node[above=1.5mm of p1, align=center, font=\footnotesize\itshape] {records};
+
+\draw[arr] (s1) -- (p1);
+\draw[arr] (s2) -- (p2);
+\draw[arr] (s3) -- (p3);
+
+% ---- the shared status word: the whole point -------------------------------
+\node[sel] (st) at (8.3, 0) {\code{status}};
+\node[above=1.5mm of st, align=center, font=\footnotesize\itshape] {descriptor\\(one word)};
+
+\draw[dep] (p1.east) -- (st.north west);
+\draw[dep] (p2.east) -- (st.west);
+\draw[dep] (p3.east) -- (st.south west);
+
+% ---- resolution: two arrows, because two states share a destination --------
+% Labels are SLOPED, for the reason P1's figure records: these arrows rise and
+% fall about 20 degrees, and a horizontal label placed above or below its own
+% midpoint is crossed by the arrow's line.  Verified by rendering the page.
+\node[new] (n1) at (12.9,  1.45) {$n_1$};
+\node[old] (o1) at (12.9, -1.25) {$o_1$};
+\draw[arr, thick] (st.east) --
+  node[above, sloped, font=\scriptsize, pos=0.5] {\SUCCEEDED} (n1.west);
+\draw[arr, gray!70!black] (st.east) --
+  node[below, sloped, font=\scriptsize, pos=0.5] {\UNDECIDED\ or \FAILED} (o1.west);
+
+% ---- the terminal write ----------------------------------------------------
+% Drop is 0.95, not 0.55: the sloped UNDECIDED/FAILED label descends into this
+% column, and at the shorter drop its tail and this block's top line came within
+% a hair of touching.  Rendered and checked.
+\draw[-latex, very thick, orange!70!black] (st.south) -- ++(0,-0.95)
+  node[below, align=center, font=\footnotesize, text=black]
+  {\textbf{written once, to a terminal value}\\
+   \UNDECIDED $\to$ \SUCCEEDED\ (commit)\\
+   \UNDECIDED $\to$ \FAILED\ (abort)};
+
+\end{tikzpicture}
+\caption{The sole-driver descriptor, installed---the companion paper's figure
+with its selector replaced by a status word. Each slot holds a \emph{tagged}
+pointer to a record rather than its target; each record carries
+$\{\mathit{old},\mathit{new}\}$ and reads the one shared status word, so a single
+store decides the whole set. What the third state buys is on the right:
+\SUCCEEDED\ resolves every record to its new target, while \UNDECIDED\ and
+\FAILED\ both resolve to old. An installed-but-undecided set and an aborted set
+are therefore indistinguishable to a reader, and an abort leaves the structure
+exactly as it was found. As in the single-writer case there is no instant at
+which the set is part-old and part-new.}
+\label{fig:tristate}
+\end{figure}

@@ -1,0 +1,93 @@
+% Two install disciplines in, one resolve path out.
+%
+% This figure exists to DRAW prop:kindinvisible rather than argue it: every
+% difference between the kinds is on the ARROW from slot to record, and nothing
+% past the record can tell which one parked a slot.  If a reader takes only that
+% away, the figure has done its job.
+%
+% Same visual vocabulary as fig:tristate and P1's fig:fliplatch -- deliberately.
+%
+% The slots are drawn IDENTICALLY on purpose.  It is tempting to colour the
+% exclusive one differently, but that would be untrue to the mechanism: a slot's
+% kind is not a property the word carries, it is a property of the WRITER's
+% discipline, so it belongs on the arrow and nowhere else.
+%
+% Deliberately NOT drawn: the install ORDER (shared records first, then the
+% exclusive parks, then the status store, then settle).  That is sequencing, it
+% belongs in prose, and crowding it in here would bury the single point above.
+%
+% Layout note: an earlier draft ran a rotated "the kinds differ here" label down
+% the middle and it overprinted the arrow labels.  The two shared slots sit close
+% together and the exclusive one sits apart, which separates the kinds by
+% POSITION instead, leaving the top clear for the failure edge.  Render the page
+% and look at it before adding anything.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  slot/.style   = {draw, minimum width=15mm, minimum height=6mm, fill=gray!8},
+  proxy/.style  = {draw, minimum width=26mm, minimum height=9mm, fill=blue!6},
+  target/.style = {draw, rounded corners=2pt, minimum width=11mm, minimum height=5.5mm},
+  old/.style    = {target, fill=gray!15},
+  sel/.style    = {draw, very thick, minimum width=17mm, minimum height=8mm, fill=orange!18},
+  arr/.style    = {-latex, thin},
+  dep/.style    = {-latex, thin, densely dotted, gray!70!black},
+  fail/.style   = {-latex, thin, densely dashed, red!60!black},
+]
+
+% ---- slots: drawn identically; the kind is not visible in the slot ----------
+\node[slot] (s1) at (0,  1.7) {\code{s$_1$}};
+\node[slot] (s2) at (0,  0.5) {\code{s$_2$}};
+\node[slot] (s3) at (0, -1.5) {\code{s$_3$}};
+\node[left=1.5mm of s1, font=\scriptsize\itshape] {shared};
+\node[left=1.5mm of s2, font=\scriptsize\itshape] {shared};
+\node[left=1.5mm of s3, font=\scriptsize\itshape, align=right] {exclusive\\(lock held)};
+
+% ---- records ---------------------------------------------------------------
+\node[proxy] (p1) at (4.4,  1.7) {$\{o_1,\, n_1\}$};
+\node[proxy] (p2) at (4.4,  0.5) {$\{o_2,\, n_2\}$};
+\node[proxy] (p3) at (4.4, -1.5) {$\{o_3,\, n_3\}$};
+
+% ---- the two installs: the ONLY place the kinds differ ---------------------
+\draw[arr] (s1) -- node[above, font=\scriptsize] {CAS} (p1);
+\draw[arr] (s2) -- node[above, font=\scriptsize] {CAS} (p2);
+\draw[arr, thick] (s3) --
+  node[above, font=\scriptsize] {plain store}
+  node[below, font=\scriptsize] {cannot fail} (p3);
+
+% The failure edge belongs to the CAS installs and to nothing else.  Anchored to
+% the arrow's own midpoint, drawn up into space kept clear for it.
+\draw[fail] (2.2, 1.95) -- ++(0.5, 0.75)
+  node[right, font=\scriptsize, text=red!60!black] {a peer changed it: \emph{abort}};
+
+% ---- one status word -------------------------------------------------------
+\node[sel] (st) at (8.8, 0.2) {\code{status}};
+\draw[dep] (p1.east) -- (st.north west);
+\draw[dep] (p2.east) -- (st.west);
+\draw[dep] (p3.east) -- (st.south west);
+
+% ---- one resolve path, identical for both kinds ----------------------------
+\node[old] (res) at (12.6, 0.2) {$o_i$ / $n_i$};
+\draw[arr, thick] (st.east) -- node[above, font=\scriptsize] {resolve} (res.west);
+
+% Short, and tucked directly under the resolve arrow it labels.  Two earlier
+% placements collided with the dotted arrows converging on `status` from the
+% records -- that whole wedge of space is crossed by them and is not usable for
+% text.  Under the resolve arrow, right of `status`, nothing crosses.  The long
+% form of this sentence lives in the caption, where it cannot collide with
+% anything.
+\node[font=\footnotesize\itshape, text=gray!45!black]
+  at (10.85, -0.5) {identical for both kinds};
+
+\end{tikzpicture}
+\caption{Two install disciplines, one resolve path. A slot with concurrent
+writers is planted with a compare-and-swap, which a peer's intervening change
+makes fail---the only source of a contention abort. A slot the embedder holds a
+lock over is parked with a plain release store, which cannot fail. The slots are
+drawn identically because they \emph{are} identical: the kind is a property of
+the writer's discipline, not something the word carries, so it lives on the
+arrow and nowhere else. Past the records the two are one object, and a reader
+resolving a slot cannot determine which discipline parked it. A transaction with
+no shared record therefore has nothing in it that can abort.}
+\label{fig:kinds}
+\end{figure}
