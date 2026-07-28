@@ -592,25 +592,32 @@ first attempt:
 \begin{center}
 \footnotesize
 \setlength{\tabcolsep}{5pt}
-\begin{tabular}{@{}l rrrrrrrrr@{}}
+\begin{tabular}{@{}l rrrrrrrrrr@{}}
 \toprule
-writers & 1 & 2 & 4 & 8 & 16 & 32 & 64 & 128 & 192 \\
+writers & 1 & 2 & 4 & 8 & 16 & 32 & 48 & 80 & 128 & 192 \\
 \midrule
-optimistic $/$ lane & $1.0\times$ & $2.3\times$ & $25\times$ & $51\times$ &
-  $98\times$ & $172\times$ & $303\times$ & $946\times$ & $1029\times$ \\
+optimistic $/$ lane & $1.0\times$ & $2.3\times$ & $26\times$ & $49\times$ &
+  $95\times$ & $180\times$ & $224\times$ & $970\times$ & $941\times$ &
+  $1042\times$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent At a single writer the two are identical---an uncontended lane costs
 nothing, which is also the check that the always-escalate build is measuring the
-funnel rather than itself---and by 192 writers the optimistic path is three
-orders of magnitude ahead.\footnote{\code{bench\_txn\_3skiplist}, width~3, 3840
-keys per skip list, median of three 2\,s runs, on the machine of
-\cref{sec:varhelping}. The always-escalate arm forces the lane from the first
-attempt (a zero budget); it is the limit case, not the shipped policy, which
-escalates only a losing handle. The comprehensive study is deferred to the
-evaluation paper.} So the more a
+funnel rather than itself---and past 80 writers the optimistic path is three
+orders of magnitude ahead, plateauing there as the lane's own throughput goes
+flat.\footnote{\code{bench\_txn\_3skiplist}, width~3, 3840
+keys per skip list, median of nine 2\,s runs with the address-space layout
+pinned, on the machine of \cref{sec:varhelping}. The always-escalate arm forces
+the lane from the first attempt (a zero budget); it is the limit case, not the
+shipped policy, which escalates only a losing handle. Sixty-four writers is
+omitted deliberately, and is the one point that is not a number: the serialized
+lane has two stable regimes either side of it---$0.161$ million key-moves per
+second at 48 writers and $0.046$ at 80, each reproducing to within
+$0.1\%$---and at 64 it settles into one or the other from run to run, so its
+ratio ranges over roughly $270$--$810\times$. Every other point here reproduces
+within $3\%$. The comprehensive study is deferred to the evaluation paper.} So the more a
 transaction costs, the longer it should stay optimistic---the budget encodes
 exactly that.
 
@@ -739,16 +746,22 @@ leaving one driver per transaction and a single coarse settle-wait.
 
 The removal is a measured win, and it is what retired the helping path. On a
 three-structure skip-list move at 192 cores, the sole-driver engine sustains
-$40.8$ against the helping engine's $33.4$ million key-moves per
-second---$+22.1\%$---and the margin grows as the structures shrink and the
-shared upper levels grow hotter, reaching $+27.0\%$; it also grows with the
+$40.7$ against the helping engine's $33.4$ million key-moves per
+second---$+22.0\%$---and the margin grows as the structures shrink and the
+shared upper levels grow hotter, reaching roughly $+30\%$ on the smallest
+structures measured; it also grows with the
 writer count, from $+5\%$ at a single writer to $+22\%$ at 192, which is the
 shape a contention argument should have.\footnote{\code{bench\_txn\_3skiplist},
-width~3, jemalloc, median of five 2\,s runs, on a 2\,$\times$\,96-core EPYC 9654
-(384 hardware threads). Run-to-run spread within a point is at most 2.3\%, so
+width~3, jemalloc with a per-CPU arena, median of five 2\,s runs with the
+address-space layout pinned, on a 2\,$\times$\,96-core EPYC 9654
+(384 hardware threads). Run-to-run spread within a point is at most $1.1\%$, so
 the separation is not noise; medians are reported rather than the best of a
 batch. Both arms are built from engine commit \code{97443472} and differ in one
-compile-time flag, the install discipline. See \cref{sec:availability}.}
+compile-time flag, the install discipline. The figure at 192 writers reproduced
+across three independent capture sessions ($+22.1\%$, $+21.2\%$, $+22.0\%$);
+the contended margin is quoted loosely because it did not, ranging over
+$+27\%$ to $+30\%$ across those sessions while holding to $1.5\%$ within any
+one of them. See \cref{sec:availability}.}
 
 The comparison has to be made at that older commit, and it is worth saying why
 rather than burying it. The helping install was \emph{deleted} from the engine
@@ -756,14 +769,27 @@ once it lost, so there is no build of the shipped tree that still contains it:
 \code{97443472} is the last commit carrying both disciplines, which is what makes
 a one-flag A/B possible at all. That leaves the obvious objection---that a
 retired tree may not describe the shipped one---so we measured the sole-driver
-arm on both. At the disclosed commit it is between $0.5\%$ and $3.1\%$
+arm on both. At the disclosed commit it is between $0.7\%$ and $2.4\%$
 \emph{faster} than at \code{97443472}, at every writer count from 1 to 192. The
 winner of the A/B is the engine that ships, slightly improved; nothing in the
 intervening work moved it.
 
 % ---------------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
-% RE-MEASURED 2026-07-28.  The stale 2026-07-10 numbers (39.9 vs 32.8, +21.7%,
+% RE-MEASURED 2026-07-28, then AGAIN with the address-space layout pinned.
+% The layout matters: the sibling list benchmark is BIMODAL under ASLR (two
+% clusters 19% apart), and while these skiplist panels are not visibly bimodal
+% -- worst spread 1.1% -- the SERIALIZED lane arm is, which is why 64 writers is
+% omitted from sec:escalation's table.  All four sweep scripts now pin it.
+%
+% WHAT REPRODUCES AND WHAT DOES NOT.  The +22% headline reproduced across three
+% independent capture sessions (+22.1, +21.2, +22.0).  The CONTENDED margin did
+% not: +27.0, +28.5, +29.9, and its peak moved from 1920 to 960 keys/skiplist,
+% while within-run spread stayed ~1.5%.  So the text says "roughly +30%" rather
+% than a two-decimal figure, deliberately -- do not tighten it back up without a
+% fourth session that says the same thing twice.
+%
+% The stale 2026-07-10 numbers (39.9 vs 32.8, +21.7%,
 % +25.8%) are gone; these are fresh.  Data + scripts live in
 % efficios-trie-benchmark: scripts/p2_engine_remeasure.csv (240 runs, 0
 % failures), scripts/build_p2_remeasure_arms.sh, run_p2_engine_remeasure.sh,
@@ -894,7 +920,7 @@ mechanism.
 Helping (co-install) &
   forced a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch $\Rightarrow$
   bounded-blocking anyway; hot-cache-line traffic; duplicated work. Removing help
-  and steal: \textbf{$+22.1\%$} at 192 writers, to $+27.0\%$ under contention &
+  and steal: \textbf{$+22.0\%$} at 192 writers, to roughly $+30\%$ under contention &
   \citet{harris2002mcas}; \citet{barnes1993method} \\
 Abort-others &
   the same subsystem as helping (steal $=$ evict a foreign txn); removed with it
@@ -921,7 +947,7 @@ Pure lock-freedom &
 the last was built or seriously considered here and then rejected; the last is
 independent, concurrent work, recorded because it answers the same hazard the
 opposite way and is not ours to reject. The decisive help-and-steal
-removal ($+22.1\%$, \cref{sec:varhelping}) is the throughput evidence this paper
+removal ($+22.0\%$, \cref{sec:varhelping}) is the throughput evidence this paper
 carries; the remaining rejected rows fall on portability or correctness grounds
 that hold independently of a number, and the broader comparative study is
 deferred. Disclosing each rejected approach is what makes the map defensive prior
