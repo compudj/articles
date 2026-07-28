@@ -504,3 +504,70 @@ converges on" → *that pairing a lock with this facility converges on*.
 
 Build unchanged otherwise: 19 pp, refs OK, terms OK, abstract 1892/1920 (up 4,
 from the two swaps inside the abstract).
+
+---
+
+## 2026-07-28 — MIXED SW/MW RECORDS FOLDED IN
+
+P2 pins `b3e23f9f`, which has carried the mixed single-writer / multi-writer
+front-end since 2026-07-22 (`2a599d77`..`610d4792`), while the text still
+described a multi-writer-only engine opposed to P1's flip-latch. That is the same
+defect class as the stale numbers: **pinning one tree and describing another.**
+
+**New §3.5 `sec:kinds`, "Two install disciplines, one linearization point".**
+The install discipline is a property of the RECORD, chosen per slot: shared slots
+planted by the sole-driver CAS, exclusive slots parked by a plain release store
+that cannot fail. `prop:kindinvisible` — both kinds share the resolve header, so
+the kind is writer-side only and no reader can tell which parked a slot; the
+generality is free on the read side. Then the argument that this was even
+available: two incompatible proxy layouts at one tag was a REPRESENTATION
+problem, and one shared header dissolves it. Then abort is MW-only (so an all-SW
+write set cannot contention-abort — it recovers P1's commit exactly), and mixing
+is paid for only when `0 < nr_mw < nr`.
+
+Threaded through the rest: **§3.1** record gains a `kind` (P1's triple stays a
+triple — the kind is this paper's addition, not the companion's); **§3.6
+Constraints + §8 Limitations** the kind is a property of the SLOT and must be
+GLOBALLY consistent across every writer, MW always safe, SW a promise, uncheckable
+by the facility, fail-safe MW-dominates within one txn; **§4.1** the install sort
+covers the MW prefix only; **§4.2** bounded-blocking classifies a WRITE SET, not
+the facility — the coarseness thesis at a finer grain; **§6** the worked
+list/hlist are all-MW (they promise no lock), a guard is MW by construction, and
+mixing does NOT rescue `pprev` (the contract has teeth); **§11** the front-end
+swap, and that no separate MW-only header exists at this commit.
+
+**Claim scope — settled by literature review, recorded in full in the
+`p2-mixed-swmw-litreview` memory. Verdict: CONJUNCTION element, not a third
+independent claim; not a close call.** The DESIGN POINT is prior art and charted:
+Tang & Elmore (USENIX ATC'18) Fig. 1 design 2, *one protocol per record, multiple
+protocols per transaction*, with MOCC (Wang & Kimura) a prior instantiation. New
+**§9.4 `sec:relmixed`** grants them the design point and states what the k-CAS
+setting buys instead: their two mixing-cost terms are both zero here, and their
+cross-protocol atomicity is a serializability argument over separate commits
+where ours is one status store. *(`check-terms` flags "serializability" on that
+line — DELIBERATE, describes CormCC not us, marked with an inline comment. Do not
+let an editing pass attach the word to our mechanism.)* §9.5 names the element and
+draws its boundary: what is ours is not that disciplines can be mixed but that
+mixing THESE TWO costs nothing on either side.
+
+Patent sweep, six families (Oracle MCAS 10824424/11216274, Sun KCSS 8230421, Sun
+7685583, Sun STM 9424015 + 7720891, MS PMwCAS) — all uniform-install, all
+negative. Keep-worthy by-product: Oracle's MCAS claim 1 requires writing the
+status *by CAS*; sole-driver writes it with a plain release store.
+
+**Two citation additions independent of the claim decision.** §3.3 gains PathCAS
+(`brown2022pathcas`), which corroborates `prop:abainstall` from the inside — it
+adopts DCSS precisely to stop a helper "resurrecting a completed operation",
+stronger than the Guerraoui cite alone. §5.1 + new §5.5 `sec:varversion` + a
+`tab:variations` row gain `unno2026helping` (arXiv 2607.06034, 2026): independent
+concurrent work that KEEPS helping, throttles it, and suppresses install-ABA with
+**version embedding** instead of RDCSS. It confirms our helping-under-contention
+diagnosis and draws the opposite conclusion. Recorded, not rejected — it is not
+ours to reject, and the table caption now says which rows are which.
+
+**STILL BLOCKING, UNCHANGED: item 5, every throughput number is stale.** Nothing
+here re-measured anything. Note that `610d4792` implies a pure-MW commit costs
+what the MW-only engine did — that is a DESIGN property read off the commit path,
+**NOT a measurement**, and must not be presented as one.
+
+Build: 23 pp, refs OK, escapes OK, abstract 1910/1920.

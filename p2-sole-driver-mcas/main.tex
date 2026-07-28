@@ -31,30 +31,31 @@
 A companion paper described a Read-copy-update (\rcu) \pseudotxn---a frozen set of
 \record{slot}{old}{new} records made visible by one commit step---and realized
 it for a single writer with a \fliplatch that has no compare-and-swap and
-requires writer exclusion. This paper drops the exclusion. The sole-driver
+requires writer exclusion. This paper drops the exclusion, and drops it per
+\emph{slot}: one commit spans locked and unlocked slots alike, and a reader
+cannot tell them apart. The sole-driver
 multi-word compare-and-swap (\mcas) facility realizes the same model for concurrent
-writers: a transaction is driven only by its owner, and a thread that trips over
+writers: a transaction is driven only by its owner, and a thread meeting
 an in-flight proxy waits a bounded spin for the owner to settle,
 then escalates. There is no helping, no stealing, and---most of all---no RDCSS
 (restricted double-compare single-swap). A plain value-CAS
-install is A-B-A-safe by construction, because the re-plant hazard it prevents
+install is A-B-A-safe by construction: the re-plant hazard it prevents
 needs a \emph{foreign} driver of one's own records, which sole-driver excludes.
 
 The facility is \emph{bounded-blocking}: it waits on a foreign owner, so it is
 not lock-free, and a FIFO-fair mutex fallback makes it starvation-free under a
-fair scheduler. We argue this is the right target rather than a shortfall, and
-the argument is measured, not hypothesized: a helping design was built and then
-removed. Helping forced a per-record install latch that made it
-bounded-blocking anyway, so lock-freedom was never actually on the table---and
-it lost on throughput.
+fair scheduler. We argue this is the right target, not a shortfall, and the
+argument is measured: a helping design was built and removed. Helping forced a
+per-record install latch that made it bounded-blocking anyway---so lock-freedom
+was never on the table---and it lost on throughput.
 
 Per-slot atomicity is not operation atomicity, so a usable concurrent list needs
-one thing more: logical deletion, realized as a tombstone that update
-transactions agree to treat as freezing a node. It is updater-only
+one more thing: logical deletion, a tombstone that update transactions treat as
+freezing a node. It is updater-only
 coordination---a would-be attacher validates it and aborts---so a reader gets a
-frozen node for free without ever consulting the tombstone, which keeps it off
-the reader's path and lets it sit on a cold cache line. This is a known
-technique, disclosed here as applied. With it and one guarded read, the same
+frozen node for free without consulting the tombstone at all, which keeps it off
+the reader's path and on a cold cache line. This is a known
+technique, disclosed as applied. With it and one guarded read, the same
 bidirectional list and hash list become usable under concurrent writers.
 \end{abstract}
 
@@ -77,6 +78,15 @@ This paper drops the exclusion. The question it answers is what the same model
 costs when several writers commit concurrently, each without a lock. The answer
 is a facility, the sole-driver \mcas (multi-word compare-and-swap), and a claim
 about what \emph{kind} of facility it should be.
+
+Exclusion turns out to be droppable \emph{per slot} rather than wholesale. Every
+record carries a \emph{kind}: a shared slot is planted with a compare-and-swap,
+an exclusive slot---one the embedder holds a lock over---is parked with a plain
+store that cannot fail, and one commit carries both against a single
+linearization point (\cref{sec:kinds}). The generalization costs the reader
+nothing, because both kinds resolve through the same status word and a reader
+cannot tell them apart; and it costs an unmixed write set nothing either,
+because the commit skips the machinery such a write set does not need.
 
 \paragraph{The thesis.} The companion paper refused to overclaim the model's
 \emph{consistency}: it is a \pseudotxn, not software transactional memory, and
@@ -124,7 +134,10 @@ back them:
       the re-plant hazard it resolves requires a foreign driver of one's own
       records, which the regime excludes (\cref{sec:norddcss}); and its owner-only
       settle makes a terminal transaction a \emph{refcount-free} reclamation point
-      (\cref{sec:settle}). This is the first claim, and two elements of the second.
+      (\cref{sec:settle}). The same descriptor carries exclusive and shared
+      records together, so exclusion is a property of the \emph{slot} rather than
+      of the facility, and the kind never reaches a reader (\cref{sec:kinds}).
+      This is the first claim, and three elements of the second.
 
 \item \textbf{The progress argument} (\cref{sec:progress}): deadlock-freedom by
       construction from a sorted install order; \emph{bounded-blocking} defined
@@ -165,8 +178,9 @@ forces, and no more. The comprehensive comparative evaluation---scaling, tail
 latency, and comparison against existence, RLU, and MV-RLU---is later still. What
 appears here is only the throughput that justifies each design choice made here.
 The facility and the companion \fliplatch share the model and the status
-vocabulary, deliberately, so that an embedder that outgrows exclusion changes
-which facility it links, not how it reasons about a commit.
+vocabulary---and, at the pinned commit, one descriptor and one status
+word---so that an embedder that outgrows exclusion changes which discipline a
+slot records under, not how it reasons about a commit.
 
 % ===========================================================================
 \section{Background: what exclusion was buying}
@@ -232,7 +246,11 @@ A transaction is a frozen set of records plus one tri-state \emph{status word}:
 \end{center}
 The status word is written once, to a terminal value, and never written back.
 Installing a record parks the record's own tagged address in its slot---this is
-the descriptor-naming step---and every transition of a slot is such a CAS. A
+the descriptor-naming step. \emph{How} that park is placed depends on one further
+field the companion paper's records did not carry, the record's \emph{kind}: a
+slot with concurrent writers is planted with a CAS, a slot the embedder holds a
+lock over is parked with a plain store. \Cref{sec:kinds} is that distinction; it
+is a writer-side matter only, and nothing below here depends on it. A
 reader or a writer that loads a slot holding a parked record reads that record's
 status: \SUCCEEDED resolves to the record's new value, \UNDECIDED or \FAILED to
 its old value. Resolution goes through the status word, so \textbf{a slot's plain
@@ -314,7 +332,13 @@ contribution here is the recognition that a \pseudotxn's install inherits exactl
 that safety once helping is removed. The linchpin is that RDCSS's purpose is tied
 to helping in the first place: a recent analysis of \kcas frames RDCSS precisely
 as the machinery that keeps an install safe \emph{when the operation may be
-completed by a helping thread}~\citep{guerraoui2020mcas}. Remove the helping and
+completed by a helping thread}~\citep{guerraoui2020mcas}. A helping \kcas states
+the same dependency from the inside: PathCAS adopts the double-word install
+specifically because it ``avoids ABA problems that could otherwise be introduced
+by this lock-free helping,'' preventing a helper from installing into a
+descriptor whose outcome is already decided and so \emph{resurrecting a completed
+operation}~\citep{brown2022pathcas}. That is \cref{prop:abainstall} read in the
+other direction, by authors who kept the helpers. Remove the helping and
 the machinery it justified goes with it. We are not aware of prior work that
 states the elimination this way---that the sole-driver regime makes RDCSS
 unnecessary rather than merely cheaper.
@@ -372,6 +396,64 @@ point has been reached.
 % freeing; sole-driver only certifies the point. Keep this distinction sharp.
 % -----------------------------------------------------------------------
 
+\subsection{Two install disciplines, one linearization point}
+\label{sec:kinds}
+
+Everything above assumed every slot has concurrent writers. Real structures are
+rarely so uniform: an edit often spans slots the embedder already holds a lock
+over and slots it does not, and until recently that edit had no single commit
+spanning both---it had to bridge two facilities with an external lock. The
+facility removes the bridge by making the install discipline a property of the
+\emph{record}, chosen per slot:
+
+\begin{description}\setlength{\itemsep}{2pt}
+\item[Shared (\mw).] The slot has concurrent writers. The install is the
+      sole-driver CAS of \cref{sec:norddcss}: a writer that changed the slot
+      fails the CAS, and the transaction aborts.
+\item[Exclusive (\sw).] The embedder holds a lock over the slot, so no peer can
+      race it. The install is a plain release-store park. It cannot fail.
+\end{description}
+
+The two differ \emph{only} in how a record is placed and settled. They share the
+resolve header---the old value, the new value, and the pointer to the one status
+word---so a slot resolves identically whichever kind parked it, and the single
+release store of that status word is the linearization point for all of them at
+once. Three consequences follow, and they are the whole of what the distinction
+buys.
+
+\begin{property}[The kind is writer-side only]
+\label{prop:kindinvisible}
+A reader loads a slot, finds a tag, and resolves through the status word exactly
+as in \cref{sec:status}. Nothing in that path consults the kind, and no reader
+can determine which discipline parked a slot. Generality on the writer side is
+therefore free on the read side---the property the whole series is organized
+around.
+\end{property}
+
+That this is even available is worth stating, because the obvious layout does not
+give it. If the exclusive discipline had kept its own proxy layout and the shared
+one its descriptor, a single tag bit would name two incompatible objects and a
+reader would have to know which resolver to run---a genuine obstacle, and the
+reason the two lived in separate facilities. Sharing the resolve header dissolves
+it: one layout, one resolver, and the incompatibility turns out to have been an
+artefact of representation rather than of the problem.
+
+\emph{Abort is a shared-slot phenomenon.} The commit installs the shared records
+first and the exclusive parks after, so an abort happens before any park is
+placed and no park is ever rolled back---only the planted prefix is settled back.
+A write set with no shared record therefore \textbf{cannot contention-abort at
+all}: it is the companion paper's \fliplatch commit, recovered exactly, as the
+degenerate case of this one. Progress is thus a property of the write set rather
+than of the facility, which \cref{sec:boundedblocking} takes up.
+
+\emph{Mixing is paid for only when it happens.} Grouping the shared records ahead
+of the exclusive ones is the one cost a uniform write set would not otherwise
+bear, so the commit tracks how many records are of each kind and does the
+regrouping only when a write set genuinely holds both. An all-shared commit costs
+what it did before the kinds existed; an all-exclusive one skips the multi-writer
+path entirely, through a second commit entry point an embedder uses when it knows
+its write set carries no shared record.
+
 \subsection{Constraints}
 \label{sec:constraints}
 
@@ -386,6 +468,24 @@ guarantees.
 The record set is frozen at commit---membership is fixed before installation
 begins---and the slots of one transaction are pairwise distinct. These contracts
 are discharged by the embedder's encoding, by construction or not at all.
+
+The kinds of \cref{sec:kinds} add one more, and it is the sharpest of them
+because it cannot be checked. A slot is exclusive \emph{or} shared, and which one
+must hold \textbf{globally}: every transaction that records that slot, on every
+thread, must agree. The asymmetry is what makes this dangerous. Naming a slot
+shared is always safe---a CAS install is correct whether or not anyone else
+touches it---whereas naming it exclusive is a \emph{promise}, and the plain park
+is correct only while the embedder's lock really does exclude every other writer.
+A transaction that treats a slot as exclusive while another treats it as shared
+lets the second's CAS race the first's unguarded park, which tears or loses a
+write. The facility cannot detect this, because each transaction sees only its
+own records; it is the embedder's invariant, exactly as ``the same datum is
+guarded by the same lock everywhere'' is. A quiescent transition---a slot shared
+for one phase and exclusive for another, with a grace period between---is
+legitimate; concurrent disagreement is not. When in doubt, name it shared. Within
+a single transaction the contradiction is at least visible, and the commit
+resolves it in the safe direction, promoting the slot to the CAS install rather
+than trusting a promise the record set itself contradicts.
 
 % ===========================================================================
 \section{Progress and the Coarseness Thesis}
@@ -408,6 +508,10 @@ bails and fails fast, which cannot deadlock because it never holds-and-waits. On
 when an attempt escalates to the blocking, waiting path does it first sort its
 records by address, buying the ordering the wait needs. Age~0 is unsorted and
 non-blocking; age~1 and above are sorted and blocking.
+
+The order covers the shared records alone. An exclusive park waits on nobody---by
+the promise that makes it exclusive there is no foreign owner to wait on---so it
+can close no cycle, and ordering it would buy nothing.
 
 \subsection{Bounded-blocking, defined}
 \label{sec:boundedblocking}
@@ -432,6 +536,17 @@ and completes, so under a fair scheduler the facility is
 \emph{starvation-free}~\citep{herlihy2011progress}. Bounded-blocking is thus the
 conjunction of a bounded common-case wait and a starvation-free fallback, and it
 sits below lock-freedom and above deadlock-freedom in the taxonomy.
+
+One refinement follows from \cref{sec:kinds}, and it is worth stating because it
+narrows the concession rather than restating it. What waits, and what can abort,
+is a \emph{shared} record; an exclusive one does neither. So bounded-blocking
+classifies a \emph{write set}, not the facility: a write set carrying no shared
+record commits without waiting on anyone and without any contention abort, which
+is the companion paper's progress, unchanged. A transaction pays the
+blocking-progress price on exactly the slots that have a concurrent writer, and
+an embedder that can exclude writers from some of its slots pays it on fewer of
+them. This is the coarseness thesis at a finer grain than a whole facility: the
+synchronization is as coarse as the sharing, and no coarser.
 
 \subsection{Adaptive coarseness: the fair-mutex escalation}
 \label{sec:escalation}
@@ -580,7 +695,13 @@ an installer that found a record \code{BUSY} waited on its holder. Helping never
 bought lock-freedom; it bought a \emph{more complex} bounded-blocking engine.
 And that complexity cost throughput two ways: the per-record state machine was a
 hot cache line, contended by every co-installer, and the helper work itself
-largely duplicated effort the owner would complete anyway. Dropping the helpers
+largely duplicated effort the owner would complete anyway. That diagnosis is not
+only ours: recent work on \kcas reports the same failure, that under high
+contention the helping which guarantees lock-freedom ``may cause excessive cache
+invalidations and significant performance degradation''---and responds by
+throttling the helpers rather than removing
+them~\citep{unno2026helping}. \Cref{sec:varversion} takes up that branch.
+Dropping the helpers
 removes the co-installer, hence the hazard, hence the latch, hence the traffic,
 leaving one driver per transaction and a single coarse settle-wait.
 
@@ -690,6 +811,29 @@ it would have been a poor choice even where it is correct: DCAS is not portably
 available and RDCSS adds a second conditioning word to every install, which is
 hot-cache-line budget spent on a hazard the regime does not actually admit.
 
+\subsection{Keeping the helpers, and paying in version bits}
+\label{sec:varversion}
+
+The alternative that most directly contradicts this paper's choice is to keep
+helping and close its A-B-A hazard some other way. It is a live position, taken
+independently and concurrently with this work: \citet{unno2026helping} retain
+lock-free helping, regulate it with backoff and a helper count so that contention
+does not collapse throughput, and suppress the install A-B-A by embedding a
+\emph{version} in every target word, which lets a helper recognize an operation
+it has already performed. Their diagnosis of helping under contention matches
+ours (\cref{sec:varhelping}); the conclusion drawn is the opposite one.
+
+We record it here rather than dispute it, because the two designs pay in
+different currencies and the paper has not measured theirs. Version embedding
+buys ABA-freedom under helping at the cost of bits taken from every transacted
+word---a per-slot encoding budget this facility deliberately leaves to the
+embedder (\cref{sec:constraints}), which spends it instead on a per-record tag it
+chooses itself. And the trade only arises at all under helping: the hazard the
+versions suppress is the one \cref{prop:abainstall} says a sole driver never
+admits, so what is bought with encoding space there is had for nothing here. That
+is the comparison worth making, and it is a design one; a throughput comparison
+against an independent implementation belongs in the evaluation paper.
+
 \subsection{Pure lock-freedom}
 \label{sec:varlockfree}
 
@@ -728,15 +872,22 @@ Age-as-resolution &
 DCAS / RDCSS install &
   unnecessary under sole-driver (\cref{sec:norddcss}); unportable; hot-cache-line budget &
   RDCSS \citep{harris2002mcas} \\
+Helping $+$ version-embedded words &
+  not rejected on a number: an independent, concurrent design
+  (\cref{sec:varversion}) that keeps helping and spends per-word encoding bits on
+  the hazard a sole driver never admits &
+  \citet{unno2026helping} \\
 Pure lock-freedom &
   unreachable once co-install forced the latch; its one prize (preemption immunity) is cheaper via avoidance &
   --- \\
 \bottomrule
 \end{tabular}
-\caption{The measured design space around the sole-driver facility. Each row was
-built or seriously considered and then rejected. The decisive help-and-steal
+\caption{The measured design space around the sole-driver facility. Every row but
+the last was built or seriously considered here and then rejected; the last is
+independent, concurrent work, recorded because it answers the same hazard the
+opposite way and is not ours to reject. The decisive help-and-steal
 removal ($+21.7\%$, \cref{sec:varhelping}) is the throughput evidence this paper
-carries; the remaining rows are rejected on portability or correctness grounds
+carries; the remaining rejected rows fall on portability or correctness grounds
 that hold independently of a number, and the broader comparative study is
 deferred. Disclosing each rejected approach is what makes the map defensive prior
 art as well as an argument.}
@@ -893,6 +1044,13 @@ The companion paper showed a bidirectional list and a hash list on the
 what changes from one to the next is exactly the facility's capability, not the
 example. Here they run under concurrent writers.
 
+Every slot these two structures transact is a shared one: they are general-purpose
+containers, so no lock is assumed over any of their links and every record they
+record is of the shared kind. The exclusive kind of \cref{sec:kinds} is therefore
+not exercised below---it is for the embedder who \emph{does} hold a lock over part
+of what an edit touches, and who would otherwise have had to bridge two facilities
+to move it atomically with the rest.
+
 \subsection{Same-slot contention, handled by the facility}
 \label{sec:contention}
 
@@ -929,6 +1087,13 @@ fails, and the insert retries. The guarded read is the read-side companion to th
 tombstone: the forward edge is made safe by a \emph{write}-validated slot, the back
 edge by a \emph{read}-validated one.
 
+A guard is of the shared kind necessarily, not by choice. What enforces it is the
+old-value check of the install itself (\cref{sec:kinds}), so a guard is exactly a
+shared record that happens to leave its slot unchanged; the exclusive install has
+no check to fail and could not carry one. That is not a limitation: a slot the
+embedder holds a lock over needs no guard, because the lock already excludes the
+writer the guard would have caught.
+
 This is deliberately the minimal, functional form of a general facility. The
 guard exists here for one reason---to make this paper's own worked example
 correct under concurrent writers---and it is presented as exactly that: a single
@@ -957,7 +1122,7 @@ The companion paper's hash list wrote its backward link---each node's
 \code{pprev}, a pointer to the slot that names it---with a plain store, on the
 grounds that no reader ever loads it and a single updater has no peer to race.
 Under concurrent writers that reasoning does not transfer, and the reason is
-instructive about the whole difference between the two facilities.
+instructive about the whole difference between the two disciplines.
 
 For the single writer, ``writer-only'' meant ``private'': a plain store to
 \code{pprev} was instantly visible to the sole updater and to no one else, so
@@ -973,6 +1138,17 @@ section because they sit in live nodes indefinitely. So under concurrency
 \code{pprev} is transacted: the multi-writer equivalent of the single writer's
 ``eager'' store is ``atomic with the commit,'' which is the transaction. This is
 not a regression; it is the exclusion crutch coming due, in one concrete slot.
+
+It is worth asking whether \cref{sec:kinds} rescues the plain store after all, since
+an exclusive record \emph{is} a plain store inside the commit. It does not, and
+the reason shows the contract has teeth. Exclusive is a promise that the embedder
+holds a lock excluding \emph{every} writer of that slot, and a general-purpose
+hash list makes no such promise: \code{pprev} is written by whichever peer mutator
+is re-linking around this node, under no lock at all. Recording it as exclusive
+would be exactly the globally-inconsistent kind of \cref{sec:constraints}, and the
+plain park would race the very peers the transaction exists to serialize against.
+The kinds let an embedder \emph{spend} exclusion it already has; they do not
+manufacture it.
 
 \subsection{Reclamation: no re-link before a grace period}
 \label{sec:reclaim}
@@ -1013,6 +1189,17 @@ lock-free, and correctness is independent of the preemption-avoidance lever of
 \cref{sec:preemption}, which is not present in the measured engine and rescues
 the tail rather than the correctness.
 
+\paragraph{The slot's kind is unchecked, and it is global.} Of the embedder's
+contracts this is the one with the worst failure mode, because it is the only one
+the facility cannot see. Naming a slot exclusive asserts something about
+\emph{every other thread}---that the embedder's lock excludes all of them from it
+---and a transaction sees only its own records, so a disagreement between two
+threads is invisible until it corrupts (\cref{sec:constraints}). Nothing here
+detects it, and no amount of testing establishes it: it is discharged by the
+embedder's locking design or not at all. The safe direction is free, which is the
+mitigation on offer---naming a slot shared is correct unconditionally, so the
+contract is only ever at risk where an embedder reaches for the optimization.
+
 \paragraph{Value-CAS atomicity.} A record is validated to hold its old value at
 the linearization point, not to have been stable throughout the transaction. An
 operation whose correctness requires detecting an away-and-back change must carry
@@ -1049,6 +1236,44 @@ throughput. We claim the specific engine and its measured falsification trail, n
 the general insight; the progress taxonomy we place it in is
 standard~\citep{herlihy2003obstruction, herlihy2011progress}, and the fair-lane
 fallback is an MCS lock~\citep{mellorcrummey1991mcs}.
+
+\subsection{Mixing synchronization disciplines within one transaction}
+\label{sec:relmixed}
+
+The design point of \cref{sec:kinds}---each datum governed by one discipline,
+one transaction spanning several---is not new, and it is charted most clearly in
+the database literature. Tang and Elmore enumerate the four ways concurrency
+control can be mixed and name this one exactly: \emph{one protocol per record,
+multiple protocols per transaction}, with the protocol a global property of the
+record and a transaction free to touch records under
+several~\citep{tang2018cormcc}; \citet{wang2016mocc} is a prior instantiation,
+mixing optimistic control with two-phase locking. We claim nothing about the
+design point. Our contract that a slot's kind is global across all writers
+(\cref{sec:constraints}) is the same discipline their framework imposes when it
+requires every candidate protocol to be strict, and for the same reason.
+
+What differs is what the mixing costs, and that is a property of the setting
+rather than of the idea. \Citet{tang2018cormcc} define the overhead of mixing as
+executing more than one protocol per transaction \emph{plus} synchronizing
+concurrent accesses across protocols on each record, and their framework earns
+the second down to nothing by constraining which protocols may be combined; its
+commit executes each protocol's commit phase in turn, so atomicity across
+protocols is established there by a serializability argument over separate
+commits rather than by a single instant.
+% check-terms will flag "serializability" on the line above. It is DELIBERATE and
+% it describes CormCC, not this facility -- the subject is "its commit", theirs.
+% The contrast being drawn is precisely that we do NOT need such an argument
+% (one status store is the linearization point). Do not let an editing pass
+% attach the word to our own mechanism; see the README framing rule.
+Here both
+terms vanish for a narrower reason. The two disciplines are not two protocols
+that must be reconciled but one resolve path with two ways of writing into it, so
+there is nothing to synchronize across them and no argument to make: the one
+status store is the linearization point for both kinds at once
+(\cref{prop:kindinvisible}). The first term goes the way of any special case,
+by detecting that a write set does not actually mix. The narrowness is the point:
+that reduction is available because both disciplines were built to share a
+descriptor, and it says nothing about mixing protocols that were not.
 
 \subsection{Logical deletion}
 
@@ -1098,14 +1323,30 @@ insight~\citep{david2013everything, hendler2010flatcombining}; the progress
 classes we place it in are standard~\citep{herlihy2003obstruction,
 herlihy2011progress} and its fair serial lane is an MCS
 lock~\citep{mellorcrummey1991mcs}; reclaiming descriptors after a grace period is
-\rcu's ordinary treatment~\citep{arbelraviv2017descriptors}; and logical deletion
+\rcu's ordinary treatment~\citep{arbelraviv2017descriptors}; logical deletion
 is Harris's marked pointer and its descendants~\citep{harris2001lists,
-ellen2010nbbst, brown2013scx}. What we have not found is their assembly into one
+ellen2010nbbst, brown2013scx}; and governing each datum by one discipline while
+letting a transaction span several is charted in the mixed concurrency control of
+\citet{tang2018cormcc} and instantiated before us by \citet{wang2016mocc}. What
+we have not found is their assembly into one
 facility: RDCSS-free and sole-driven, \textbf{bounded-blocking with a cost-scaled
 adaptive coarseness}, \textbf{refcount-free to reclaim} at the instant owner-only
-settle makes a transaction unreachable, and \textbf{usable in place} through a
+settle makes a transaction unreachable, \textbf{carrying both exclusion
+disciplines at once} so that a commit spans locked and unlocked slots against one
+linearization point, and \textbf{usable in place} through a
 logical-deletion discipline that charges the reader nothing. The first claim is
 the linchpin of this second one.
+
+The fourth of those deserves its boundary drawn, since \cref{sec:relmixed} grants
+the design point to others. What is ours is not that disciplines can be mixed but
+that mixing these two costs nothing on either side: the kind never reaches a
+reader (\cref{prop:kindinvisible}) and a write set that does not mix does not pay
+(\cref{sec:kinds}). That falls out of a representational choice---one resolve
+header shared by both kinds---which dissolves what had looked like an
+incompatibility between the two facilities rather than defending against it. It is
+the same shape of result as the first claim, a mechanism turning out to be
+unnecessary; it is weaker because no one else had stated the obstacle, and we
+claim it only as an element of this conjunction.
 
 Everything else is disclosed, not claimed---and for a defensive publication that
 is the point, not a shortfall: we describe the facility, and the alternatives we
@@ -1124,6 +1365,15 @@ Because a transaction is driven only by its owner, the install-time A-B-A that
 RDCSS exists to prevent cannot arise, so the facility installs with a bare
 value-CAS and needs no RDCSS. That is a negative result---the first of the paper's
 two claims, and the one it turns on.
+
+The exclusion turns out to be droppable one slot at a time rather than all at
+once. A record carries a kind, so a slot with concurrent writers is planted with
+a CAS and a slot the embedder already holds a lock over is parked with a plain
+store, both in the same commit and both decided by the same status store. The two
+were separate facilities only because their proxies were separate layouts; giving
+them one resolve header makes the difference writer-side and invisible to a
+reader, which is what lets an embedder pay the blocking-progress price on exactly
+the slots that are shared and on no others.
 
 The facility is bounded-blocking, not lock-free, and we have argued that this is
 the right target rather than a shortfall. The argument is measured: the
@@ -1167,10 +1417,14 @@ which is why it is worth doing carefully rather than early.
 \label{sec:availability}
 
 % ---------------------------------------------------------------------------
-% Pin the COMMIT, never the branch (see README). c7f428a8 is the urcu-txn-dev
-% tip that carries the read-policy "re-verb from helping to waiting" -- which is
-% load-bearing for the sole-driver read story (Sec. 3.2). Verified pushed to
-% github-dev/urcu-txn-dev; newer than P1's pin (b5767298).
+% Pin the COMMIT, never the branch (see README). b3e23f9f is the urcu-txn-dev tip
+% carrying BOTH things this paper's mechanism sections depend on: the read-policy
+% "re-verb from helping to waiting" (7be75ff6, load-bearing for the sole-driver
+% read story, sec:soledriver) and the mixed sw/mw front-end (2a599d77..610d4792,
+% load-bearing for sec:kinds). P1 pins the same commit. Verified pushed to
+% github-dev/urcu-txn-dev.
+% NOTE: the old comment here still named c7f428a8, a pin two revisions stale --
+% the hash in the PROSE below was updated without it. Keep them in step.
 % ---------------------------------------------------------------------------
 The engine described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
@@ -1187,14 +1441,21 @@ Within that tree, the material of this paper is the following headers, all under
 \item[\code{rcu-txn-mcas.h}] The sole-driver \mcas engine: records, the tri-state
       status word, descriptor-naming installs, the owner-only drive and settle,
       and the no-RDCSS argument in its own header block
-      (\cref{sec:facility,sec:norddcss,sec:settle}). At the pinned commit this
-      header carries both install disciplines --- the CAS plant described here
-      and the exclusive park of the single-writer paper --- behind one
-      descriptor and one status word.
-\item[\code{rcu-txn.h}] The transaction front-end: read policy, read-your-own-writes,
+      (\cref{sec:facility,sec:norddcss,sec:settle}). It carries both install
+      disciplines of \cref{sec:kinds} behind one descriptor and one status word:
+      the record's \code{kind} selects the CAS plant described here or the
+      exclusive park of the single-writer paper, the two commit paths are
+      \code{urcu\_txn\_desc\_commit()} and its \code{\codeunderscore sw} variant,
+      and the resolve path is common to both.
+\item[\code{rcu-txn.h}] The transaction front-end, and at the pinned commit the
+      canonical one: it is the mixed front-end, so \code{urcu\_txn\_store\_mw()}
+      and \code{urcu\_txn\_store\_sw()} record the two kinds into a single
+      transaction. It also carries the read policy, read-your-own-writes,
       the disjoint and expect-conflict declarations, and the aging-to-fair-mutex
       escalation whose budget scales with operation cost
-      (\cref{sec:escalation}).
+      (\cref{sec:escalation}). At this commit there is no separate
+      multi-writer-only front-end: a write set of a single kind is a special case
+      of this one, not a different facility.
 \item[\code{rcu-txn-list.h}, \code{rcu-txn-hlist.h}] The multi-writer
       bidirectional list and hash list: the logical-deletion tombstone, the one
       load-validate guard, and the transacted back link
