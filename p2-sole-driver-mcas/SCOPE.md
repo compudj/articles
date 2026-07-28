@@ -474,3 +474,33 @@ Parallels P1's shape where it reuses. Tags: **[P1]** = recap + cite, do not re-d
 is presented as a general engine primitive, then §7 demonstrates it on the list/hlist
 user (the skeleton above already reflects this). §2's Background still names the
 disjoint-word hazard, so §6 does not arrive unmotivated.
+
+---
+
+## 2026-07-28 — VOICE: `engine` → `facility`
+
+Applying the rule P1 settled in commit `9bcb8da` ("say facility, not engine,
+where the design is meant"): **facility** where the DESIGN is meant, **engine**
+only where it names an implementation — a measured build arm, a pinned commit, a
+header, a filename.
+
+P1 said facility 113 times and engine 3; P2 said engine 100 and facility 5, which
+is off-voice for the series. 74 lines changed. **The title changed with it**: "A
+Bounded-Blocking Multi-Writer **Facility** for Atomic Multi-Slot Update", and
+`\label{sec:engine}` became `sec:facility`.
+
+**~28 uses of "engine" are deliberately KEPT**, all naming implementations:
+the measured helping / sole-driver build arms of §5.1 and their footnotes, the
+drafting comments about engine versions and the retired helping arm, the
+Availability tree and its headers, and the `.csv` filenames. Do not "finish the
+job" on those — they are the same three-uses-that-stay judgement P1 made.
+
+Four spots needed judgement rather than substitution, because "facility" reads
+wrong in them: "the status engine with an extra field" → *status mechanism*;
+"the descriptor-and-status engine" (§9.5's ingredient list) → *mechanism*; "a
+blocking engine can beat a lock-free one" → *a blocking **design***, matching the
+wording §9.2 already used; and "the composition pattern a lock-plus-engine design
+converges on" → *that pairing a lock with this facility converges on*.
+
+Build unchanged otherwise: 19 pp, refs OK, terms OK, abstract 1892/1920 (up 4,
+from the two swaps inside the abstract).

@@ -9,7 +9,7 @@
 \IfFileExists{draft.flag}{\draftmodetrue}{}
 
 \title{RCU Pseudo-Transactions and the Sole-Driver MCAS:\\
-       A Bounded-Blocking Multi-Writer Engine for\\
+       A Bounded-Blocking Multi-Writer Facility for\\
        Atomic Multi-Slot Update}
 
 \author{Mathieu Desnoyers\\ EfficiOS Inc.\\ \texttt{mathieu.desnoyers@efficios.com}}
@@ -23,7 +23,7 @@
 % ---------------------------------------------------------------------------
 % FRAMING RULE FOR THE WHOLE SERIES -- do not soften this in editing.
 % This paper refuses to overclaim the PROGRESS class the way the companion
-% refused to overclaim the CONSISTENCY model. The engine is bounded-blocking,
+% refused to overclaim the CONSISTENCY model. The facility is bounded-blocking,
 % NOT lock-free, and that is a deliberate tail-latency-for-throughput trade.
 % Keep "linearizable" scoped to the k-CAS write. NEVER "serializable"/"opacity".
 % Overclaiming here is the single most damaging error available to this paper.
@@ -32,7 +32,7 @@ A companion paper described a Read-copy-update (\rcu) \pseudotxn---a frozen set 
 \record{slot}{old}{new} records made visible by one commit step---and realized
 it for a single writer with a \fliplatch that has no compare-and-swap and
 requires writer exclusion. This paper drops the exclusion. The sole-driver
-multi-word compare-and-swap (\mcas) engine realizes the same model for concurrent
+multi-word compare-and-swap (\mcas) facility realizes the same model for concurrent
 writers: a transaction is driven only by its owner, and a thread that trips over
 an in-flight proxy waits a bounded spin for the owner to settle,
 then escalates. There is no helping, no stealing, and---most of all---no RDCSS
@@ -40,7 +40,7 @@ then escalates. There is no helping, no stealing, and---most of all---no RDCSS
 install is A-B-A-safe by construction, because the re-plant hazard it prevents
 needs a \emph{foreign} driver of one's own records, which sole-driver excludes.
 
-The engine is \emph{bounded-blocking}: it waits on a foreign owner, so it is
+The facility is \emph{bounded-blocking}: it waits on a foreign owner, so it is
 not lock-free, and a FIFO-fair mutex fallback makes it starvation-free under a
 fair scheduler. We argue this is the right target rather than a shortfall, and
 the argument is measured, not hypothesized: a helping design was built and then
@@ -75,13 +75,13 @@ writer mutual exclusion.
 
 This paper drops the exclusion. The question it answers is what the same model
 costs when several writers commit concurrently, each without a lock. The answer
-is an engine, the sole-driver \mcas (multi-word compare-and-swap), and a claim
-about what \emph{kind} of engine it should be.
+is a facility, the sole-driver \mcas (multi-word compare-and-swap), and a claim
+about what \emph{kind} of facility it should be.
 
 \paragraph{The thesis.} The companion paper refused to overclaim the model's
 \emph{consistency}: it is a \pseudotxn, not software transactional memory, and
 we said what isolation it declines and why. This paper refuses to overclaim the
-engine's \emph{progress}. It is \emph{bounded-blocking}---it waits, in bounded
+facility's \emph{progress}. It is \emph{bounded-blocking}---it waits, in bounded
 steps, on a foreign owner---rather than lock-free, and that is a deliberate
 choice of synchronization coarseness: coarse enough to stay simple, portable,
 and cache-friendly, fine enough to stay parallel. Bounded-blocking trades a
@@ -108,16 +108,16 @@ its predecessor lost.
 \subsection*{Contributions}
 
 The paper claims two things, drawn together in \cref{sec:relclaims}: that a
-sole-driver engine needs \textbf{no RDCSS}, and that the engine as a
+sole-driver facility needs \textbf{no RDCSS}, and that the facility as a
 whole---sole-driven, bounded-blocking, refcount-free to reclaim, usable in
 place---is a combination of otherwise-known parts we have not found assembled
 before, of which that first result is the linchpin. Four contributions build and
 back them:
 
 \begin{itemize}
-\item \textbf{The sole-driver \mcas engine} (\cref{sec:engine}): a frozen record
+\item \textbf{The sole-driver \mcas facility} (\cref{sec:facility}): a frozen record
       set, a tri-state status word, and descriptor-naming installs, driven by
-      the owner alone. Its main result is a \emph{negative} one---the engine
+      the owner alone. Its main result is a \emph{negative} one---the facility
       needs \textbf{no RDCSS} (restricted double-compare single-swap, the
       double-word primitive that normally guards a descriptor install). A plain
       value-CAS install is A-B-A-safe by construction under one driver, because
@@ -146,7 +146,7 @@ back them:
       \emph{usable} concurrent structure needs more than a wide commit. We reuse a
       known technique---a logical-deletion tombstone that update transactions
       treat as freezing a node---and disclose the design rationale that suits it
-      to this engine: because the freeze is updater-only coordination, a reader
+      to this facility: because the freeze is updater-only coordination, a reader
       gets a frozen node for free without consulting the tombstone, so it stays
       off the reader's path. A single guarded read folds the one remaining
       liveness precondition into the commit. The technique itself is old---one element
@@ -164,9 +164,9 @@ the series; this one introduces exactly the one guard its own worked example
 forces, and no more. The comprehensive comparative evaluation---scaling, tail
 latency, and comparison against existence, RLU, and MV-RLU---is later still. What
 appears here is only the throughput that justifies each design choice made here.
-The engine and the companion \fliplatch share the model and the status
+The facility and the companion \fliplatch share the model and the status
 vocabulary, deliberately, so that an embedder that outgrows exclusion changes
-which engine it links, not how it reasons about a commit.
+which facility it links, not how it reasons about a commit.
 
 % ===========================================================================
 \section{Background: what exclusion was buying}
@@ -192,10 +192,10 @@ precondition of the mechanism rather than a caveat on it.
 Remove exclusion and three things that exclusion was silently handling come due.
 
 \paragraph{Contended installation.} Two writers may now want to change the same
-slot at the same time. The engine must let one of them install its intent on the
+slot at the same time. The facility must let one of them install its intent on the
 slot, let the other discover that intent rather than corrupt it, and resolve
-which of them a concurrent reader sees---all without a lock. This is the engine's
-core job, and \cref{sec:engine} is how it does it: an installed record names a
+which of them a concurrent reader sees---all without a lock. This is the facility's
+core job, and \cref{sec:facility} is how it does it: an installed record names a
 descriptor, and every reader and every writer resolves the slot through that
 descriptor's status word rather than through the slot's plain value.
 
@@ -205,7 +205,7 @@ on a slot it does \emph{not} change. Deleting a node and inserting beside it can
 touch \emph{different} words and both succeed, and the result is a lost node or a
 use-after-free---not because either commit tore, but because the two operations
 were never contending for a common slot in the first place. Making a concurrent
-list usable therefore needs a discipline layered on the raw engine, and
+list usable therefore needs a discipline layered on the bare facility, and
 \cref{sec:tombstone} supplies it: logical deletion.
 
 \paragraph{Install-time A-B-A.} The third hazard is the subtlest, and it is the
@@ -215,12 +215,12 @@ help each other install a transaction's records, then a record can be installed
 by a thread that is not its owner, and a stale second install can resurrect a
 retired descriptor after the slot's value has cycled back to what it names.
 \Cref{sec:norddcss} shows that this hazard is helper-induced, so refusing to help
-dissolves it rather than merely defending against it---which is why the engine
+dissolves it rather than merely defending against it---which is why the facility
 needs no RDCSS.
 
 % ===========================================================================
-\section{The Sole-Driver MCAS Engine}
-\label{sec:engine}
+\section{The Sole-Driver MCAS Facility}
+\label{sec:facility}
 
 \subsection{Records, status, and resolution}
 \label{sec:status}
@@ -262,7 +262,7 @@ The discipline is total, and its most easily overlooked edge is the read side. A
 reader that lands on an \UNDECIDED foreign record does not help decide it: it
 resolves the record to its \emph{logical} value---the old, the value the
 transaction takes if it aborts---at once, without waiting on it, and moves on. The
-engine's own read accessor states it as an imperative: \emph{never drive} the
+facility's own read accessor states it as an imperative: \emph{never drive} the
 foreign transaction. This closes an objection a careful reader will otherwise
 raise---``but surely your read path helps''---and it is worth stating outright
 because it is what makes the next subsection's argument airtight: there is no
@@ -274,7 +274,7 @@ owner settles promptly; it does not close the window against an owner that has
 been preempted mid-transaction. What closes that window is not the wait but the
 escalation of \cref{sec:progress}. Keeping the wait and the progress guarantee
 separate is deliberate: the wait is an optimization, and the correctness of the
-engine does not rest on it.
+facility does not rest on it.
 
 \subsection{No RDCSS}
 \label{sec:norddcss}
@@ -289,7 +289,7 @@ conditions the install on a second word, typically the descriptor's own
 status---and it is exactly what Harris, Fraser and Pratt introduced to make
 practical \mcas safe~\citep{harris2002mcas}.
 
-The sole-driver engine omits RDCSS. It installs with a bare value-CAS, and that
+The sole-driver facility omits RDCSS. It installs with a bare value-CAS, and that
 is sufficient. The reason is precise, and it is the paper's strongest claim.
 
 \begin{property}[Install-A-B-A is helper-induced]
@@ -319,7 +319,7 @@ the machinery it justified goes with it. We are not aware of prior work that
 states the elimination this way---that the sole-driver regime makes RDCSS
 unnecessary rather than merely cheaper.
 
-The engine does still require the ordinary things a value-based \mcas requires,
+The facility does still require the ordinary things a value-based \mcas requires,
 and none of them concerns slot values: the embedder's per-record tag kept free
 in every legitimate slot value (\cref{sec:constraints}), pairwise-distinct slots
 per transaction, and---the reclamation obligation---that a descriptor
@@ -377,10 +377,10 @@ point has been reached.
 
 An installed record is recognized by a \emph{tag}, and---as in the companion
 paper---the tag is chosen \emph{per record} by the embedder rather than fixed by
-the engine: bit~0 in the structures shown here, a reserved nibble or high bits
+the facility: bit~0 in the structures shown here, a reserved nibble or high bits
 where a slot's own encoding has already spent its low bit. Whatever the embedder
 picks, every value that slot may legitimately hold must keep the tag pattern
-clear. The engine's own fixed requirement is narrower and always met: a record's
+clear. The facility's own fixed requirement is narrower and always met: a record's
 address must carry the tag pattern in free low bits, which its alignment
 guarantees.
 The record set is frozen at commit---membership is fixed before installation
@@ -395,7 +395,7 @@ are discharged by the embedder's encoding, by construction or not at all.
 \label{sec:deadlock}
 
 A committer that waits on a foreign owner while holding installs of its own could
-deadlock if two committers waited on each other. The engine prevents it not with
+deadlock if two committers waited on each other. The facility prevents it not with
 detection but with a total order: records install in one global order, sorted by
 slot address. A committer therefore holds only \emph{lower} slots while it waits
 on a shared one, and the owner it waits on---having itself reached that shared
@@ -421,14 +421,14 @@ guarantees its own progress.
 \end{definition}
 
 ``Bounded-blocking'' is our descriptive term, not an established progress class,
-and it is worth being exact about where it sits. The engine \emph{waits} on a
+and it is worth being exact about where it sits. The facility \emph{waits} on a
 foreign owner, so it is blocking, and therefore it is not
 obstruction-free~\citep{herlihy2003obstruction}: an obstruction-free operation
 completes if it runs in isolation for long enough, and this one can be made to
-wait even then. That is a real concession and we make it plainly. What the engine
+wait even then. That is a real concession and we make it plainly. What the facility
 does provide is stronger than deadlock-freedom: through the escalation of
 \cref{sec:escalation}, a starved committer eventually acquires a FIFO-fair lane
-and completes, so under a fair scheduler the engine is
+and completes, so under a fair scheduler the facility is
 \emph{starvation-free}~\citep{herlihy2011progress}. Bounded-blocking is thus the
 conjunction of a bounded common-case wait and a starvation-free fallback, and it
 sits below lock-freedom and above deadlock-freedom in the taxonomy.
@@ -438,7 +438,7 @@ sits below lock-freedom and above deadlock-freedom in the taxonomy.
 
 The optimistic path is bounded-blocking but not by itself starvation-free: a
 large transaction can be defeated indefinitely by a stream of small ones that
-keep changing a slot between its read and its install. The engine handles this by
+keep changing a slot between its read and its install. The facility handles this by
 escalating a losing handle into a per-domain \emph{fair mutex}---an MCS-style
 queue lock~\citep{mellorcrummey1991mcs}---and publishing a flag so that future
 transactions in the domain funnel through the same lane. Inside the lane the
@@ -460,7 +460,7 @@ and escalating early turns wasted CAS collisions into turns. A traversal mutator
 is the opposite: funnelling those destroys the $N$-way parallelism of the
 optimistic path, which aborts far more often but retries in parallel. On a
 three-structure skip-list move, the optimistic path beats the serialized lane by
-a factor of roughly $2.6$.\footnote{Measured on the engine's own
+a factor of roughly $2.6$.\footnote{Measured on the facility's own
 \code{bench\_txn\_3skiplist} microbenchmark; see \cref{sec:availability}. The
 comprehensive study is deferred to the evaluation paper.}%
 % STALE TOO -- same vintage and same problem as the +21.7% figure; see the note
@@ -499,7 +499,7 @@ We are deliberately careful about what is and is not claimed here.
 %     conscious sync); cite the lineage, do not claim it;
 %   - DISCLOSE, as defensive prior art, the userspace use for THIS purpose
 %     (deferring preemption across the sole-driver install->settle window), and
-%     claim only the engine-level OBSERVATION that it thins the tail from
+%     claim only the facility-level OBSERVATION that it thins the tail from
 %     bounded to rare -- which is what makes bounded-blocking practically
 %     competitive.
 % RESOLVED (Mathieu, 2026-07-19): KEEP the subsection (option a) -- explicit
@@ -520,7 +520,7 @@ restatement~\citep{aziz2014preempt}, the temporary non-preemption of
 and lock-holder-preemption avoidance~\citep{dice2016lockholder}. What
 we disclose, as prior art rather than claim as invention, is the specific
 userspace use---deferring preemption across a bounded-blocking \mcas's publish
-window---together with the engine-level observation that it thins the tail. And
+window---together with the facility-level observation that it thins the tail. And
 we are explicit that this lever is \textbf{not present in the engine measured
 here}: the throughput this paper reports is the pessimistic case, \emph{without}
 it, so the lever is unclaimed upside rather than a result. Correctness does not
@@ -530,13 +530,13 @@ the aging-to-fair-mutex escalation carries the residual either way.
 \subsection{The trade, stated plainly}
 \label{sec:trade}
 
-The engine gives up lock-freedom's standing guarantee---that no thread's delay
+The facility gives up lock-freedom's standing guarantee---that no thread's delay
 can stall another---and gets, in exchange, a mechanism with fewer synchronization
 points, no per-record install state, less hot-cache-line traffic, and a commit
 that is a bare CAS per slot in the common case. The concession is a tail: a
 preempted owner blocks its waiters until the escalation resolves it. The claim of
 this paper is that for the read-dominated structures \rcu serves, and at the
-scale where these engines are used, that is the right end of the trade---and the
+scale where these facilities are used, that is the right end of the trade---and the
 next section is the evidence, because the losing end was built too.
 
 % ===========================================================================
@@ -557,7 +557,7 @@ next section is the evidence, because the losing end was built too.
 % isolated run and is rejected on the correctness trap. No \UNVERIFIED remain.
 % ---------------------------------------------------------------------------
 
-The mechanism of \cref{sec:engine} is one point in a design space, and unusually
+The mechanism of \cref{sec:facility} is one point in a design space, and unusually
 for such a section the neighbouring points are not hypothetical: several were
 implemented and measured, then removed. That is what makes the map defensively
 load-bearing---an implemented-then-rejected approach is disclosed and dated
@@ -676,7 +676,7 @@ decisive before throughput enters the argument: an age comparison cannot validat
 a slot that a transaction reads but does not write, because there is no record to
 carry the age, so the scheme cannot express the guarded read of
 \cref{sec:structures} without reintroducing a status word anyway---at which point
-it is the status engine with an extra field. We did not carry it to a separate
+it is the status mechanism with an extra field. We did not carry it to a separate
 throughput measurement; the trap retired it first.
 
 \subsection{DCAS or RDCSS for the install}
@@ -733,7 +733,7 @@ Pure lock-freedom &
   --- \\
 \bottomrule
 \end{tabular}
-\caption{The measured design space around the sole-driver engine. Each row was
+\caption{The measured design space around the sole-driver facility. Each row was
 built or seriously considered and then rejected. The decisive help-and-steal
 removal ($+21.7\%$, \cref{sec:varhelping}) is the throughput evidence this paper
 carries; the remaining rows are rejected on portability or correctness grounds
@@ -747,14 +747,14 @@ art as well as an argument.}
 \section{Logical Deletion}
 \label{sec:tombstone}
 
-\Cref{sec:background} named a hazard the engine does not by itself close:
+\Cref{sec:background} named a hazard the facility does not by itself close:
 per-slot atomicity is not operation atomicity. A \kcas commits the slots it
 names, all together; but a structural operation can be wrong because of a slot it
 does \emph{not} name. The discipline that closes it is \emph{logical deletion}, a
 known technique; this section states what it does and the design rationale that
-fits it to this engine, and \cref{sec:structures} spends it on the worked
-structures. It is presented here, at the engine level, because every mutating
-structure on the engine needs it---not only the ones shown---and we claim no
+fits it to this facility, and \cref{sec:structures} spends it on the worked
+structures. It is presented here, at the facility level, because every mutating
+structure on the facility needs it---not only the ones shown---and we claim no
 novelty in the mechanism itself (\cref{sec:tombstoneclaim}).
 
 \subsection{The hazard, concretely}
@@ -762,14 +762,14 @@ novelty in the mechanism itself (\cref{sec:tombstoneclaim}).
 
 Consider a doubly-linked list $A \leftrightarrow B \leftrightarrow C$, and two
 operations racing: inserting a node after $A$, and deleting $B$. There are two
-ways they can interact, and only one of them is closed by the engine's ordinary
+ways they can interact, and only one of them is closed by the facility's ordinary
 slot contention.
 
 The first is closed for free. Removing $B$ must rewrite $B$'s predecessor's
 forward pointer---$A$'s \code{next}, the only forward pointer that names the path
 through $B$---and an insert after $A$ rewrites $A$'s \code{next} too. So both
 operations compare-and-swap the \emph{same} slot, \code{A->next}, with the same
-expected old value, and the engine commits at most one of them. The loser fails
+expected old value, and the facility commits at most one of them. The loser fails
 its old-value check, aborts, re-reads, and re-descends into a list that is still
 coherent. Whichever wins, the outcome is a well-formed list. This race is closed
 \emph{structurally}, by the fact that the two operations were contending for a
@@ -794,7 +794,7 @@ When a node is deleted, the operation that unlinks it also sets a
 \emph{logical-deletion tombstone} on the node, as one word of the same multi-word
 commit that unlinks it. Where the tombstone lives is a placement choice. It can
 be packed into a reserved tag bit of the node's own forward pointer, distinct
-from the engine's descriptor tag, which costs no extra word; or it can be a
+from the facility's descriptor tag, which costs no extra word; or it can be a
 separate status word, updated as an ordinary transaction record. Both are the
 same logical object---a durable per-node ``this node is being deleted'' flag, set
 atomically with the unlink and living for the node's grace-period lifetime---and
@@ -839,7 +839,7 @@ all: packed into the forward pointer it is stripped for free on a word the reade
 was loading anyway, and moved to a \emph{separate} word it leaves the reader's
 forward pointer pristine and can sit on a cache-cold line the reader never
 touches. Either way it adds nothing the reader must load, so in the steady state
-the read side is byte-for-byte and cycle-for-cycle what it would be with no engine
+the read side is byte-for-byte and cycle-for-cycle what it would be with no facility
 present.
 
 \subsection{Prior art}
@@ -881,7 +881,7 @@ mark check. What is particular here is the setting: on a read-barrier-free \rcu
 base with a sole-driver \mcas, keeping the tombstone entirely off the reader's
 path preserves the read side exactly (\cref{sec:tombstoneplacement}) and leaves
 its placement free---packed for compactness, or on a cold line for a pristine
-reader pointer. We disclose that as the reason the technique fits this engine, and
+reader pointer. We disclose that as the reason the technique fits this facility, and
 claim nothing beyond the fit.
 
 % ===========================================================================
@@ -890,21 +890,21 @@ claim nothing beyond the fit.
 
 The companion paper showed a bidirectional list and a hash list on the
 \fliplatch. The series keeps the same worked structures across papers, so that
-what changes from one to the next is exactly the engine capability, not the
+what changes from one to the next is exactly the facility's capability, not the
 example. Here they run under concurrent writers.
 
-\subsection{Same-slot contention, handled by the engine}
+\subsection{Same-slot contention, handled by the facility}
 \label{sec:contention}
 
 The parts that are purely about two writers wanting the same edge need nothing
-beyond \cref{sec:engine}. Adjacent inserts and deletes that re-point a common
-\code{next} slot contend on it through descriptor-naming installs; the engine
+beyond \cref{sec:facility}. Adjacent inserts and deletes that re-point a common
+\code{next} slot contend on it through descriptor-naming installs; the facility
 picks a winner, the losers abort and re-descend, and the aging escalation of
 \cref{sec:escalation} carries a persistently unlucky handle to a fair lane. A
 composed operation that spans structures folds its edges into one commit through
 the same read-your-own-writes discipline the companion paper introduced---which,
-being shared by both engines, is not this paper's to claim. There is no
-list-specific machinery for contention; there is the engine.
+being shared by both facilities, is not this paper's to claim. There is no
+list-specific machinery for contention; there is the facility.
 
 \subsection{The one guarded read}
 \label{sec:guard}
@@ -914,7 +914,7 @@ themselves, and it needs exactly one new thing beyond the tombstone. An insert
 after a node re-points that node's successor's \emph{back} pointer, but the slot
 that serializes the insert against a deletion of the successor is the successor's
 \emph{forward} pointer---a slot the insert reads but does not write. Because the
-engine installs a transaction's records in slot-address order, it can reach the
+facility installs a transaction's records in slot-address order, it can reach the
 back-pointer write before it reaches the shared forward slot, and so drive the
 back-edge store against a successor a concurrent deletion is freeing.
 
@@ -957,7 +957,7 @@ The companion paper's hash list wrote its backward link---each node's
 \code{pprev}, a pointer to the slot that names it---with a plain store, on the
 grounds that no reader ever loads it and a single updater has no peer to race.
 Under concurrent writers that reasoning does not transfer, and the reason is
-instructive about the whole difference between the two engines.
+instructive about the whole difference between the two facilities.
 
 For the single writer, ``writer-only'' meant ``private'': a plain store to
 \code{pprev} was instantly visible to the sole updater and to no one else, so
@@ -993,7 +993,7 @@ would---the same wait, extended from ``free'' to ``reuse.''
 \section{Limitations}
 \label{sec:limitations}
 
-The engine's limits divide the same way the companion paper's did: some are
+The facility's limits divide the same way the companion paper's did: some are
 properties of the model, which can be disliked but not violated, and the rest are
 contracts on the embedder, which can be violated at a cost.
 
@@ -1006,7 +1006,7 @@ read. A different structure with a different coupling owes itself the same kind 
 analysis; logical deletion is a general technique, but recognizing which reads a
 given operation must guard is the embedder's obligation.
 
-\paragraph{Bounded-blocking, not lock-free.} The engine waits on a foreign owner,
+\paragraph{Bounded-blocking, not lock-free.} The facility waits on a foreign owner,
 so a preempted owner blocks its waiters until the escalation resolves them
 (\cref{sec:boundedblocking}). It is starvation-free under a fair scheduler, not
 lock-free, and correctness is independent of the preemption-avoidance lever of
@@ -1029,7 +1029,7 @@ operations couple through unwritten slots.
 
 \subsection{Multi-word compare-and-swap}
 
-The engine's descriptor-and-status shape
+The facility's descriptor-and-status shape
 is that of practical \mcas~\citep{harris2002mcas, fraser2004lockfreedom,
 fraser2007locks}, and its no-RDCSS result is stated against that line: RDCSS is
 the machinery~\citep{harris2002mcas} that a recent \kcas
@@ -1065,14 +1065,14 @@ design property we call out---that readers never consult the tombstone
 
 Concurrent updates to an
 \rcu search tree with per-node-locked writers are Arbel and Attiya's
-Citrus~\citep{arbel2014citrus}; the sole-driver engine replaces those locks with
+Citrus~\citep{arbel2014citrus}; the sole-driver facility replaces those locks with
 lock-free \mcas writers over the same \rcu reader discipline. Reader-visible old
 versions under concurrent writers are RLU~\citep{matveev2015rlu} and
 MV-RLU~\citep{kim2019mvrlu}, which give a coherent snapshot the \pseudotxn model
 declines; a throughput comparison against them crosses guarantee classes and is
 the evaluation paper's to make carefully. Transactional
-boosting~\citep{herlihy2008boosting} is the composition pattern a
-lock-plus-engine design converges on.
+boosting~\citep{herlihy2008boosting} is the composition pattern that pairing a
+lock with this facility converges on.
 
 \subsection{What this paper claims}
 \label{sec:relclaims}
@@ -1091,9 +1091,9 @@ drawn this way is the conclusion---that dropping helping makes RDCSS
 its own.
 
 \textbf{The second is the conjunction, in the manner of the companion paper.} Each
-remaining ingredient of the engine is separately old: the descriptor-and-status
+remaining ingredient of the facility is separately old: the descriptor-and-status
 shape is Harris's~\citep{harris2002mcas, fraser2004lockfreedom}; that a
-\emph{blocking} engine can beat a lock-free one is not our
+\emph{blocking} design can beat a lock-free one is not our
 insight~\citep{david2013everything, hendler2010flatcombining}; the progress
 classes we place it in are standard~\citep{herlihy2003obstruction,
 herlihy2011progress} and its fair serial lane is an MCS
@@ -1101,14 +1101,14 @@ lock~\citep{mellorcrummey1991mcs}; reclaiming descriptors after a grace period i
 \rcu's ordinary treatment~\citep{arbelraviv2017descriptors}; and logical deletion
 is Harris's marked pointer and its descendants~\citep{harris2001lists,
 ellen2010nbbst, brown2013scx}. What we have not found is their assembly into one
-engine: RDCSS-free and sole-driven, \textbf{bounded-blocking with a cost-scaled
+facility: RDCSS-free and sole-driven, \textbf{bounded-blocking with a cost-scaled
 adaptive coarseness}, \textbf{refcount-free to reclaim} at the instant owner-only
 settle makes a transaction unreachable, and \textbf{usable in place} through a
 logical-deletion discipline that charges the reader nothing. The first claim is
 the linchpin of this second one.
 
 Everything else is disclosed, not claimed---and for a defensive publication that
-is the point, not a shortfall: we describe the engine, and the alternatives we
+is the point, not a shortfall: we describe the facility, and the alternatives we
 rejected (\cref{sec:variations}), in enough detail to be rebuilt from these pages
 alone.
 
@@ -1121,11 +1121,11 @@ paper removes the exclusion and pays for it in machinery the first had no need
 of---a descriptor-naming install, a status word, a bounded wait, an escalation
 lane---while refusing to pay for one thing that machinery usually drags in.
 Because a transaction is driven only by its owner, the install-time A-B-A that
-RDCSS exists to prevent cannot arise, so the engine installs with a bare
+RDCSS exists to prevent cannot arise, so the facility installs with a bare
 value-CAS and needs no RDCSS. That is a negative result---the first of the paper's
 two claims, and the one it turns on.
 
-The engine is bounded-blocking, not lock-free, and we have argued that this is
+The facility is bounded-blocking, not lock-free, and we have argued that this is
 the right target rather than a shortfall. The argument is measured: the
 lock-free-adjacent alternative, helping, was built, and it forced a per-record
 install latch that made it bounded-blocking anyway and cost it the throughput it
@@ -1143,15 +1143,15 @@ reader gets a frozen node for free without ever consulting the tombstone, so it
 stays off the reader's path and can sit on a cold cache line---the read side
 unchanged, as the companion paper promised. Its read-side companion is a single
 guarded read that folds one liveness precondition into the commit. The technique
-is not ours; folded into the engine it is one part of the paper's second claim.
+is not ours; folded into the facility it is one part of the paper's second claim.
 With it, the same bidirectional list and hash list the companion paper used are
 usable under concurrent writers---the forward edge made coherent by a shared-slot
 write, the back edge by a read-validated one, both coherent at every step.
 
 That second claim is broader, and weaker in kind: each part---the
-descriptor-and-status engine, the bounded-blocking progress, the refcount-free
+descriptor-and-status mechanism, the bounded-blocking progress, the refcount-free
 reclamation, the logical deletion---is borrowed, but their assembly into one
-engine, with the no-RDCSS result as its linchpin, is a combination we have not
+facility, with the no-RDCSS result as its linchpin, is a combination we have not
 found before.
 
 \paragraph{The rest of the series.} The read-side programming model this paper
@@ -1187,7 +1187,7 @@ Within that tree, the material of this paper is the following headers, all under
 \item[\code{rcu-txn-mcas.h}] The sole-driver \mcas engine: records, the tri-state
       status word, descriptor-naming installs, the owner-only drive and settle,
       and the no-RDCSS argument in its own header block
-      (\cref{sec:engine,sec:norddcss,sec:settle}). At the pinned commit this
+      (\cref{sec:facility,sec:norddcss,sec:settle}). At the pinned commit this
       header carries both install disciplines --- the CAS plant described here
       and the exclusive park of the single-writer paper --- behind one
       descriptor and one status word.
@@ -1200,11 +1200,11 @@ Within that tree, the material of this paper is the following headers, all under
       load-validate guard, and the transacted back link
       (\cref{sec:tombstone,sec:structures}).
 \item[\code{rcu-txn-status.h}] The commit-status enum both front-ends return, so
-      an embedder tests a commit the same way whichever engine it drives.
+      an embedder tests a commit the same way whichever facility it drives.
 \end{description}
 
 \noindent The fair mutex of \cref{sec:escalation} is \code{fair-mutex.h}, and the
-read-your-own-writes lookup filter both engines share is \code{rcu-txn-bloom.h};
+read-your-own-writes lookup filter both facilities share is \code{rcu-txn-bloom.h};
 the single-writer \fliplatch of the companion paper is \code{rcu-txn-sw.h} and its
 structures. The \code{rseq} time-slice-extension lever of \cref{sec:preemption} is
 \emph{not} part of this engine and is named there as a design direction, not a
