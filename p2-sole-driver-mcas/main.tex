@@ -64,10 +64,10 @@ bidirectional list and hash list become usable under concurrent writers.
 \label{sec:intro}
 
 Read-copy-update (\rcu) rests on a bargain: readers pay nothing, and in exchange a
-writer gets exactly one atomic act, a single pointer store bracketed by building
+writer gets exactly one atomic operation, a single pointer store bracketed by building
 the new structure where readers cannot reach it and reclaiming the old one after
 a grace period~\citep{mckenney1998rcu, desnoyers2012urcu}. A companion paper
-gave the \rcu writer a \emph{second} atomic act: a \pseudotxn, a frozen set of
+gave the \rcu writer a \emph{second} atomic operation: a \pseudotxn, a frozen set of
 \record{slot}{old}{new} records that a single commit step makes visible at once,
 so one store moves a set of slots rather than one. It realized that model for a
 single writer with a \fliplatch---a mechanism with no compare-and-swap, no
@@ -1462,7 +1462,7 @@ alone.
 \section{Conclusion}
 \label{sec:conclusion}
 
-The companion paper gave the \rcu writer a second atomic act under exclusion. This
+The companion paper gave the \rcu writer a second atomic operation under exclusion. This
 paper removes the exclusion and pays for it in machinery the first had no need
 of---a descriptor-naming install, a status word, a bounded wait, an escalation
 lane---while refusing to pay for one thing that machinery usually drags in.
