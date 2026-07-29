@@ -988,8 +988,10 @@ intervening work moved it.
 
 A committer that meets a foreign transaction in its path could abort that
 transaction rather than wait for it. This is obstruction-free contention
-management, and it is well charted: DSTM's ``aggressive'' manager aborts any
-conflicting transaction on sight~\citep{herlihy2003dstm}, and the priority and
+management, and it is well charted. The ``aggressive'' contention manager of
+DSTM---the dynamic software transactional memory of Herlihy, Luchangco,
+Moir and Scherer---aborts any conflicting transaction on
+sight~\citep{herlihy2003dstm}, and the priority and
 timestamp policies that tame its livelock are Scherer and
 Scott's~\citep{scherer2005contention}, whose root is the wound-wait rule of
 classical database concurrency control~\citep{rosenkrantz1978woundwait}. This
