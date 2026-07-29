@@ -516,12 +516,14 @@ around.
 \end{property}
 
 That this is even available is worth stating, because the obvious layout does not
-give it. If the exclusive discipline had kept its own proxy layout and the shared
-one its descriptor, a single tag bit would name two incompatible objects and a
-reader would have to know which resolver to run---a genuine obstacle, and the
-reason the two lived in separate facilities. Sharing the resolve header dissolves
-it: one layout, one resolver, and the incompatibility turns out to have been an
-artefact of representation rather than of the problem.
+give it. Let each discipline keep the representation that suits it---a proxy for
+the exclusive one, a descriptor for the shared---and a single tag bit now names
+two incompatible objects, so a reader meeting a tagged slot would have to know
+which resolver to run before it could run one. That is a real obstacle, and it is
+why carrying both disciplines in one facility is not the obvious arrangement.
+Sharing the resolve header dissolves it: one layout, one resolver, and the
+incompatibility turns out to be an artefact of representation rather than of the
+problem.
 
 \emph{Abort is a shared-slot phenomenon.} The commit installs the shared records
 first and the exclusive parks after, so an abort happens before any park is
