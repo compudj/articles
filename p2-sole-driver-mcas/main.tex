@@ -429,7 +429,7 @@ in every legitimate slot value (\cref{sec:constraints}), pairwise-distinct slots
 per transaction, and---the reclamation obligation---that a descriptor
 reachable through a slot is freed only after a grace period, because a reader may
 still dereference it. This is value-CAS atomicity: a record is validated to hold
-its old at the linearization point, not to have been stable throughout. An
+its old value at the linearization point, not to have been stable throughout. An
 embedder that needs stability across an interval layers its own versioning on
 top, as with any value-based \mcas. Memory safety holds unconditionally.
 
