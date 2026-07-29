@@ -125,7 +125,9 @@ its predecessor lost.
 \subsection*{Contributions}
 
 The paper claims two things, drawn together in \cref{sec:relclaims}: that a
-sole-driver facility needs \textbf{no RDCSS}, and that the facility as a
+sole-driver facility needs \textbf{no RDCSS}---no restricted double-compare
+single-swap, the double-word primitive that normally guards a descriptor
+install---and that the facility as a
 whole---sole-driven, bounded-blocking, refcount-free to reclaim, usable in
 place---is a combination of otherwise-known parts we have not found assembled
 before, of which that first result is the linchpin. Four contributions build and
@@ -135,8 +137,7 @@ back them:
 \item \textbf{The sole-driver \mcas facility} (\cref{sec:facility}): a frozen record
       set, a tri-state status word, and descriptor-naming installs, driven by
       the owner alone. Its main result is a \emph{negative} one---the facility
-      needs \textbf{no RDCSS} (restricted double-compare single-swap, the
-      double-word primitive that normally guards a descriptor install). A plain
+      needs \textbf{no RDCSS}. A plain
       value-CAS install is A-B-A-safe by construction under one driver, because
       the re-plant hazard it resolves requires a foreign driver of one's own
       records, which the regime excludes (\cref{sec:norddcss}); and its owner-only
