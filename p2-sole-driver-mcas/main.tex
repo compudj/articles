@@ -678,7 +678,7 @@ and escalating early turns wasted CAS collisions into turns. A traversal mutator
 is the opposite: funnelling those destroys the $N$-way parallelism of the
 optimistic path, which aborts far more often but retries in parallel.
 
-How much that costs is not one number. The lane is a single global critical
+That cost is not a fixed factor. The lane is a single global critical
 section, so its throughput is flat in the writer count while the optimistic path
 scales with it. Their ratio therefore grows with the writer count, and any
 single factor is only a reading taken at one point on that curve. Measured on a
