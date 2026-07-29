@@ -70,11 +70,13 @@
 % Drop is 0.95, not 0.55: the sloped UNDECIDED/FAILED label descends into this
 % column, and at the shorter drop its tail and this block's top line came within
 % a hair of touching.  Rendered and checked.
-\draw[-latex, very thick, orange!70!black] (st.south) -- ++(0,-0.95)
+% The two transitions are NOT listed here.  sec:status draws them properly a page
+% earlier -- one state, two exits -- and repeating them as a text list under this
+% arrow was three lines saying what that diagram says better.  What remains is the
+% property the arrow is here for: the write happens once and is terminal.
+\draw[-latex, very thick, orange!70!black] (st.south) -- ++(0,-0.8)
   node[below, align=center, font=\footnotesize, text=black]
-  {\textbf{written once, to a terminal value}\\
-   \UNDECIDED $\to$ \SUCCEEDED\ (commit)\\
-   \UNDECIDED $\to$ \FAILED\ (abort)};
+  {\textbf{written once, to a terminal value}};
 
 \end{tikzpicture}
 \caption{The sole-driver descriptor, installed---the companion paper's figure

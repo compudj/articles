@@ -247,9 +247,28 @@ needs no RDCSS.
 \label{sec:status}
 
 A transaction is a frozen set of records plus one tri-state \emph{status word}:
+%
+% One state with two exits, drawn rather than written out.  The list form said
+% "UNDECIDED -> SUCCEEDED (commit)  UNDECIDED -> FAILED (abort)", which names the
+% start state twice and so reads as two transitions that happen to share a name
+% rather than one word leaving one state by one of two doors.  Exactly one of
+% these arrows is ever taken.
+%
+% The terminal boxes are coloured the colour of the value they resolve to --
+% green for new, grey for old, matching fig:tristate's targets -- so the two
+% pictures agree without the reader being told they do.
 \begin{center}
-\UNDECIDED $\longrightarrow$ \SUCCEEDED\quad(commit)\qquad
-\UNDECIDED $\longrightarrow$ \FAILED\quad(abort)
+\begin{tikzpicture}[
+  font=\small,
+  st/.style   = {draw, rounded corners=2pt, minimum height=7mm, inner xsep=5pt},
+  arr/.style  = {-latex, thin},
+]
+\node[st, very thick, fill=orange!18] (u)                {\UNDECIDED};
+\node[st, fill=green!12]              (s) at (4.6,  0.8) {\SUCCEEDED};
+\node[st, fill=gray!15]               (f) at (4.6, -0.8) {\FAILED};
+\draw[arr] (u.east) -- node[above, sloped, font=\scriptsize] {commit} (s.west);
+\draw[arr] (u.east) -- node[below, sloped, font=\scriptsize] {abort}  (f.west);
+\end{tikzpicture}
 \end{center}
 The status word is written once, to a terminal value, and never written back.
 Installing a record parks the record's own tagged address in its slot---this is
