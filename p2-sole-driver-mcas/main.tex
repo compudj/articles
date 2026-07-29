@@ -1414,7 +1414,7 @@ The pending write does not belong to the deleting transaction. By
 returned, and settle runs inside the commit, so a delete leaves nothing of its
 own behind in the node it removed. The pending write belongs to a transaction
 that \emph{lost} to it. Settle is a loop of plain stores over the planted
-prefix, not one atomic act. An insert that guards $B$'s forward pointer and
+prefix, not one atomic operation. An insert that guards $B$'s forward pointer and
 writes $B$'s back pointer (\cref{sec:structures}) holds a proxy in each; when it
 aborts it converts them one at a time, and converting the forward pointer is
 exactly what releases the delete that was contending for that slot. The delete
