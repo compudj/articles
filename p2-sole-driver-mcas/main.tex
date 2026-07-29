@@ -483,9 +483,12 @@ point has been reached.
 
 Everything above assumed every slot has concurrent writers. Real structures are
 rarely so uniform: an edit often spans slots the embedder already holds a lock
-over and slots it does not, and until recently that edit had no single commit
-spanning both---it had to bridge two facilities with an external lock. The
-facility removes the bridge by making the install discipline a property of the
+over and slots it does not. Split those across two facilities---one assuming
+exclusion, one assuming contention---and no single commit spans them, because a
+slot can only be parked by the facility that manages it. The embedder is left
+bridging the two with a lock of its own, which serializes the shared slots that
+the multi-writer discipline exists to keep concurrent. This facility spans the
+edit directly instead, by making the install discipline a property of the
 \emph{record}, chosen per slot:
 
 \begin{description}\setlength{\itemsep}{2pt}
