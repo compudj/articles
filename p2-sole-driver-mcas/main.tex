@@ -325,7 +325,7 @@ escalation of \cref{sec:progress}. Keeping the wait and the progress guarantee
 separate is deliberate: the wait is an optimization, and the correctness of the
 facility does not rest on it.
 
-\subsection{No RDCSS}
+\subsection{No double-word install}
 \label{sec:norddcss}
 
 A value-CAS install is the natural way to place a record: compare-and-swap the
@@ -337,6 +337,45 @@ standard defence is RDCSS---a restricted double-compare-single-swap that
 conditions the install on a second word, typically the descriptor's own
 status---and it is exactly what Harris, Fraser and Pratt introduced to make
 practical \mcas safe~\citep{harris2002mcas}.
+
+It is worth being concrete about that hazard, because what follows is a claim
+that it \emph{cannot arise}, not that it is improbable. Let a transaction $T$
+hold a record $r$ on slot $s$, and let $H$ be some thread helping $T$ install it:
+
+\begin{enumerate}\setlength{\itemsep}{1pt}
+\item $H$ reads $s$ and finds the value $A$ that $r$ expects.
+\item $H$ stalls---descheduled, preempted, anything---before its
+      compare-and-swap.
+\item Meanwhile $T$ is driven to completion by its owner or by other helpers. It
+      decides, settles every slot back to a plain value, and is retired. Nothing
+      names its descriptor any longer, so a grace period later that memory is
+      handed back.
+\item Unrelated work changes $s$ and changes it back, so $s$ holds $A$ once more.
+      A next pointer cycling $A \rightarrow X \rightarrow A$ does this, and so
+      does an embedder recycling a value.
+\item $H$ resumes and performs its compare-and-swap. \emph{It succeeds}, because
+      $s$ does hold $A$.
+\end{enumerate}
+
+\noindent Slot $s$ now names a record belonging to a transaction that finished
+long ago. A reader resolving $s$ follows $r$ to $T$'s status word, finds it
+terminal, and takes $T$'s value---from a transaction already settled, and whose
+descriptor may since have been freed. The slot has been re-parked by a thread
+that had no business writing it, which is why the failure is not merely a stale
+read but a use-after-free waiting to happen. RDCSS closes step~5 by conditioning
+the install on a second word: the descriptor's status must still be \UNDECIDED,
+and $T$'s no longer is.
+
+Now notice which step carries the weight. Steps~1, 4 and~5 are ordinary---a read,
+a value recurrence, a compare-and-swap that finds what it expected. Step~3 is
+just a transaction completing. Everything hinges on step~2: a thread that had
+resolved to install one of $T$'s records and had not yet done so when $T$
+finished. That thread cannot be $T$'s owner. An owner plants its whole prefix and
+only then decides, so at the instant $T$ becomes terminal its owner has no plant
+outstanding---there is nothing left for it to stall before. The stalled installer
+of step~2 is therefore a \emph{second} driver of $T$, and a second driver is what
+helping introduces and what \cref{def:soledriver} forbids. The property states
+that.
 
 The sole-driver facility omits RDCSS. It installs with a bare value-CAS, and that
 is sufficient. The reason is precise, and it is the paper's strongest claim.
