@@ -1408,6 +1408,10 @@ The build--publish--reclaim discipline carries over, with one multi-writer
 addition that the single-writer paper explicitly did not have. A deleted node
 must not be re-linked---re-inserted, or recycled into a fresh node---before a
 grace period, and not only for the usual reason that a reader may still hold it.
+Keeping the storage \emph{valid} is not enough. The transacted-memory contract
+of \cref{sec:limitations} is discharged by not freeing the node; a re-link
+honours it to the letter---the memory is live, the word still means what it
+meant---and loses the write anyway.
 
 The pending write does not belong to the deleting transaction. By
 \cref{sec:settle} no proxy of a transaction names any slot once its settle has
@@ -1468,12 +1472,28 @@ embedder's locking design or not at all. The safe direction is free, which is th
 mitigation on offer---naming a slot shared is correct unconditionally, so the
 contract is only ever at risk where an embedder reaches for the optimization.
 
+\paragraph{Transacted memory must be reclaimed through \rcu.} Here \rcu is an
+\emph{existence} guarantee, not a courtesy to readers, and this is the contract
+that makes concurrent transactions on an object possible at all. A transaction
+writes each of its slots twice---a compare-and-swap at install, a plain store at
+settle---and a transaction that \emph{loses} does both as well: it plants a
+prefix, then settles that prefix back to the old values. An embedder that
+unlinks an object and frees it immediately therefore leaves the loser
+compare-and-swapping into freed memory. Every attempt runs inside a read-side
+critical section, so deferring the free past a grace period is exactly what
+closes this. The contract is that the backing memory of every transacted slot
+outlives every transaction that can still name it---reclaimed through
+\code{call\_rcu()}, or permanently allocated. \Cref{sec:reclaim} extends the
+same wait from freeing to reuse.
+
 \paragraph{Value-CAS atomicity.} A record is validated to hold its old value at
 the linearization point, not to have been stable throughout the transaction. An
 operation whose correctness requires detecting an away-and-back change must carry
 its own version in the word; snapshot and version semantics are layered on top,
-as with any value-based \mcas. Memory safety holds unconditionally; atomicity is
-conditional on the embedder's contracts---the per-record tag kept free,
+as with any value-based \mcas. What an away-and-back change costs is atomicity,
+not memory safety---memory safety rests on the lifetime contract above, not on
+the value observed. Atomicity is conditional on the embedder's contracts---the
+per-record tag kept free,
 pairwise-distinct slots, deferred descriptor reclaim, and the logical-deletion
 discipline where
 operations couple through unwritten slots.
