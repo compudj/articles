@@ -1153,14 +1153,28 @@ unlinking share a single linearization point---is what a \kcas over a tree alrea
 does with such a flag.
 
 One property is worth calling out, as a design rationale rather than a claim: the
-tombstone is consulted by updaters alone and never by readers. The nearest prior
-art is again \code{SCX}, whose descriptor sits in a field readers never
-read---its reader correctness is a linearization argument over plain reads, not a
-mark check. What is particular here is the setting: on a read-barrier-free \rcu
-base with a sole-driver \mcas, keeping the tombstone entirely off the reader's
-path preserves the read side exactly (\cref{sec:tombstoneplacement}) and leaves
-its placement free---packed for compactness, or on a cold line for a pristine
-reader pointer. We disclose that as the reason the technique fits this facility, and
+tombstone is consulted by updaters alone and never by readers. That is worth
+separating from the technique it belongs to, because in the lineage the technique
+comes from the mark is \emph{not} updater-only. A marked node in
+Harris's list stays reachable until some thread physically unlinks it, so a
+traversal that did not examine the mark would report a deleted node as present:
+there the mark does double duty, coordinating updaters and telling readers the
+node is gone. That duty is forced by the setting rather than chosen. Without a
+grace period a node cannot be unlinked and freed while a reader may still hold
+it, so logical deletion has to be a state the reader can see.
+
+An \rcu base removes the second duty. Here the unlink \emph{is} the deletion as
+far as a reader is concerned---the commit re-points the predecessor, the node
+stops being reachable, and the grace period makes freeing it safe---so existence
+is answered by reachability and never by a flag. What the tombstone adds is
+addressed entirely to updaters (\cref{sec:mark}), and it reaches readers only
+indirectly, through the updaters that decline to touch a frozen node. The nearest
+prior art for a mark readers do not read is \code{SCX}, whose descriptor sits in
+a field readers never consult; its reason is a linearization argument over plain
+reads, where ours is the substrate. Keeping the tombstone off the reader's path
+therefore costs nothing to arrange (\cref{sec:tombstoneplacement}) and leaves its
+placement free---packed for compactness, or on a cold line for a pristine reader
+pointer. We disclose that as the reason the technique fits this facility, and
 claim nothing beyond the fit.
 
 % ===========================================================================
