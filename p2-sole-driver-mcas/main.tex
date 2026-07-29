@@ -182,14 +182,8 @@ programming model it forward-references---the read-policy taxonomy, the
 general à-la-carte guard facility, and the conflict and aging
 \emph{declarations} that tune escalation---is the subject of the next paper in
 the series; this one introduces exactly the one guard its own worked example
-forces, and no more. The comprehensive comparative evaluation---tail latency, and
-comparison against existence, RLU, and MV-RLU---is later still. What appears here
-is only the throughput that justifies a choice made \emph{in this paper}: a
-design against the alternative we built and rejected, or the facility against
-itself. \Cref{sec:writerscaling} is of the second kind and is the one figure the
-paper's premise rests on; it compares this facility with the companion paper's
-and with nothing else, which is why it belongs here and not with the
-comparisons.
+forces, and no more. The comparative evaluation---tail latency, and
+comparison against existence, RLU, and MV-RLU---is later still.
 The facility and the companion \fliplatch share the model and the status
 vocabulary---and, at the pinned commit, one descriptor and one status
 word---so that an embedder that outgrows exclusion changes which discipline a
