@@ -571,10 +571,21 @@ write. The facility cannot detect this, because each transaction sees only its
 own records; it is the embedder's invariant, exactly as ``the same datum is
 guarded by the same lock everywhere'' is. A quiescent transition---a slot shared
 for one phase and exclusive for another, with a grace period between---is
-legitimate; concurrent disagreement is not. When in doubt, name it shared. Within
-a single transaction the contradiction is at least visible, and the commit
-resolves it in the safe direction, promoting the slot to the CAS install rather
-than trusting a promise the record set itself contradicts.
+legitimate; concurrent disagreement is not. When in doubt, name it shared.
+
+Within a single transaction the contradiction \emph{is} visible, and the facility
+does not let it pass quietly. A debug build asserts on it where the second record
+is staged, so an embedder that names one slot both ways in one transaction is
+told at the point of the mistake; a release build resolves it in the safe
+direction, promoting the slot to the CAS install rather than trusting a promise
+the record set itself contradicts. The pairwise-distinct requirement above is
+checked the same way, by a debug pass over the record set before installation
+begins. It is worth being clear about which line those checks sit on. They cover
+what one transaction can see about itself, which is why they can exist at all;
+the global claim---that every other thread agrees about this slot---is not a
+harder version of the same check but a different kind of statement, and no build
+can make it. That one is discharged by the embedder's locking design or not at
+all.
 
 % ===========================================================================
 \section{Progress and the Coarseness Thesis}
