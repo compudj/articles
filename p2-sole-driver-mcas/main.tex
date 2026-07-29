@@ -681,9 +681,18 @@ optimistic path, which aborts far more often but retries in parallel.
 That cost is not a fixed factor. The lane is a single global critical
 section, so its throughput is flat in the writer count while the optimistic path
 scales with it. Their ratio therefore grows with the writer count, and any
-single factor is only a reading taken at one point on that curve. Measured on a
-three-structure skip-list move, optimistic against a build that escalates on its
-first attempt:
+single factor is only a reading taken at one point on that curve.
+
+The measurement below uses a move across three skip lists, and the structure is
+chosen rather than incidental. A skip list's upper levels are sparse, so every
+writer descends through the same few nodes whatever key it is moving: contention
+there is a property of the shape, not of an unlucky key distribution, and it does
+not go away by making the structure larger. That is what makes it the case this
+argument is about---a traversal mutator, costly to serialize because the descent
+is most of what a lane would serialize, and with genuine conflict to resolve
+rather than manufactured collisions. A structure whose writers rarely meet would
+answer a different question, and answer it flatteringly. Optimistic against a
+build that escalates on its first attempt:
 
 \begin{center}
 \footnotesize
