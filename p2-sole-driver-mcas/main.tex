@@ -1320,11 +1320,17 @@ back-pointer write before it reaches the shared forward slot, and so drive the
 back-edge store against a successor a concurrent deletion is freeing.
 
 The fix is to fold the read of that forward slot into the commit---to
-\emph{validate the successor's tombstone}. The insert issues a
-\emph{load-validate} on the successor's forward pointer, the slot where a deletion
-of the successor sets its tombstone: it reads the value and records a load-only
-guard---a record of the form \edit{v}{v}---so that the commit succeeds only if that
-slot still resolves to $v$ at the install point. If a concurrent deletion has set
+\emph{validate the successor's tombstone}. Here the two structures make the
+placement choice \cref{sec:mark} left open, and pack the tombstone into a
+reserved bit of each node's own forward pointer. That is what makes one guard
+enough: the word the insert must already consult to serialize against a deletion
+is the same word that deletion marks, so a single validated read covers both. The
+insert issues a \emph{load-validate} on the successor's forward pointer---it
+reads the value and records a load-only guard, a record of the form
+\edit{v}{v}---so that the commit succeeds only if that slot still resolves to $v$
+at the install point. Were the tombstone a separate status word instead, nothing
+about the argument would change except its address: the guard would name that
+word, and the insert would carry two read-validated slots rather than one. If a concurrent deletion has set
 the tombstone in the meantime, the guard's old value no longer matches, the commit
 fails, and the insert retries. The guarded read is the read-side companion to the
 tombstone: the forward edge is made safe by a \emph{write}-validated slot, the back
