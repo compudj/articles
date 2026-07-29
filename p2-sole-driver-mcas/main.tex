@@ -1408,13 +1408,30 @@ The build--publish--reclaim discipline carries over, with one multi-writer
 addition that the single-writer paper explicitly did not have. A deleted node
 must not be re-linked---re-inserted, or recycled into a fresh node---before a
 grace period, and not only for the usual reason that a reader may still hold it.
-The deleting transaction may still hold a parked descriptor in that node's
-forward slot, awaiting its owner's settle. An insert builds its new node's links
-with plain stores while the node is private; a plain store into a slot that still
-holds a parked descriptor is overwritten when that descriptor settles, and the
-write is silently lost, leaving a permanently incoherent edge. So a node's
-storage must wait out a grace period before reuse exactly as its reclamation
-would---the same wait, extended from ``free'' to ``reuse.''
+
+The pending write does not belong to the deleting transaction. By
+\cref{sec:settle} no proxy of a transaction names any slot once its settle has
+returned, and settle runs inside the commit, so a delete leaves nothing of its
+own behind in the node it removed. The pending write belongs to a transaction
+that \emph{lost} to it. Settle is a loop of plain stores over the planted
+prefix, not one atomic act. An insert that guards $B$'s forward pointer and
+writes $B$'s back pointer (\cref{sec:structures}) holds a proxy in each; when it
+aborts it converts them one at a time, and converting the forward pointer is
+exactly what releases the delete that was contending for that slot. The delete
+can then commit and its caller hand $B$ to reclamation while the loser's store
+into $B$'s back pointer has not yet landed. Nothing serializes that last store
+either: a delete rewrites its two neighbours' edges and the removed node's
+forward pointer---never the removed node's own back pointer.
+
+So a write into a removed node can land strictly after the operation that
+removed it has reported success. An insert builds its new node's links with
+plain stores while the node is private; if that storage is a recycled node, such
+a store is overwritten when the straggler lands, and the write is silently lost,
+leaving a permanently incoherent edge. Every straggler is inside the read-side
+critical section its own attempt runs in, so one grace period drains them
+exactly as it drains readers: a node's storage must wait out a grace period
+before reuse exactly as its reclamation would---the same wait, extended from
+``free'' to ``reuse.''
 
 % ===========================================================================
 \section{Limitations}
