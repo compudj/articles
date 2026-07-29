@@ -53,8 +53,8 @@ Per-slot atomicity is not operation atomicity, so a usable concurrent list needs
 one more thing: logical deletion, a tombstone that update transactions treat as
 freezing a node. It is updater-only
 coordination---a would-be attacher validates it and aborts---so a reader gets a
-frozen node for free without consulting the tombstone at all, which keeps it off
-the reader's path and on a cold cache line. This is a known
+frozen node for free without consulting the tombstone at all, which takes it off
+the reader's path and leaves its placement free. This is a known
 technique, disclosed as applied. With it and one guarded read, the same
 bidirectional list and hash list become usable under concurrent writers.
 \end{abstract}
