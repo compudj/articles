@@ -1392,7 +1392,7 @@ not a regression; it is the exclusion crutch coming due, in one concrete slot.
 
 It is worth asking whether \cref{sec:kinds} rescues the plain store after all, since
 an exclusive record \emph{is} a plain store inside the commit. It does not, and
-the reason shows the contract has teeth. Exclusive is a promise that the embedder
+the reason shows exactly what the kind contract forbids. Exclusive is a promise that the embedder
 holds a lock excluding \emph{every} writer of that slot, and a general-purpose
 hash list makes no such promise: \code{pprev} is written by whichever peer mutator
 is re-linking around this node, under no lock at all. Recording it as exclusive
