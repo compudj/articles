@@ -100,7 +100,7 @@ reach lock-freedom. The paper states what it gives up and argues the trade. It
 does not apologize for it.
 
 The argument is not a preference stated after the fact. It is a falsification
-trail. An earlier version of this engine had threads \emph{help} drive each
+trail. An earlier version of this facility had threads \emph{help} drive each
 other's transactions, in the manner of practical \mcas
 \citep{harris2002mcas, barnes1993method}. Helping made two threads co-install a
 transaction's records, which admits an install-time A-B-A hazard---a value that
@@ -862,7 +862,7 @@ ideal at 192 writers---belongs to this facility as much as the scaling does.
 \subsection{Helping, and the latch it forced}
 \label{sec:varhelping}
 
-The engine once helped. Threads that met an in-flight transaction drove it to
+The facility once helped. Threads that met an in-flight transaction drove it to
 completion, as practical \mcas does~\citep{harris2002mcas, barnes1993method}.
 Helping means several threads co-install one transaction's records, and
 co-installation is exactly the condition of \cref{prop:abainstall}: a record can
@@ -873,7 +873,7 @@ which installer owned it.
 
 The lesson is that this latch already made the helping engine bounded-blocking:
 an installer that found a record \code{BUSY} waited on its holder. Helping never
-bought lock-freedom; it bought a \emph{more complex} bounded-blocking engine.
+bought lock-freedom; it bought a \emph{more complex} bounded-blocking facility.
 And that complexity cost throughput in a way that can be counted before it is
 measured. The latch is not merely state, it is \emph{atomics}, and---this is the
 part worth being exact about---it does not replace the plant. A slot is claimed
@@ -993,7 +993,7 @@ conflicting transaction on sight~\citep{herlihy2003dstm}, and the priority and
 timestamp policies that tame its livelock are Scherer and
 Scott's~\citep{scherer2005contention}, whose root is the wound-wait rule of
 classical database concurrency control~\citep{rosenkrantz1978woundwait}. This
-engine had it, in the form of \emph{stealing}: a higher-ranked transaction evicted
+facility had it, in the form of \emph{stealing}: a higher-ranked transaction evicted
 a foreign one and took its slots. Stealing and helping were one subsystem---to
 drive a foreign transaction is to help it, to evict one is to steal from it---so
 they were removed together, and their combined cost is the measurement of
