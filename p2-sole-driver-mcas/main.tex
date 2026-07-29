@@ -578,7 +578,8 @@ The escalation is reactive, and its threshold is the interesting part. A handle
 takes the lane not because its transaction is large but because it is
 \emph{losing}: it has retried past a budget that its own cost earns it. The
 budget scales with cost---measured as the transaction's read count plus its
-write-set size, the whole bracket rather than only the edges it commits---for a
+write-set size, everything the attempt touched rather than only the edges it
+commits---for a
 reason that is itself a small throughput argument. Escalating funnels every
 writer in the domain through one serial lane, so the cost of escalating is the
 length of the critical section it serializes. A single-edge operation commits
