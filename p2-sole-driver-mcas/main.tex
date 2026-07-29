@@ -339,43 +339,53 @@ status---and it is exactly what Harris, Fraser and Pratt introduced to make
 practical \mcas safe~\citep{harris2002mcas}.
 
 It is worth being concrete about that hazard, because what follows is a claim
-that it \emph{cannot arise}, not that it is improbable. Let a transaction $T$
-hold a record $r$ on slot $s$, and let $H$ be some thread helping $T$ install it:
+that it \emph{cannot arise}, not that it is improbable. And the recurrence that
+drives it is not some contrived churn on a word: it is what an ordinary pair of
+structural edits does to a pointer.
+
+Let a list hold $A \rightarrow B$, and let a transaction $T$ insert $X$ after
+$A$---so $T$ carries a record $r$ naming the slot \code{A->next}, with old value
+$B$ and new value $X$. Let $H$ be a thread helping $T$ install it.
 
 \begin{enumerate}\setlength{\itemsep}{1pt}
-\item $H$ reads $s$ and finds the value $A$ that $r$ expects.
-\item $H$ stalls---descheduled, preempted, anything---before its
-      compare-and-swap.
-\item Meanwhile $T$ is driven to completion by its owner or by other helpers. It
-      decides, settles every slot back to a plain value, and is retired. Nothing
-      names its descriptor any longer, so a grace period later that memory is
-      handed back.
-\item Unrelated work changes $s$ and changes it back, so $s$ holds $A$ once more.
-      A next pointer cycling $A \rightarrow X \rightarrow A$ does this, and so
-      does an embedder recycling a value.
+\item $H$ reads \code{A->next}, finds $B$---the value $r$ expects---and prepares
+      its compare-and-swap.
+\item $H$ stalls before performing it: descheduled, preempted, anything.
+\item $T$ is driven to completion by its owner or by other helpers. It commits
+      and settles, leaving \code{A->next} holding $X$. The list reads
+      $A \rightarrow X \rightarrow B$, and $T$ is retired.
+\item Later, another transaction removes $X$. That restores \code{A->next} to
+      $B$, and the list reads $A \rightarrow B$ once more.
 \item $H$ resumes and performs its compare-and-swap. \emph{It succeeds}, because
-      $s$ does hold $A$.
+      \code{A->next} does hold $B$.
 \end{enumerate}
 
-\noindent Slot $s$ now names a record belonging to a transaction that finished
-long ago. A reader resolving $s$ follows $r$ to $T$'s status word, finds it
-terminal, and takes $T$'s value---from a transaction already settled, and whose
-descriptor may since have been freed. The slot has been re-parked by a thread
-that had no business writing it, which is why the failure is not merely a stale
-read but a use-after-free waiting to happen. RDCSS closes step~5 by conditioning
-the install on a second word: the descriptor's status must still be \UNDECIDED,
-and $T$'s no longer is.
+\noindent \code{A->next} now names $r$. A reader resolving it follows $r$ to
+$T$'s status word, finds \SUCCEEDED, and takes $T$'s new value: $X$. \emph{The
+removed node is back in the list.} Nothing was freed, and nothing could have
+been: $H$ sits inside an \rcu read-side critical section for the whole of this,
+because it is dereferencing a descriptor it reached through a slot, so no grace
+period elapses and neither $T$'s descriptor nor $X$ is reclaimed while it is
+stalled. \rcu forecloses the memory-safety reading entirely, and that is what
+makes the real failure visible: the structure is simply \emph{incorrect}. A
+deletion has been undone by a thread that was trying to help an insertion which
+had already finished. This is why the hazard is A-B-A in the
+structural sense and not merely in the arithmetic one---the pointer returned to
+$B$ because a node was inserted and then removed, which is the most ordinary
+thing a list does. RDCSS closes step~5 by conditioning the install on a second
+word: the descriptor's status must still be \UNDECIDED, and $T$'s no longer is.
 
-Now notice which step carries the weight. Steps~1, 4 and~5 are ordinary---a read,
-a value recurrence, a compare-and-swap that finds what it expected. Step~3 is
-just a transaction completing. Everything hinges on step~2: a thread that had
-resolved to install one of $T$'s records and had not yet done so when $T$
-finished. That thread cannot be $T$'s owner. An owner plants its whole prefix and
-only then decides, so at the instant $T$ becomes terminal its owner has no plant
-outstanding---there is nothing left for it to stall before. The stalled installer
-of step~2 is therefore a \emph{second} driver of $T$, and a second driver is what
-helping introduces and what \cref{def:soledriver} forbids. The property states
-that.
+Now notice which step carries the weight. Steps~1, 3, 4 and~5 are
+unremarkable---a read, an insertion completing, a removal, and a compare-and-swap
+that finds exactly what it expected. None of them can be designed away, and the
+recurrence in step~4 is not a rare interleaving but the normal life of a list.
+Everything hinges on step~2: a thread that had resolved to install one of $T$'s
+records and had not yet done so when $T$ finished. That thread cannot be $T$'s
+owner. An owner plants its whole prefix and only then decides, so at the instant
+$T$ becomes terminal its owner has no plant outstanding---there is nothing left
+for it to stall before. The stalled installer of step~2 is therefore a
+\emph{second} driver of $T$, and a second driver is what helping introduces and
+what \cref{def:soledriver} forbids. The property states that.
 
 The sole-driver facility omits RDCSS. It installs with a bare value-CAS, and that
 is sufficient. The reason is precise, and it is the paper's strongest claim.
