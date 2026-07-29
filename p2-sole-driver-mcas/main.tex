@@ -1049,9 +1049,13 @@ ours (\cref{sec:varhelping}); the conclusion drawn is the opposite one.
 We record it here rather than dispute it, because the two designs pay in
 different currencies and the paper has not measured theirs. Version embedding
 buys ABA-freedom under helping at the cost of bits taken from every transacted
-word---a per-slot encoding budget this facility deliberately leaves to the
-embedder (\cref{sec:constraints}), which spends it instead on a per-record tag it
-chooses itself. And the trade only arises at all under helping: the hazard the
+word, and that cost has two parts. It is an encoding budget, which this facility
+deliberately declines to spend on the embedder's behalf: \cref{sec:constraints}
+leaves the tag to each embedder precisely because slot encodings differ, and a
+version wide enough to be safe has to be imposed uniformly on all of them. And it
+is not portably available---how many bits a word has to spare depends on the
+architecture and on what the embedder stores there, so a scheme requiring several
+per word constrains where it can run in a way a single tag bit does not. And the trade only arises at all under helping: the hazard the
 versions suppress is the one \cref{prop:abainstall} says a sole driver never
 admits, so what is bought with encoding space there is had for nothing here. That
 is the comparison worth making, and it is a design one; a throughput comparison
@@ -1096,9 +1100,11 @@ DCAS / RDCSS install &
   unnecessary under sole-driver (\cref{sec:norddcss}); unportable; hot-cache-line budget &
   RDCSS \citep{harris2002mcas} \\
 Helping $+$ version-embedded words &
-  not rejected on a number: an independent, concurrent design
-  (\cref{sec:varversion}) that keeps helping and spends per-word encoding bits on
-  the hazard a sole driver never admits &
+  needs spare bits in \emph{every} transacted word, so the facility would fix an
+  encoding budget \cref{sec:constraints} leaves to each embedder, and how many
+  bits exist to take is architecture- and embedder-dependent; buys freedom from a
+  hazard a sole driver never admits (\cref{sec:varversion}). Independent
+  concurrent work, not built here &
   \citet{unno2026helping} \\
 Pure lock-freedom &
   unreachable once co-install forced the latch; its one prize (preemption immunity) is cheaper via avoidance &
