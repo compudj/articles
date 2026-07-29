@@ -108,7 +108,7 @@ cycles away and back, which a plain compare-and-swap cannot detect---which force
 a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch to close. That latch
 already made the helping engine bounded-blocking---so lock-freedom was never
 actually on the table there---and it lost on throughput to the simpler design.
-The cost is countable rather than atmospheric: the latch put \emph{three extra
+The cost is countable: the latch put \emph{three extra
 compare-and-swaps on every record}---one to claim the install
 (\code{FREE}\,$\to$\,\code{BUSY}), and two at settle, where a sole driver needs
 only a release store. The decision itself went the same way, from
