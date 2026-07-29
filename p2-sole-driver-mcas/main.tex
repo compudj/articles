@@ -108,11 +108,10 @@ cycles away and back, which a plain compare-and-swap cannot detect---which force
 a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch to close. That latch
 already made the helping engine bounded-blocking---so lock-freedom was never
 actually on the table there---and it lost on throughput to the simpler design.
-The cost is countable rather than atmospheric: the latch put \emph{two extra
-compare-and-swaps on every record}, one to claim the install
-(\code{FREE}\,$\to$\,\code{BUSY}) before the record could be planted and one
-to convert it at settle, which a helper might be doing concurrently and which
-therefore could not be a plain store. The decision itself went the same way, from
+The cost is countable rather than atmospheric: the latch put \emph{three extra
+compare-and-swaps on every record}---one to claim the install
+(\code{FREE}\,$\to$\,\code{BUSY}), and two at settle, where a sole driver needs
+only a release store. The decision itself went the same way, from
 a single release store of the status word to a compare-and-swap, because an
 owner that may be raced cannot assume it is the only writer of its own outcome.
 On top of that came the traffic those extra atomics generate on a hot per-record
@@ -784,12 +783,19 @@ The lesson is that this latch already made the helping engine bounded-blocking:
 an installer that found a record \code{BUSY} waited on its holder. Helping never
 bought lock-freedom; it bought a \emph{more complex} bounded-blocking engine.
 And that complexity cost throughput in a way that can be counted before it is
-measured. The latch is not merely state, it is \emph{atomics}: claiming a record
-for install is a compare-and-swap (\code{FREE}\,$\to$\,\code{BUSY}), and
-converting it at settle is another, because a helper may be converting the same
-record at the same moment and a plain store would lose that race. So every
-record carries two compare-and-swaps that the sole driver does not need, on top
-of the one that installs it. The transaction's decision follows: the owner can no
+measured. The latch is not merely state, it is \emph{atomics}, and---this is the
+part worth being exact about---it does not replace the plant. A slot is claimed
+by compare-and-swap under either design, because the latch guards \emph{that
+record's} install and not the slot, which another transaction's record may also
+target. Everything helping adds sits around an unchanged plant. Claiming the
+record costs a compare-and-swap (\code{FREE}\,$\to$\,\code{BUSY}) and
+releasing it costs a store. Settling it costs two more: the owner must first
+claim the same word (\code{FREE}\,$\to$\,\code{DONE}), so that no late plant
+can begin behind its back, and must then convert the slot by compare-and-swap
+rather than by the release store a sole driver uses, because a helper may be
+converting that slot at the same instant. Three extra compare-and-swaps per
+record, then, against a sole driver's one to plant and one release store to
+settle. The transaction's decision follows the same logic: the owner can no
 longer publish its status with a release store, since it is not the only thread
 that may write it, so the single most important store in the commit becomes a
 compare-and-swap as well. Only then come the effects those atomics have---the
