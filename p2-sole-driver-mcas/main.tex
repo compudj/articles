@@ -107,10 +107,18 @@ transaction's records, which admits an install-time A-B-A hazard---a value that
 cycles away and back, which a plain compare-and-swap cannot detect---which forced
 a per-record \code{FREE}/\code{BUSY}/\code{DONE} install latch to close. That latch
 already made the helping engine bounded-blocking---so lock-freedom was never
-actually on the table there---and it lost on throughput to the simpler design:
-hot-cache-line traffic on the per-record state machine, and helper work that
-duplicated the owner's. Removing the helpers removes the co-installer, and with
-it the hazard, the latch, and the traffic. What remains is one driver per
+actually on the table there---and it lost on throughput to the simpler design.
+The cost is countable rather than atmospheric: the latch put \emph{two extra
+compare-and-swaps on every record}, one to claim the install
+(\code{FREE}\,$\to$\,\code{BUSY}) before the record could be planted and one
+to convert it at settle, which a helper might be doing concurrently and which
+therefore could not be a plain store. The decision itself went the same way, from
+a single release store of the status word to a compare-and-swap, because an
+owner that may be raced cannot assume it is the only writer of its own outcome.
+On top of that came the traffic those extra atomics generate on a hot per-record
+line, and helper work that duplicated the owner's. Removing the helpers removes
+the co-installer, and with it the hazard, the latch, the extra compare-and-swaps,
+and the traffic. What remains is one driver per
 transaction and a single residual wait---the coarse, per-transaction settle-wait
 of a foreign owner. That is the sole-driver engine, and it wins the measurement
 its predecessor lost.
@@ -775,9 +783,18 @@ which installer owned it.
 The lesson is that this latch already made the helping engine bounded-blocking:
 an installer that found a record \code{BUSY} waited on its holder. Helping never
 bought lock-freedom; it bought a \emph{more complex} bounded-blocking engine.
-And that complexity cost throughput two ways: the per-record state machine was a
-hot cache line, contended by every co-installer, and the helper work itself
-largely duplicated effort the owner would complete anyway. That diagnosis is not
+And that complexity cost throughput in a way that can be counted before it is
+measured. The latch is not merely state, it is \emph{atomics}: claiming a record
+for install is a compare-and-swap (\code{FREE}\,$\to$\,\code{BUSY}), and
+converting it at settle is another, because a helper may be converting the same
+record at the same moment and a plain store would lose that race. So every
+record carries two compare-and-swaps that the sole driver does not need, on top
+of the one that installs it. The transaction's decision follows: the owner can no
+longer publish its status with a release store, since it is not the only thread
+that may write it, so the single most important store in the commit becomes a
+compare-and-swap as well. Only then come the effects those atomics have---the
+per-record state machine as a hot cache line contended by every co-installer, and
+helper work that largely duplicated effort the owner would complete anyway. That diagnosis is not
 only ours: recent work on \kcas reports the same failure, that under high
 contention the helping which guarantees lock-freedom ``may cause excessive cache
 invalidations and significant performance degradation''---and responds by
