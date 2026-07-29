@@ -606,8 +606,10 @@ The sort is paid only when it is needed. A first, optimistic attempt installs
 flat, in caller order, and never waits: the moment it meets a foreign record it
 bails and fails fast, which cannot deadlock because it never holds-and-waits. Only
 when an attempt escalates to the blocking, waiting path does it first sort its
-records by address, buying the ordering the wait needs. Age~0 is unsorted and
-non-blocking; age~1 and above are sorted and blocking.
+records by address, buying the ordering the wait needs. A handle's \emph{age} is
+simply how many times it has retried, and it selects between the two: age~0, the
+first attempt, is unsorted and non-blocking; age~1 and above are sorted and
+blocking.
 
 The order covers the shared records alone. An exclusive park waits on nobody---by
 the promise that makes it exclusive there is no foreign owner to wait on---so it
@@ -994,8 +996,10 @@ it forces costs more than the bounded wait that replaces it.
 \label{sec:varage}
 
 A transaction could resolve a contended slot by \emph{version} rather than by
-\emph{status}: stamp each transaction with an age, and let a reader or a
-committer decide a slot by comparing ages instead of reading a status word. This
+\emph{status}: stamp each transaction with a timestamp---an \emph{age} in the
+older sense of the word, unrelated to the retry count of
+\cref{sec:deadlock}---and let a reader or a committer decide a slot by comparing
+those stamps instead of reading a status word. This
 is the timestamp-ordering lineage---DSTM's timestamp
 manager~\citep{herlihy2003dstm}, again over wound-wait---and it is a different
 thing from the version-as-\emph{validity} of TL2 and
