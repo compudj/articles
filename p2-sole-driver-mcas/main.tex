@@ -432,7 +432,9 @@ reachable through a slot is freed only after a grace period, because a reader ma
 still dereference it. This is value-CAS atomicity: a record is validated to hold
 its old value at the linearization point, not to have been stable throughout. An
 embedder that needs stability across an interval layers its own versioning on
-top, as with any value-based \mcas. Memory safety holds unconditionally.
+top, as with any value-based \mcas. Memory safety rests on the reclamation
+obligation above, not on slot values: a value that recurs costs atomicity, never
+safety.
 
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
