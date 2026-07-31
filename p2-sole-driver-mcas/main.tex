@@ -35,7 +35,7 @@ requires writer exclusion. This paper drops the exclusion, and drops it per
 \emph{slot}: one commit spans locked and unlocked slots alike, and a reader
 cannot tell them apart. The sole-driver
 multi-word compare-and-swap (\mcas) facility realizes the same model for concurrent
-writers: a transaction is driven only by its owner. A writer needing a foreign
+writers: a \pseudotxn is driven only by its owner. A writer needing a foreign
 in-flight slot settled waits a bounded spin, then escalates; a reader resolves it
 at once and never waits. There is no helping, no stealing, and---most of all---no RDCSS
 (restricted double-compare single-swap). A plain value-CAS
@@ -201,7 +201,15 @@ visible by a single commit step. The write set is atomic---every record resolves
 to $o$ before the commit and to $n$ after---and no slot and no instant is ever
 torn. A reader is not a transaction of any kind: it meets the \pseudotxn one slot
 at a time, so a traversal may straddle a commit, but it observes a monotone
-sequence and never new-then-old.
+sequence and never new-then-old---for a dependency-chained traversal; the
+companion paper's scope condition travels with that claim, and a reader that
+compares two independently-reached slots owes itself an acquire.
+
+Throughout this paper, \emph{transaction} is shorthand for that writer-side
+\pseudotxn---a frozen record set published by one commit step---and never for a
+read-and-write transaction in the database or software-transactional-memory
+sense. Nothing on the read
+side is transactional at all, which is the point \cref{sec:soledriver} turns on.
 
 The \fliplatch bought all of this cheaply by requiring writer exclusion. Under
 exclusion there is nothing to contend for: a commit cannot fail, there is no
