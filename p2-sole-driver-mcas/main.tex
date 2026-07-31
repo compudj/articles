@@ -608,10 +608,11 @@ all.
 A committer that waits on a foreign owner while holding installs of its own could
 deadlock if two committers waited on each other. The facility prevents it not with
 detection but with a total order: records install in one global order, sorted by
-slot address. A committer therefore holds only \emph{lower} slots while it waits
-on a shared one, and the owner it waits on---having itself reached that shared
-slot---already passed every lower slot without blocking, so it holds none the
-waiter holds. There is no cycle to close, so there is no deadlock.
+slot address. A committer waiting on slot $s$ therefore holds only slots below
+$s$; the owner of $s$, installing in the same ascending order, is already past
+$s$, so any slot \emph{it} waits on lies above $s$. Along any chain of waits the
+contended addresses strictly increase, and a cycle would require them to come
+back down. There is no cycle to close, so there is no deadlock.
 
 The sort is paid only when it is needed. A first, optimistic attempt installs
 flat, in caller order, and never waits: the moment it meets a foreign record it
