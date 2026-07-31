@@ -1739,8 +1739,8 @@ the design point to others. What is ours is not that disciplines can be mixed bu
 that mixing these two costs nothing on either side: the kind never reaches a
 reader (\cref{prop:kindinvisible}) and a write set that does not mix does not pay
 (\cref{sec:kinds}). That falls out of a representational choice---one resolve
-header shared by both kinds---which dissolves what had looked like an
-incompatibility between the two facilities rather than defending against it. It is
+header shared by both kinds---which dissolves an apparent incompatibility
+between the two disciplines rather than defending against it. It is
 the same shape of result as the first claim, a mechanism turning out to be
 unnecessary; it is weaker because no one else had stated the obstacle, and we
 claim it only as an element of this conjunction.
@@ -1766,11 +1766,12 @@ two claims, and the one it turns on.
 The exclusion turns out to be droppable one slot at a time rather than all at
 once. A record carries a kind, so a slot with concurrent writers is planted with
 a CAS and a slot the embedder already holds a lock over is parked with a plain
-store, both in the same commit and both decided by the same status store. The two
-were separate facilities only because their proxies were separate layouts; giving
-them one resolve header makes the difference writer-side and invisible to a
-reader, which is what lets an embedder pay the blocking-progress price on exactly
-the slots that are shared and on no others.
+store, both in the same commit and both decided by the same status store. What
+keeps two install disciplines in separate facilities is a difference in proxy
+layout rather than a difference in the problem, and one shared resolve header
+dissolves it---making the distinction writer-side and invisible to a reader,
+which is what lets an embedder pay the blocking-progress price on exactly the
+slots that are shared and on no others.
 
 The facility is bounded-blocking, not lock-free, and we have argued that this is
 the right target rather than a shortfall. The argument is measured: the
