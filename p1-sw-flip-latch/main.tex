@@ -78,7 +78,7 @@ ordering so the reader is steered around the inconsistent window instead of bein
 made immune to it, and pay in read-side performance~\citep{JoshTriplettPhD}; or
 decline the operation.
 
-\Cref{sec:onestore} looks at a library that took the third option, and it is
+\Cref{sec:onestore} looks at a library that took the last option, and it is
 the cleanest evidence available that the problem is real, and it is not confined
 to a niche library. Linux's \rcu list --- the most widely deployed there is ---
 publishes only its forward chain: \code{\_\_list\_del()} commits the forward
