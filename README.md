@@ -276,6 +276,31 @@ make -C p1-sw-flip-latch arxiv    # arXiv submission tarball
   endorsement is needed. Starting a submission generates the six-character
   endorsement code to pass to an endorser.
 
+### Pre-submission checklist
+
+Items that are correct when written and rot with time. Re-run these against the
+tree as it stands on the day of submission, not the day they were drafted.
+
+- **Re-verify the time-stamped kernel claims** (P1 §2.3). Three of them are
+  checkable-by-date: that `list_bidir_del_rcu()` merged December 2024, suggested
+  and reviewed by McKenney; that its sole in-tree caller is
+  `__ns_tree_adjoined_rcu()` in `kernel/nstree.c`; and that the caller takes
+  exactly one adjacency hop and never compares the two directions. Re-grep a
+  current `-next` tree and refresh the tag, or leave the claim frozen to the tag
+  already named. A referee may well check, and a second caller appearing is the
+  likely failure.
+- **Recompute every quoted number from the shipped CSVs.** Caption and body
+  numbers drift out of sync with `data/*.csv` when a measurement is refreshed —
+  ratios, scaling factors, and percent-of-ideal figures all have to come from
+  the file that actually ships, not be carried forward.
+- **Watch `check-abstract` on any abstract edit.** P1's abstract sits at
+  1893/1920 characters — 27 characters of headroom against arXiv's limit, so
+  even a small rewording can overflow it. The build prints the count.
+- **Pin `\date{}` before circulating a frozen preprint.** Both papers use
+  `\date{\today}`, so the PDF date moves with every rebuild. Fine for arXiv,
+  which stamps its own date on submission; misleading on a copy sent to a
+  reviewer.
+
 ## Sources
 
 Read-only references, not vendored:
