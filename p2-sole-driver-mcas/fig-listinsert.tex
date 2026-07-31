@@ -64,28 +64,32 @@
 \node[sel] (st) at (7.0, 2.4) {\code{status}};
 \draw[arr] (3.9, 2.4) -- node[above, font=\scriptsize] {install} (st.west);
 
-\draw[-latex, semithick] (7.0, 2.8) -- (7.0, 4.0) -- (9.25, 4.0);
+\draw[-latex, semithick] (7.0, 2.8) -- (7.0, 4.0) -- (9.15, 4.0);
 \node[right, font=\scriptsize] at (7.05, 3.45) {\SUCCEEDED};
 
-\draw[-latex, semithick, gray!60!black] (7.0, 2.0) -- (7.0, 0.6) -- (9.8, 0.6);
+\draw[-latex, semithick, gray!60!black] (7.0, 2.0) -- (7.0, 0.6) -- (10.0, 0.6);
 \node[right, font=\scriptsize, text=gray!45!black] at (7.05, 1.35) {\FAILED};
 
 % ===== outcome 1: committed =================================================
-\node[lnode] (cP) at ( 9.8, 4.0) {\code{P}};
-\node[nnode] (cE) at (10.9, 4.0) {\code{E}};
-\node[lnode] (cN) at (12.0, 4.0) {\code{N}};
+% Node centres 1.7 apart against an 8mm box, so the link arrow gets a 9mm span.
+% At the 1.1 spacing this started from, the gap was 3mm and two arrowheads ate
+% all of it -- the boxes read as touching. Both outcome rows and all three notes
+% below them share the centre 11.4, so the rows stay stacked.
+\node[lnode] (cP) at ( 9.7, 4.0) {\code{P}};
+\node[nnode] (cE) at (11.4, 4.0) {\code{E}};
+\node[lnode] (cN) at (13.1, 4.0) {\code{N}};
 \draw[biarr] (cP) -- (cE);
 \draw[biarr] (cE) -- (cN);
-\node[font=\scriptsize, text=green!35!black] at (10.9, 3.35)
+\node[font=\scriptsize, text=green!35!black] at (11.4, 3.35)
   {\code{E} linked, both directions};
 
 % ===== outcome 2: aborted ===================================================
-\node[lnode] (aP) at (10.35, 0.6) {\code{P}};
-\node[lnode] (aN) at (11.45, 0.6) {\code{N}};
+\node[lnode] (aP) at (10.55, 0.6) {\code{P}};
+\node[lnode] (aN) at (12.25, 0.6) {\code{N}};
 \draw[biarr] (aP) -- (aN);
-\node[font=\scriptsize, text=gray!45!black] at (10.9, -0.05)
+\node[font=\scriptsize, text=gray!45!black] at (11.4, -0.05)
   {unchanged: every record resolves to \textit{old}};
-\node[font=\scriptsize, text=gray!55!black, align=center] at (10.9, -0.8)
+\node[font=\scriptsize, text=gray!55!black, align=center] at (11.4, -0.8)
   {a concurrent delete of \code{N} marked it,\\so the guard's \textit{old} no longer holds};
 
 \end{tikzpicture}
