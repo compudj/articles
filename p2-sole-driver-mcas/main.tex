@@ -341,7 +341,7 @@ slot from the old value the caller saw to the record's tagged address. The
 classical objection is an A-B-A: between the caller's read and its install, the
 slot could move to some other value and back to the old one, and a naive install
 would then succeed against a slot whose meaning had changed underneath it. The
-standard defence is RDCSS---a restricted double-compare-single-swap that
+standard defence is RDCSS---a restricted double-compare single-swap that
 conditions the install on a second word, typically the descriptor's own
 status---and it is exactly what Harris, Fraser and Pratt introduced to make
 practical \mcas safe~\citep{harris2002mcas}.
@@ -1066,10 +1066,11 @@ buys ABA-freedom under helping at the cost of bits taken from every transacted
 word, and that cost has two parts. It is an encoding budget, which this facility
 deliberately declines to spend on the embedder's behalf: \cref{sec:constraints}
 leaves the tag to each embedder precisely because slot encodings differ, and a
-version wide enough to be safe has to be imposed uniformly on all of them. And it
-is not portably available---how many bits a word has to spare depends on the
+version wide enough to be safe has to be imposed uniformly on all of them. It is
+also not portably available---how many bits a word has to spare depends on the
 architecture and on what the embedder stores there, so a scheme requiring several
-per word constrains where it can run in a way a single tag bit does not. And the trade only arises at all under helping: the hazard the
+per word constrains where it can run in a way a single tag bit does not. And the
+trade only arises at all under helping: the hazard the
 versions suppress is the one \cref{prop:abainstall} says a sole driver never
 admits, so what is bought with encoding space there is had for nothing here. That
 is the comparison worth making, and it is a design one; a throughput comparison
