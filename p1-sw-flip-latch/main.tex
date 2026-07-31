@@ -1204,7 +1204,7 @@ facility takes those bits from the slot itself:
 \item a value is this record's proxy iff \code{(value \& tag) == tag}.
 \end{itemize}
 
-Which imposes a contract on the embedder, and it is unforgiving:
+This imposes a contract on the embedder, and it is unforgiving:
 \textbf{every value the slot may legitimately hold must satisfy
 \code{(value \& tag) != tag}.} A single value that happens to carry the tag
 pattern is indistinguishable from a proxy, and a reader will follow it into a
