@@ -817,7 +817,7 @@ atomically. The atomic commit is the general answer and the \fliplatch's
 reason for being; the reverse-order rule is the cheaper option available only
 where one order is fixed, as in the descend-then-ascend reader above.
 
-The limits should be equally clear. This is an embedder's discipline, not an
+The limits should be equally clear. This is an embedder's discipline, not a
 facility guarantee: the facility cannot know a structure's traversal order, so
 nothing checks that the commits were ordered against it. It applies only where a
 read order actually is fixed; a reader that compares two independently-reached
