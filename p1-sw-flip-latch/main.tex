@@ -1778,7 +1778,7 @@ second, both engines walking forward twice.
 forward twice}. The two elements are byte-identical --- 24 bytes, two pointers
 and an \code{int} --- so there is no footprint difference and no access-pattern
 difference between the curves, and what separates them is the resolve alone.
-They coincide: the widest ratio over the sweep is 1.027 and the narrowest 1.006,
+They coincide: the widest ratio over the sweep is 1.029 and the narrowest 1.006,
 against a run-to-run drift of about 0.8\%. Both axes are linear, so the absence
 of a gap is the result rather than an artifact of compression.}
 \label{fig:readcost}
@@ -1787,7 +1787,7 @@ of a gap is the result rather than an artifact of compression.}
 The two are indistinguishable: every ratio lies within 3\% of unity, and
 run-to-run drift on this machine is itself about 0.8\%. Both scale essentially
 linearly across the 192 cores --- the transacted list gains a factor of 188 from
-one reader to 192, or 97.8\% of ideal, and \code{rculist} gains 187, or 97.4\%.
+one reader to 192, or 97.9\% of ideal, and \code{rculist} gains 187, or 97.4\%.
 
 That the two agree is the point, and the construction is what makes it a fair
 statement. The curves are not merely close; they are running the same traversal
