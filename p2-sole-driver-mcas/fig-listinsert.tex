@@ -93,9 +93,10 @@
 under concurrent writers. Inserting \code{E} between \code{P} and \code{N} moves
 two edges, and needs one thing more that the single-writer case did not: a
 \emph{guard} on \code{N}'s forward pointer, a record whose old and new are the
-same value $v$. The insert reads that slot but never writes it, so nothing else
-in the transaction would notice a concurrent deletion of \code{N} marking it
-(\cref{sec:guard}). On \SUCCEEDED\ every record resolves to its new value and
+same value $v$. No other record in the transaction names that slot---the insert
+reads it but never writes it---so without the guard the back-edge record could
+install into \code{N} before the transaction discovered, at \code{P}'s forward
+pointer, that it had to abort (\cref{sec:guard}). On \SUCCEEDED\ every record resolves to its new value and
 \code{E} is linked in both directions at once. On \FAILED---here because the
 guard's expected value no longer holds---every record resolves to its old value
 instead, so the list is left exactly as it was found and the writer may simply

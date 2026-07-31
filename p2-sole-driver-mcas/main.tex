@@ -1343,31 +1343,53 @@ list-specific machinery for contention; there is the sole-driver facility.
 \subsection{The one guarded read}
 \label{sec:guard}
 
-The disjoint-word hazard of \cref{sec:hazard} is what the structures must handle
-themselves, and it needs exactly one new thing beyond the tombstone. An insert
-after a node re-points that node's successor's \emph{back} pointer, but the slot
-that serializes the insert against a deletion of the successor is the successor's
-\emph{forward} pointer---a slot the insert reads but does not write. Because the
-facility installs a transaction's records in slot-address order, it can reach the
-back-pointer write before it reaches the shared forward slot, and so drive the
-back-edge store against a successor a concurrent deletion is freeing.
+Beyond the tombstone the structures need one more thing, and it is smaller than
+the tombstone: a single guarded read. Being exact about what it does and does not
+buy is worth a paragraph, because the obvious statement of it overshoots.
 
-The fix is to fold the read of that forward slot into the commit---to
-\emph{validate the successor's tombstone}. Here the two structures make the
-placement choice \cref{sec:mark} left open, and pack the tombstone into a
-reserved bit of each node's own forward pointer. That is what makes one guard
-enough: the word the insert must already consult to serialize against a deletion
-is the same word that deletion marks, so a single validated read covers both. The
-insert issues a \emph{load-validate} on the successor's forward pointer---it
-reads the value and records a load-only guard, a record of the form
-\edit{v}{v}---so that the commit succeeds only if that slot still resolves to $v$
-at the install point. Were the tombstone a separate status word instead, nothing
-about the argument would change except its address: the guard would name that
-word, and the insert would carry two read-validated slots rather than one. If a concurrent deletion has set
-the tombstone in the meantime, the guard's old value no longer matches, the commit
-fails, and the insert retries. The guarded read is the read-side companion to the
-tombstone: the forward edge is made safe by a \emph{write}-validated slot, the back
-edge by a \emph{read}-validated one.
+Start from what already serializes an insert against a deletion of its successor.
+An insert after $P$ writes $P$'s \code{next} to name the new node; a deletion of
+$P$'s successor $S$ rewrites that same slot to skip $S$. The two contend on
+\code{P->next} with the same expected old value---\cref{sec:hazard}'s structural
+conflict once more---so if the deletion commits first the insert fails its
+old-value check there. That much needs no guard, and it is worth saying plainly:
+an unguarded insert cannot \emph{commit} against a deleted successor.
+
+What the guard changes is \emph{when} the insert finds out. The insert also writes
+$S$'s back pointer, and the install can reach that slot before it reaches
+\code{P->next}---records install in slot-address order once a transaction has aged
+and in caller order before that, so either regime can put the back-edge install
+first. The insert may therefore plant a record in a node whose deletion is about
+to commit, and learn only at \code{P->next} that it must abort. Nothing incorrect
+becomes visible: an installed record is not a committed store, and a reader that
+resolves it gets the old value. But a transient record now sits in a node whose
+delete has returned, and the aborting transaction's settle lands there later
+still---which is exactly the straggler \cref{sec:reclaim}'s grace-period rule
+exists to cover. Foreign slots from a composing structure, sitting between the two
+addresses, widen the window further.
+
+The guard closes that window at the source. The insert folds a
+\emph{load-validate} of the successor's forward pointer---the slot a deletion of
+$S$ marks---into its own write set: it reads the value and records a load-only
+guard, a record of the form \edit{v}{v}, so the commit succeeds only if that slot
+still resolves to $v$ at the install point. The back edge then serializes against
+the deletion of $S$ exactly as the forward edge already did, and a marked
+successor aborts the attempt before any record lands inside it. The guard also
+gives the retry its answer, which is the harder half: a marked \emph{successor}
+means a neighbour is leaving, which is transient and must be re-attempted, while a
+marked \emph{anchor} is terminal---the distinction \cref{sec:mark} said a retry
+loop cannot do without.
+
+Here the two structures make the placement choice \cref{sec:mark} left open, and
+pack the tombstone into a reserved bit of each node's own forward pointer. That is
+what makes one guard enough: the slot the guard must name to serialize the back
+edge is the successor's forward pointer, and that is the same word a deletion of
+the successor marks, so a single validated read carries both duties. Were the
+tombstone a separate status word instead, nothing about the argument would change
+except its address: the guard would name that word, and the insert would carry two
+read-validated slots rather than one. The guarded read is the read-side companion
+to the tombstone: the forward edge is made safe by a \emph{write}-validated slot,
+the back edge by a \emph{read}-validated one.
 
 A guard is of the shared kind necessarily, not by choice. What enforces it is the
 old-value check of the install itself (\cref{sec:kinds}), so a guard is exactly a
@@ -1379,8 +1401,8 @@ writer the guard would have caught.
 \input{fig-listinsert}
 
 This is deliberately the minimal, functional form of a general facility. The
-guard exists here for one reason---to make this paper's own worked example
-correct under concurrent writers---and it is presented as exactly that: a single
+guard exists here for one reason---to protect the back-edge write of this paper's
+own worked example---and it is presented as exactly that: a single
 read folded into a single commit's conflict set. The general read-side model it
 is an instance of---a taxonomy of read policies, à-la-carte guards on arbitrary
 read-not-written slots, and the declarations that tune them---is the subject of
@@ -1390,12 +1412,30 @@ that its own list is usable, and shows the one guard that makes it so.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see SCOPE DECISION #5).
 % This is the P2/P3 boundary. P2 introduces ONE guard, functionally, as the
-% back-edge dual of the mark, to make its OWN flagship example correct under
-% MW. It must NOT claim the a-la-carte read-set-validation novelty (that is
-% P3-1, whose novelty is the barrier-free-RCU substrate + opt-in-per-slot
-% direction). Keep this subsection about "our list needs it", never about
-% "here is a general facility". The exact source phrasing is that the
-% load-validate of succ->next "exists ONLY to guard the pprev write".
+% back-edge dual of the mark. It must NOT claim the a-la-carte
+% read-set-validation novelty (that is P3-1, whose novelty is the
+% barrier-free-RCU substrate + opt-in-per-slot direction). Keep this
+% subsection about "our list needs it", never about "here is a general
+% facility". The exact source phrasing is that the load-validate of
+% succ->next "exists ONLY to guard the pprev write".
+%
+% ADJUDICATED 2026-07-31 -- DO NOT REVERT TO THE STRONGER CLAIM.
+% DECISION #5's premise ("without it P2's own flagship example is not correct
+% under MW") is too strong, and the section no longer asserts it. Derivation
+% from rcu-txn-list.h/rcu-txn-hlist.h: del(succ) rewrites &pos->next as its
+% forward-unlink edge -- the SAME slot the insert writes with expected old
+% value succ -- so an unguarded insert always fails its old-value check
+% there. There is no interleaving in which it COMMITS against a deleted
+% successor. The engine says so itself: the guard makes "the pprev side
+% serialize against del(succ) exactly as @slot does", i.e. @slot/&pos->next
+% is the durable serializer and the guard is early serialization.
+% What the guard actually buys: (a) the -EAGAIN vs -ENOENT termination
+% protocol, (b) closing the install window so no transient proxy/abort-settle
+% lands in a node whose delete has returned (sec:reclaim's rule covers it if
+% one does), (c) defence for the window widened by a composing structure's
+% foreign slots. "Read-side companion to the tombstone" survives intact.
+% If Mathieu finds a genuine both-commit interleaving, it belongs HERE as a
+% worked trace -- it would be the strongest sentence in the subsection.
 % -----------------------------------------------------------------------
 
 \subsection{Why the hash list transacts its back link, when the single writer
