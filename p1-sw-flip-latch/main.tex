@@ -1392,10 +1392,10 @@ reads through to the neighbours it no longer sits between
 
 \begin{property}[Mutual inverses]
 \label{prop:coherence}
-For any two nodes that are both members of the list at the instant they are
-resolved, the links are mutual inverses: \code{a->next == b} implies
-\code{b->prev == a}. No operation exposes a window in which one direction sees
-the change and the other does not.
+At every instant, for any two nodes that are both members of the list, the links
+are mutual inverses: \code{a->next == b} implies \code{b->prev == a}. No
+operation exposes a window in which one direction sees the change and the other
+does not, so every resolution reads from a state in which the two chains agree.
 \end{property}
 
 This does not freeze the list for a long-lived reader --- nothing here does, and
