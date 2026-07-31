@@ -547,8 +547,9 @@ than of the facility, which \cref{sec:boundedblocking} takes up.
 of the exclusive ones is the one cost a uniform write set would not otherwise
 bear, so the commit tracks how many records are of each kind and does the
 regrouping only when a write set genuinely holds both. A uniform write set is
-already grouped, so an all-shared commit pays nothing for the generality and
-follows the same path a facility offering only that discipline would; an
+already grouped, so an all-shared commit pays nothing for the generality \emph{by
+construction}, following the same path a facility offering only that discipline
+would---a property read off the commit path, not a measurement; an
 all-exclusive one skips the multi-writer machinery outright, through a second
 commit entry point an embedder uses when it knows its write set carries no shared
 record.
