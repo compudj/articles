@@ -192,19 +192,65 @@ broader scaling/latency studies → P4.
   to make P2's own example usable — DECISION #3) and the user structures themselves
   (each paper carries the same user as its practical example; the delta between papers
   is the engine capability, not the structure).
-  - **The ONE back-edge guard is NOT deferred — DECISION #5 (Mathieu, 2026-07-18).**
-    P2's flagship example is the *bidirectional* list/hlist; under MW its
-    back-edge write (`succ->pprev`) has a read-side precondition — *succ still live* — on a
-    disjoint slot (`succ->next`) it reads but does not write, so it needs a guard
-    (`load_validate`; source: "exists ONLY to guard the pprev write"). Without it P2's own
-    flagship example is not correct under MW → a forward dependency on P3. Resolve it the same
-    way as freeze-on-free: introduce the guard **minimally in P2** (functional only — "fold
-    this read into the commit's conflict set; commit fails if `succ` was deleted"), as the
-    **read-side companion to the tombstone**. Symmetry: forward edge *write*-validated, back
-    edge *read*-validated. The *general* read-side model (read-policy taxonomy, à-la-carte
-    guards + SoA, declarations, composition) stays in P3; P2's one guard is P3's on-ramp, and
-    P2 must NOT claim the à-la-carte novelty (that is P3-1). Rejected alternative: a
-    forward-only P2 example — regresses from P1 and guts the tombstone's motivation.
+  - **The ONE back-edge guard is NOT deferred — DECISION #5 (Mathieu, 2026-07-18;
+    PREMISE REVISED 2026-07-31).** The **conclusion stands unchanged**: introduce the
+    guard **minimally in P2** (functional only — "fold this read into the commit's
+    conflict set; commit fails if `succ` was deleted"), as the **read-side companion to
+    the tombstone**, resolved the same way as freeze-on-free. Symmetry: forward edge
+    *write*-validated, back edge *read*-validated. The *general* read-side model
+    (read-policy taxonomy, à-la-carte guards + SoA, declarations, composition) stays in
+    P3; P2's one guard is P3's on-ramp, and P2 must NOT claim the à-la-carte novelty
+    (that is P3-1). Rejected alternative: a forward-only P2 example — regresses from P1
+    and guts the tombstone's motivation. Source phrasing still holds: the
+    `load_validate` "exists ONLY to guard the pprev write."
+
+    **The original premise was wrong; do not restate it.** Superseded text, kept for the
+    record: ~~"under MW its back-edge write (`succ->pprev`) has a read-side precondition —
+    succ still live — on a **disjoint** slot (`succ->next`) it reads but does not write …
+    Without it P2's own flagship example is not correct under MW → a forward dependency on
+    P3."~~ That slot is **not disjoint from the write set**, and there is **no forward
+    dependency on P3 for correctness**.
+
+    *Derivation (against `rcu-txn-list.h` / `rcu-txn-hlist.h`, 2026-07-31).* `del(succ)`
+    is a 3-edge commit whose **forward-unlink edge is `&pos->next: succ → succ_next`** —
+    the same slot `insert_after(pos)` writes with the same expected old value `succ`.
+    (Mirror for `insert_before(pos)`: it and `del(pos)` both name `&prev->next` with old
+    `pos`; for the hlist, `*succ->pprev` **is** `&pos->next`.) So an unguarded insert
+    always fails its old-value check there, and **no interleaving lets it COMMIT against
+    a deleted successor**. The engine says so itself in `insert_after_prepare`: the guard
+    makes "the pprev side serialize against del(succ) **exactly as @slot does**" — i.e.
+    `@slot`/`&pos->next` is the *durable* serializer; the guard is *early* serialization.
+
+    *What the guard actually buys — use these three, not the old premise.*
+    **(a) The `-EAGAIN` vs `-ENOENT` termination protocol** ("a neighbour moved, re-read
+    and proceed" vs "my anchor is gone, give up"). This is the half nothing else
+    supplies. **(b) Deterministic early abort.** The back-edge write lands *inside* the
+    dying node (`&succ->prev`), and the guard slot `&succ->next` sits in that same node
+    at a **lower offset** (`struct { next, prev; }`), so the guard is reached before the
+    back-edge install under **both** install regimes — slot-sorted at age ≥ 1, caller
+    order at age 0. Without it, whether the abort precedes that write depends on the
+    relative addresses of the predecessor node and the dying node, i.e. **on the
+    allocator**. **(c)** Defence for the window **widened by composition** (a composing
+    structure's foreign slots sitting between the two addresses).
+
+    *Failure mode without the guard — all legal, none a correctness break.* A transient
+    proxy planted in the dying node, plus the aborting transaction's settle store landing
+    there later. Readers are unaffected: they resolve the proxy to its **logical old**
+    value, which is exactly what a ghost's own pointers must keep saying. The node cannot
+    be freed underneath it, because the whole attempt runs inside one RCU read-side
+    section. The one thing that *would* break it — re-linking the node within a grace
+    period — is what `sec:reclaim` already forbids.
+
+    *Two guard SKIPS are load-bearing, not optimizations.* `insert_before` skips the
+    validate when `prev == pos` (the immortal empty-list sentinel, where `&prev->next`
+    **is** `&pos->next`, already written and serialized). `del_prepare` /
+    `replace_prepare` skip it when `next == prev`, where recording it would put two
+    records on one slot with **different expected-olds** — the per-slot reconcile merges
+    them into a bogus record under `-DNDEBUG` and commits a marked-but-still-linked node.
+
+    *Recorded in the paper:* `sec:guard` is rewritten to the engine's framing, with the
+    derivation preserved in a drafting NOTE beside it so this is not reverted by someone
+    reading SCOPE alone (commit `20cd31a`).
   - **P3 vocabulary caveat (verified in code, 2026-07-18):** the read policy is
     *stabilize (bounded-wait) vs. resolve-immediately*, **NOT** "help vs. optimistic."
     A load never helps/drives a parker (see the sole-driver bullet); the source header's
@@ -268,12 +314,16 @@ broader scaling/latency studies → P4.
    primitive) and **MCAS descriptor resolution** (Harris–Fraser–Pratt, DISC 2002 — the
    reader machinery reused). Full ledger below.
 
-5. **Back-edge guard lands in P2, not P3** (Mathieu, 2026-07-18). P2's bidirectional
-   flagship forces one `load_validate(succ->next)` to guard the `pprev` write, so a minimal,
-   functional guard is introduced in P2 — the read-side companion to the tombstone (forward
-   edge write-validated, back edge read-validated), same logic as freeze-on-free. The
-   *general* read-side model stays P3; P2 does not claim the à-la-carte novelty (P3-1). See
-   the boundaries note for detail.
+5. **Back-edge guard lands in P2, not P3** (Mathieu, 2026-07-18; **premise revised
+   2026-07-31**). P2's bidirectional flagship carries one `load_validate(succ->next)` to
+   guard the `pprev` write, so a minimal, functional guard is introduced in P2 — the
+   read-side companion to the tombstone (forward edge write-validated, back edge
+   read-validated), same logic as freeze-on-free. The *general* read-side model stays P3;
+   P2 does not claim the à-la-carte novelty (P3-1). **The guard is not
+   correctness-load-bearing** — `&pos->next` serializes the insert against `del(succ)`
+   with or without it — so it earns its place on the termination protocol, deterministic
+   early abort, and composition, NOT on "the example is broken without it." See the
+   boundaries note for the derivation.
 
 ---
 
