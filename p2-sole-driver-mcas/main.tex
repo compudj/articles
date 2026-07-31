@@ -1254,8 +1254,9 @@ all: packed into the forward pointer it is stripped for free on a word the reade
 was loading anyway, and moved to a \emph{separate} word it leaves the reader's
 forward pointer pristine and can sit on a cache-cold line the reader never
 touches. Either way it adds nothing the reader must load, so in the steady state
-the read side is byte-for-byte and cycle-for-cycle what it would be with no facility
-present.
+the read side is byte-for-byte what it would be with no facility present, and
+costs what the companion paper measured: a predicted branch, and parity within
+its measurement error.
 
 \subsection{Prior art}
 \label{sec:tombstoneclaim}
