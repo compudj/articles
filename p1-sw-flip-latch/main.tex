@@ -1715,7 +1715,8 @@ for: readers scaling to 192 cores, against zero writers and against one.
 
 \paragraph{Setup.} Two AMD EPYC 9654 processors, 96 cores per socket, 24 NUMA
 nodes. The harness pins worker $i$ to physical core $i$ and every sweep stops at
-192, so no measurement below places two threads on one core. Userspace \rcu's
+192 workers, so no measurement below places two threads on one core; the
+one-writer sweep therefore stops at 191 readers. Userspace \rcu's
 QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
 per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
 figure is the mean of two three-second runs of the \code{bench\_list\_scale}
