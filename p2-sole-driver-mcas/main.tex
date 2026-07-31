@@ -1155,51 +1155,70 @@ novelty in the mechanism itself (\cref{sec:tombstoneclaim}).
 \subsection{The hazard, concretely}
 \label{sec:hazard}
 
-Consider a doubly-linked list $A \leftrightarrow B \leftrightarrow C$, and two
-operations racing: inserting a node after $A$, and deleting $B$. Whether the
-facility's ordinary slot contention closes the race turns on a structural
-question---how many slots the two operations \emph{write} in the adjacency they
-share---and the doubly-linked list answers it in the safe direction.
+Whether the facility's ordinary slot contention closes a race between an insert
+and a delete has a structural answer, and it is worth putting as a test one can
+apply to any structure: \emph{does the write set of attaching something to a node
+intersect the write set of removing that node from the reachable set?} Where the
+two meet, the \kcas serializes the operations for free, on the shared slot, with
+no help from any discipline layered above it. Where they are disjoint, both
+commit, and nothing tore---the two operations simply never met.
 
-Here the race is closed for free. Removing $B$ must rewrite $B$'s predecessor's
-forward pointer---$A$'s \code{next}, the only forward pointer that names the path
-through $B$---and an insert after $A$ rewrites $A$'s \code{next} too. So both
-operations compare-and-swap the \emph{same} slot, \code{A->next}, with the same
-expected old value, and the facility commits at most one of them. The loser fails
-its old-value check, aborts, re-reads, and re-descends into a list that is still
-coherent. Whichever wins, the outcome is a well-formed list. This race is closed
-\emph{structurally}, by the fact that the two operations were contending for a
-common slot after all---not by the tombstone. And because every adjacency in a
-bidirectional list is held by two written edges, the same argument covers every
-pair of adjacent operations on it: the structure is immune by construction.
+A tree fails that test at every internal position, which is the cleanest place to
+see the hazard. Let $C$ be a leaf with parent $P$, and let one thread grow the
+tree at $C$ while another removes it:
 
-That immunity belongs to the structure, not to the facility, and it lapses the
-moment an adjacency is held by a single written edge. Two adjacent operations then
-write genuinely disjoint sets of slots, both commit, and nothing tore---they simply
-never met. This is where the hazard classically lives: in Harris's singly-linked
-list a delete compare-and-swaps one node's forward pointer and an insert elsewhere
-compare-and-swaps another's, and the two can miss each other
-entirely~\citep{harris2001lists}. This paper's own hash list reaches that shape at
-the tail.
+\begin{quote}
+\begin{tabular}{@{}ll@{}}
+attach under $C$: & \code{C->child[i]}: \edit{\texttt{NULL}}{\texttt{newnode}} \\
+delete $C$:       & \code{P->child[j]}: \edit{C}{\texttt{NULL}} \\
+\end{tabular}
+\end{quote}
 
-Take the last node $X$ in a hash bucket. Inserting after $X$ writes one slot,
-\code{X->next}: there is no successor, so there is no back edge to re-point and
-the insert is a one-edge commit. Deleting $X$ rewrites the slot that names
-it---its predecessor's \code{next}---and, $X$ being last, has no successor's back
-pointer to fix either. Strip the tombstone out of that delete and the two write
-sets are disjoint: the delete unlinks $X$ from the bucket while the insert hangs a
-fresh node off \code{X->next}, and both succeed. The new node is unreachable and
-the write landed in a node about to be reclaimed---a lost node and a write into
-freed memory, from two commits that were each internally perfect.
+Whether $C$ is reachable is witnessed \emph{above} it, by a slot in its parent;
+the slot the attacher writes is \emph{below} it, inside $C$. Nothing brings the
+two into contact, so both commits succeed: $C$ leaves the tree and is reclaimed
+while \code{newnode} hangs beneath it, unreachable, written into a node that is
+being freed. Parent pointers do not rescue it---the attacher's store into
+\code{newnode}'s parent field is a plain store on a node still private to it, not
+a record. This is the shape the non-blocking-tree lineage of
+\cref{sec:tombstoneclaim} exists to handle, and it is why that lineage marks a
+node with a word of its own rather than with a bit in a link: a tree has no slot
+that both directions of an operation must already touch.
 
-What restores the meeting is the tombstone itself. The delete sets it on
-\code{X->next}---precisely the slot the insert writes---so the two operations name
-a common slot after all, with the same expected old value, and the facility again
-commits at most one. That is the shape of the fix in general, and it needs two
-things: a durable signal that a node is being deleted, set where a would-be
-attacher must already look (\cref{sec:mark}), and a way to fold that check into
-the attacher's own commit so its write is refused if the node died
-(\cref{sec:structures}).
+A doubly-linked list, by contrast, passes the test---and passes it twice over,
+which is why it is a poor advertisement for the tombstone. Removing $B$ from
+$A \leftrightarrow B \leftrightarrow C$ must rewrite $B$'s predecessor's forward
+pointer, $A$'s \code{next}, the only forward pointer that names the path through
+$B$; an insert after $A$ rewrites \code{A->next} too. Both compare-and-swap the
+same slot with the same expected old value, so the facility commits at most one.
+The loser fails its old-value check, aborts, re-reads, and re-descends into a list
+that is still coherent; whichever wins, the outcome is well-formed. The back edge
+is a second witness on top of that: an insert that attaches directly to $B$ still
+re-points $B$'s successor's \code{prev}, and so does the delete. Every adjacency
+is written from both directions, so the structure is immune by
+construction---tombstone or no tombstone.
+
+That immunity belongs to the structure, not to the facility, and it lapses as soon
+as an adjacency is held by a single written edge. This is the classical home of
+the hazard: in Harris's singly-linked list a delete compare-and-swaps one node's
+forward pointer and an insert elsewhere compare-and-swaps another's, and the two
+can miss each other entirely~\citep{harris2001lists}. This paper's own structures
+reach that shape in exactly one place, the hash list's tail. Inserting after a
+last node $X$ writes one slot, \code{X->next}---no successor, so no back edge to
+re-point---and deleting $X$ rewrites its predecessor's \code{next} with, again, no
+successor's back pointer to fix. Strip the tombstone out of that delete and the
+two write sets are disjoint exactly as in the tree: the delete unlinks $X$ from
+the bucket while the insert hangs a fresh node off \code{X->next}, and both
+succeed.
+
+What restores the meeting, in both cases, is the tombstone. The delete sets it on
+a slot the attacher must already name---for the hash list, \code{X->next},
+precisely the slot the insert writes---so the two operations share a slot after
+all, with the same expected old value, and the facility again commits at most one.
+That is the shape of the fix in general, and it needs two things: a durable signal
+that a node is being deleted, set where a would-be attacher must already look
+(\cref{sec:mark}), and a way to fold that check into the attacher's own commit so
+its write is refused if the node died (\cref{sec:structures}).
 
 \subsection{The tombstone is updater-only}
 \label{sec:mark}
@@ -1235,13 +1254,15 @@ that distinction a retry loop has no correct way to terminate.
 element onto the node---writing one of the node's edges---must first agree the
 node is still live, which it does by validating the tombstone into its own commit
 (\cref{sec:guard}). If the tombstone is set, the attaching commit fails, so no
-edge is installed into a node that is about to be reclaimed. The scope of this
-second consequence is narrower than it first appears, and worth stating exactly.
-Where the adjacency is held by two written edges---every adjacency of the
-bidirectional list---\cref{sec:hazard}'s structural conflict has already refused
-the attach, and the tombstone adds no safety the structure did not have. Where it
-is held by one, as at the hash list's tail, the tombstone record \emph{is} the
-shared slot, and it is the only thing that makes the two operations meet at all.
+edge is installed into a node that is about to be reclaimed. How much this second
+consequence is worth depends on the structure, and \cref{sec:hazard}'s test is what
+decides it. Where attaching and removing already write a slot in common---every
+adjacency of the bidirectional list---the structural conflict has refused the
+attach on its own, and the tombstone adds no safety the structure did not have.
+Where they do not, the tombstone record \emph{is} the shared slot and the only
+thing that makes the two operations meet: in a tree that is every internal
+position, which is why the discipline is not optional there; among the structures
+shown here it is the hash list's tail.
 That is also why the tombstone rides on a node's forward pointer and never on its
 back pointer: no operation reaches a node solely through a back edge, so the
 forward slots are both where every adjacency already serializes and where a retry
