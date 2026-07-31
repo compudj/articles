@@ -222,10 +222,11 @@ descriptor's status word rather than through the slot's plain value.
 
 \paragraph{Per-slot atomicity is not operation atomicity.} A \kcas makes $k$
 named slots change together, but a structural operation's correctness can depend
-on a slot it does \emph{not} change. Deleting a node and inserting beside it can
-touch \emph{different} words and both succeed, and the result is a lost node or a
-use-after-free---not because either commit tore, but because the two operations
-were never contending for a common slot in the first place. Making a concurrent
+on a slot it does \emph{not} change. Where an adjacency is held by a single
+written edge, deleting a node and inserting beside it touch \emph{different} words
+and both succeed, and the result is a lost node or a use-after-free---not because
+either commit tore, but because the two operations were never contending for a
+common slot in the first place. Making a concurrent
 list usable therefore needs a discipline layered on the bare facility, and
 \cref{sec:tombstone} supplies it: logical deletion.
 
@@ -1141,11 +1142,12 @@ novelty in the mechanism itself (\cref{sec:tombstoneclaim}).
 \label{sec:hazard}
 
 Consider a doubly-linked list $A \leftrightarrow B \leftrightarrow C$, and two
-operations racing: inserting a node after $A$, and deleting $B$. There are two
-ways they can interact, and only one of them is closed by the facility's ordinary
-slot contention.
+operations racing: inserting a node after $A$, and deleting $B$. Whether the
+facility's ordinary slot contention closes the race turns on a structural
+question---how many slots the two operations \emph{write} in the adjacency they
+share---and the doubly-linked list answers it in the safe direction.
 
-The first is closed for free. Removing $B$ must rewrite $B$'s predecessor's
+Here the race is closed for free. Removing $B$ must rewrite $B$'s predecessor's
 forward pointer---$A$'s \code{next}, the only forward pointer that names the path
 through $B$---and an insert after $A$ rewrites $A$'s \code{next} too. So both
 operations compare-and-swap the \emph{same} slot, \code{A->next}, with the same
@@ -1153,19 +1155,37 @@ expected old value, and the facility commits at most one of them. The loser fail
 its old-value check, aborts, re-reads, and re-descends into a list that is still
 coherent. Whichever wins, the outcome is a well-formed list. This race is closed
 \emph{structurally}, by the fact that the two operations were contending for a
-common slot after all---not by the tombstone.
+common slot after all---not by the tombstone. And because every adjacency in a
+bidirectional list is held by two written edges, the same argument covers every
+pair of adjacent operations on it: the structure is immune by construction.
 
-The second is the real hazard, and it survives a perfect \kcas. An insert after
-$A$ rewrites $B$'s \emph{back} pointer to name the new node, but it only
-\emph{reads} $B$'s forward pointer---it has no reason to write it. A concurrent
-deletion of $B$ writes $B$'s forward pointer and frees $B$. These are
-\emph{different} words: the back-edge write and the forward-edge read do not
-contend, so both the insert and the delete can commit, and the insert has just
-written a back pointer into a node that is being freed. Nothing tore; the two
-operations simply never met on a shared slot. Closing this needs two things: a
-durable signal that $B$ is being deleted, set where a would-be attacher can check
-it (\cref{sec:mark}), and a way to fold that check into the attacher's own commit
-so its write is refused if $B$ died (\cref{sec:structures}).
+That immunity belongs to the structure, not to the facility, and it lapses the
+moment an adjacency is held by a single written edge. Two adjacent operations then
+write genuinely disjoint sets of slots, both commit, and nothing tore---they simply
+never met. This is where the hazard classically lives: in Harris's singly-linked
+list a delete compare-and-swaps one node's forward pointer and an insert elsewhere
+compare-and-swaps another's, and the two can miss each other
+entirely~\citep{harris2001lists}. This paper's own hash list reaches that shape at
+the tail.
+
+Take the last node $X$ in a hash bucket. Inserting after $X$ writes one slot,
+\code{X->next}: there is no successor, so there is no back edge to re-point and
+the insert is a one-edge commit. Deleting $X$ rewrites the slot that names
+it---its predecessor's \code{next}---and, $X$ being last, has no successor's back
+pointer to fix either. Strip the tombstone out of that delete and the two write
+sets are disjoint: the delete unlinks $X$ from the bucket while the insert hangs a
+fresh node off \code{X->next}, and both succeed. The new node is unreachable and
+the write landed in a node about to be reclaimed---a lost node and a write into
+freed memory, from two commits that were each internally perfect.
+
+What restores the meeting is the tombstone itself. The delete sets it on
+\code{X->next}---precisely the slot the insert writes---so the two operations name
+a common slot after all, with the same expected old value, and the facility again
+commits at most one. That is the shape of the fix in general, and it needs two
+things: a durable signal that a node is being deleted, set where a would-be
+attacher must already look (\cref{sec:mark}), and a way to fold that check into
+the attacher's own commit so its write is refused if the node died
+(\cref{sec:structures}).
 
 \subsection{The tombstone is updater-only}
 \label{sec:mark}
@@ -1186,19 +1206,32 @@ enforces the agreement---an update that would touch a frozen node fails to
 commit. Two consequences follow, and they are the whole of what the tombstone is
 for.
 
-\emph{Deletion is single-updater.} A second delete of the node, or an insert or
-delete anchored to it, finds the tombstone set and aborts, terminating with ``no
-such entry'' rather than acting on a node that is already leaving. Exactly one
-transaction ever logically deletes a node.
+\emph{Deletion is single-updater, and a retry can tell why it failed.} A second
+delete of the node, or an insert or delete anchored to it, finds the tombstone set
+and terminates with ``no such entry'' rather than acting on a node that is already
+leaving. Exactly one transaction ever logically deletes a node, which is also what
+lets a delete report whether \emph{this} call removed it, so two concurrent
+deletes cannot double-free. This much the tombstone buys in every structure, and
+it is the part nothing else supplies: an operation that loses a slot race learns
+only that the slot moved. The tombstone is what separates ``a neighbour
+moved---re-read and proceed'' from ``my anchor is gone---give up,'' and without
+that distinction a retry loop has no correct way to terminate.
 
 \emph{Nothing attaches to a departing node.} An operation that would link a fresh
 element onto the node---writing one of the node's edges---must first agree the
 node is still live, which it does by validating the tombstone into its own commit
 (\cref{sec:guard}). If the tombstone is set, the attaching commit fails, so no
-edge is ever installed into a node that is about to be reclaimed. This is the
-disjoint-word hazard of \cref{sec:hazard} closed: the attaching write and the
-tombstone are different words, but the validate makes the commit fail on the one
-while it writes the other.
+edge is installed into a node that is about to be reclaimed. The scope of this
+second consequence is narrower than it first appears, and worth stating exactly.
+Where the adjacency is held by two written edges---every adjacency of the
+bidirectional list---\cref{sec:hazard}'s structural conflict has already refused
+the attach, and the tombstone adds no safety the structure did not have. Where it
+is held by one, as at the hash list's tail, the tombstone record \emph{is} the
+shared slot, and it is the only thing that makes the two operations meet at all.
+That is also why the tombstone rides on a node's forward pointer and never on its
+back pointer: no operation reaches a node solely through a back edge, so the
+forward slots are both where every adjacency already serializes and where a retry
+must read its answer.
 
 \subsection{Why readers never touch it, by design}
 \label{sec:tombstoneplacement}
