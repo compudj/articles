@@ -96,8 +96,7 @@ steps, on a foreign owner---rather than lock-free, and that is a deliberate
 choice of synchronization coarseness: coarse enough to stay simple, portable,
 and cache-friendly, fine enough to stay parallel. Bounded-blocking trades a
 tail-latency property for throughput knowingly; it is not a failed attempt to
-reach lock-freedom. The paper states what it gives up and argues the trade. It
-does not apologize for it.
+reach lock-freedom. The paper states what it gives up and argues the trade.
 
 The argument is not a preference stated after the fact. It is a falsification
 trail. An earlier version of this facility had threads \emph{help} drive each
@@ -643,13 +642,15 @@ and it is worth being exact about where it sits. The facility \emph{waits} on a
 foreign owner, so it is blocking, and therefore it is not
 obstruction-free~\citep{herlihy2003obstruction}: an obstruction-free operation
 completes if it runs in isolation for long enough, and this one can be made to
-wait even then. That is a real concession and we make it plainly. What the facility
+wait even then. That concession is real. What the facility
 does provide is stronger than deadlock-freedom: through the escalation of
 \cref{sec:escalation}, a starved committer eventually acquires a FIFO-fair lane
 and completes, so under a fair scheduler the facility is
 \emph{starvation-free}~\citep{herlihy2011progress}. Bounded-blocking is thus the
-conjunction of a bounded common-case wait and a starvation-free fallback, and it
-sits below lock-freedom and above deadlock-freedom in the taxonomy.
+conjunction of a bounded common-case wait and a starvation-free fallback: weaker
+than lock-freedom in scheduler-independence, stronger than deadlock-freedom in
+per-thread progress---the two axes the taxonomy separates, and which do not
+collapse into a single ordering.
 
 One refinement follows from \cref{sec:kinds}, and it is worth stating because it
 narrows the concession rather than restating it. What waits, and what can abort,
