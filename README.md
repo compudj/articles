@@ -168,6 +168,19 @@ not residual.
 Bare "transaction" is fine only in proper nouns ("software transactional
 memory", "transactional boosting") and when contrasting with the general notion.
 
+**P2 additionally licenses the bare noun, deliberately (Mathieu, 2026-07-31).**
+P2 is *about* the writer-side object, so it names it constantly — bare
+"transaction" outnumbers `\pseudotxn` there roughly 89 to 9, where P1 runs 42 to
+49 and its bare uses are almost all the permitted definitional contrast ("a
+reader is not a transaction of any kind"). Sweeping P2 to `\pseudotxn` was
+considered and rejected: it fights the prose in compounds ("update
+transactions", "a transaction's records", "another transaction's owner"). The
+rule above still stands for the series; P2 instead **licenses the abbreviation
+once, explicitly, at first use** in §2, and keeps `\pseudotxn` for the
+abstract's opening uses — the abstract travels alone, so it is the one place the
+discipline must not appear to relax. Do not re-raise this as a defect, and do
+not delete the licensing sentence without sweeping the paper.
+
 - Never write "serializable" or "opacity".
 - Keep "linearizable" scoped to the k-CAS write operation itself, never to a
   read+write pseudo-transaction. The defensible claim (Property 3, and the
