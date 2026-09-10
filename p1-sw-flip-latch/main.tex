@@ -1236,7 +1236,10 @@ why \cref{prop:monotone} holds.
 \label{sec:exclusion}
 
 The flip-latch is legal \emph{only} under writer mutual exclusion. This is a
-precondition of the mechanism, not a caveat on it.
+precondition of the mechanism, not a caveat on it --- and an embedder that
+cannot meet it is not out of options. The companion paper's \mw facility
+realizes the same model with the precondition lifted, and pays for the
+difference in exactly the machinery this one omits.
 
 The facility has no install-time CAS, no conflict detection, and no abort. Those
 are precisely the parts that would let two writers discover each other, and they
