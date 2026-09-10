@@ -936,11 +936,12 @@ papers in this series. What the model here secures is only the narrower guarante
 the rule provides: the two edges are never seen to disagree, so no reader
 observes the move half-completed.
 
-\paragraph{Why this is safe, and where it stops.} The argument above quietly
-assumed both orders it used, and both have to be earned. The writer's side is
-free here: under exclusion (\cref{sec:exclusion}) the commits are two release
-stores issued in program order by one thread. The reader's side is the one that
-needs care, and it is exactly the precondition of \cref{sec:monotone} --- the
+\paragraph{Why this is safe, and where it stops.} The argument above used two
+orders without saying where either comes from: the order in which the writer
+publishes the two edges, and the order in which the reader resolves them.
+Neither is automatic. The writer's is free here: under exclusion
+(\cref{sec:exclusion}) the commits are two release stores issued in program
+order by one thread. The reader's is the one that needs care, and it is exactly the precondition of \cref{sec:monotone} --- the
 reader's loads must be genuinely ordered, not merely written in that sequence.
 
 They are, and for a reason worth noticing rather than assuming: the reader
