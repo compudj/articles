@@ -621,8 +621,9 @@ The commit is a linearizable~\citep{herlihy1990linearizability} \emph{write
 operation}: it takes effect atomically at a single instant, the commit step,
 which is its lone linearization point. The staging that precedes it and the
 tidying that follows change no value a reader can resolve --- the embedder's own
-writer sees both, and a bare load of a parked slot would see the proxy --- so
-neither is a linearization point.
+writer sees both, and a bare load of a slot the \pseudotxn has a record on
+would see an encoding rather than a value (\cref{def:resolve}) --- so neither is
+a linearization point.
 \end{property}
 
 The scope of \cref{prop:lp} is the write, and only the write --- and the
@@ -1202,7 +1203,11 @@ drain, and it does so with one level of indirection
 (\cref{fig:fliplatch}).
 
 Each slot in the set is made to hold a \emph{tagged} pointer to a small
-\emph{proxy} rather than the target directly. A proxy carries
+\emph{proxy} rather than the target directly. A slot in that condition is
+\emph{parked}, and stays parked from the moment the writer points it at the
+proxy until the tidying after the commit writes its direct target back;
+installing a proxy and parking a slot are the same event, named from the
+writer's side and the slot's side. A proxy carries
 $\{\mathit{old},\mathit{new}\}$ and a pointer to a shared \emph{flip group}
 carrying one boolean \emph{selector} word. Resolving a proxy returns
 $\mathit{old}$ while the selector is $0$, and $\mathit{new}$ once it is $1$. Two
