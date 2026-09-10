@@ -249,6 +249,22 @@ where they appear`), or just `\cref` the section that handles it. This is a
 recurring tic, caught twice on review; bare "we" is fine where it does real work
 ("we describe", "we have not found", "this is why we say *pseudo-transaction*").
 
+**State a precondition in the same breath as the claim it qualifies.** A
+qualifier three paragraphs downstream is one the reader does not have at the
+moment they need it, and a property is what gets quoted — a scope paragraph
+underneath it will not travel with it. This is the most persistent structural
+tic in the series, caught four times across two reviews: the 2026-07-30 read
+found `prop:coherence` quantified more loosely than the scope paragraph
+following it (fixed in 5db8cfe), and McKenney's second round found the same in
+`prop:monotone` (00d3117), found that scope paragraph teaching its precondition
+by example rather than by rule (8118c6e), and found the publish-order trade
+claimed unconditionally with its "single fixed read order" requirement three
+pages later (05867c9). In every case the qualifier *was* in the paper — the
+defect is distance, not omission, which is why review keeps missing it and
+readers keep finding it. When a claim earns a scope paragraph, check whether
+the statement can carry the scope itself; when it cannot, the claim should at
+least name what the paragraph will say.
+
 Overclaiming here is the single most damaging error available to this series —
 it is what a reviewer punishes and what makes a defensive disclosure weaker,
 not stronger.
