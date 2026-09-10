@@ -781,18 +781,26 @@ exploitable rather than merely tolerable (\cref{sec:publishorder}).
 % -----------------------------------------------------------------------
 
 \paragraph{Scope.} \Cref{prop:monotone} has a precondition that must travel
-with it. Monotonicity of the deciding word is unconditional: it is one word,
-stored once. What a reader's \emph{sequence} of resolutions inherits from it
-depends on how the reader got from one slot to the next. A
-\emph{dependency-chained} traversal --- each hop's address derived from the
-value the previous hop loaded --- carries the order for free on every
-architecture \urcu supports, as does any build using the default C11
-dereference. A reader that hops \emph{without} that chain, by re-reading a
-pointer it cached earlier or by walking between two independently-reached
-slots --- two separate structures, or two sibling subtrees of one, as a
-depth-first walk without parent pointers reaches them --- has no such edge: under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on
-weakly-ordered hardware its two loads may be reordered, and it can observe the
-new value on the later slot and the old on the earlier one. To avoid it, such a reader must use an acquire load or a dependency.
+with it, and the rule is general: \emph{monotonicity passes from the deciding
+word to a reader's sequence of resolutions exactly as far as that reader's
+loads are ordered against one another.} Monotonicity of the deciding word is
+unconditional --- it is one word, stored once --- but a sequence of loads
+inherits it only across pairs that carry an ordering edge, and the reader is
+responsible for every pair that does not. There are two ways to hold such an
+edge, and only two: an address dependency, or an acquire load.
+
+A \emph{dependency-chained} traversal --- each hop's address derived from the
+value the previous hop loaded --- has the first for free on every architecture
+\urcu supports, as does any build using the default C11 dereference. That is
+the common case and it is why the precondition is usually invisible: an
+ordinary walk down a list or a tree satisfies it without trying. A reader that
+hops \emph{without} that chain has neither edge until it supplies one. Two
+shapes reach a slot with no chain to the last: re-reading a pointer it cached
+earlier, and reaching two slots independently --- two separate structures, or
+two sibling subtrees of one, as a depth-first walk without parent pointers
+reaches them. Under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on weakly-ordered
+hardware such a reader's two loads may be reordered, and it can observe the new
+value on the later slot and the old on the earlier one.
 
 We state the build condition rather than relegating it, because it is the
 difference between a guarantee and a hope. An embedder who misses it writes a
