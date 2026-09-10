@@ -828,6 +828,13 @@ is walked, a hash bucket is entered at its head. If the order in which edits
 \emph{become visible} is made to agree with the order in which the reader
 \emph{looks}, timing-independence stops being something to buy at all.
 
+\emph{Usually} carries the weight in that sentence. The trade is available to a
+reader whose slots arrive in one fixed order and whose hops carry that order ---
+the dependency chain of \cref{sec:monotone} --- and to no other. A reader that
+reaches two slots independently presents no read order for the writer to agree
+with, and a structure with no single traversal order, such as any cycle or a
+list read in both directions, offers none to reverse. Both cases return below.
+
 \paragraph{The rule.} Suppose a reader resolves slots in a fixed order
 $s_1, s_2, \ldots, s_k$, and the writer splits the edit across several
 \pseudotxns rather than one. Then:
