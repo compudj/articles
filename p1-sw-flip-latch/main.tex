@@ -52,7 +52,7 @@ monotonicity, never new-then-old.
 
 The weakening is by design. Where a structure is mutated in place, isolation is
 a read-side cost: state on every element, work on every dereference---and the
-read side is what RCU exists to keep free. A \pseudotxn's marker instead rides
+read side is what RCU exists to keep cheap. A \pseudotxn's marker instead rides
 in spare bits of the slot itself, the word the reader loads anyway, so it adds
 no per-element state and, absent a concurrent commit on that slot, no extra
 load. The bulk of the cost moves to the writer, in the width of a commit.
@@ -566,7 +566,7 @@ apology for an incomplete STM; it is a disambiguation for readers who take
 \emph{transaction} to imply isolation. What the prefix marks as absent is
 isolation, and the reason it is absent is the subject of
 \cref{sec:whyweakening}: isolation is paid for on the read side, and the \rcu
-read side is precisely what this facility keeps free.
+read side is precisely what this facility leaves cheap.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % If space is tight this table is the first thing to cut to prose --- but
@@ -1100,7 +1100,7 @@ So there are two ways to spare the reader, and this design takes the second. It
 declines to copy, because the cost of copying is what made the operation
 expensive in the first place. And it declines to hand readers isolation, because
 in a structure mutated in place isolation is a charge on the reader --- and the
-reader is the one party \rcu exists to keep free.
+reader is the one party \rcu exists to keep cheap.
 
 \Cref{sec:costcomparison} sets out what each of those alternatives charges the
 reader, and why this design's read-side test instead rides a value the reader
@@ -3202,7 +3202,7 @@ targeted.\footnote{The sentiment is not ours, and neither is the better title
 for it: \citet{alglave2013weakness}, of weak memory models rather than of
 transactional guarantees.} Short of copying the structure outright --- which is the cost that
 made the operation expensive to begin with --- isolation is a charge on the
-reader, and the reader is what \rcu exists to keep free.
+reader, and the reader is what \rcu exists to keep cheap.
 
 The costs are real and we have stated them where they fall rather than where
 they flatter. Exclusion is a precondition of the mechanism, not a caveat on it,
