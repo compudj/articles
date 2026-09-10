@@ -1071,8 +1071,8 @@ and the answer is what separates them (\cref{tab:comparison}).
 \paragraph{Isolation is a read-side cost only once you mutate in place.} The
 claim needs its precondition stated, because without it the claim is false and
 this paper has already said why: \cref{sec:intro} names copying the enclosing
-region as one of \rcu's remedies for an update that spans several words. There
-is a way to give readers a snapshot for nothing, and \rcu uses it: copy. A writer that builds a new version where
+region as one of \rcu's remedies for an update that spans several words. \rcu
+provides a free-to-readers snapshot: copy. A writer that builds a new version where
 readers cannot reach it and then swaps one pointer hands every reader an
 immutable structure. The reader establishes nothing, validates nothing, and
 still sees a coherent view of everything reachable from the root it loaded.
