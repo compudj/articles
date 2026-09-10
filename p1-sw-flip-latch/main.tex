@@ -277,6 +277,14 @@ built with \code{CONFIG\_LTO} overrides \code{READ\_ONCE()} to acquire, because
 link-time optimization may turn an address dependency into a control
 one~\citep{linuxarm64rwonce}.}
 
+A traversal is a chain of exactly these dependencies. Each hop's address is
+computed from the value the previous hop returned, so the ordering that makes a
+single \code{rcu\_dereference()} safe extends along the whole walk, and a reader
+that follows pointers has it without asking for it. That is a small fact with a
+large consequence: it is what \cref{prop:monotone} will need, so an ordinary
+descent of a tree or walk down a list already satisfies that property's
+precondition, and pays nothing to do so.
+
 The whole arrangement rests on one sentence: \emph{readers pay nothing, and in
 exchange a writer gets exactly one atomic operation.} The rest of this paper is about
 the second half of that sentence.
@@ -944,7 +952,7 @@ Neither is automatic. The writer's is free here: under exclusion
 order by one thread. The reader's is the one that needs care, and it is exactly the precondition of \cref{sec:monotone} --- the
 reader's loads must be genuinely ordered, not merely written in that sequence.
 
-They are, and for a reason worth noticing rather than assuming: the reader
+They are, for the reason \cref{sec:rcu} gave: the reader
 reaches $E$ by loading the forward edge, and then computes the address of
 $E \rightarrow parent$ \emph{from the value that load returned}. The second load
 depends on the first. The fixed-read-order idiom is therefore not something that
