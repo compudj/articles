@@ -1022,7 +1022,12 @@ slots, or re-reads a pointer it cached, has no chain to carry the order and is
 back to owing itself an acquire. And it buys coherence along the traversal, not
 a snapshot: the reader still cannot ask what the whole structure looked like at
 one instant. What it can do --- and what a very large class of traversals needs
---- is never be told that time ran backwards.
+--- is never be told that time ran backwards. The descend-then-ascend reader
+above is the simplest instance. Having descended into $E$ and found it under
+$Q$, it needs \code{E->parent} not to answer $P$. It is not asking what the tree
+looked like while it walked, and it would not know what to do with the answer;
+it is asking that the one edge it reads next not contradict the path it took to
+reach the question.
 
 That is what converts \cref{prop:monotone} from a consolation into a tool, and
 it is the honest reply to the reviewer who asks why anyone would accept a model
