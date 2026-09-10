@@ -972,10 +972,26 @@ build-and-publish (\cref{sec:buildpublish}); it needs neither the reverse-order
 rule nor a \pseudotxn.
 
 The rule --- and the \fliplatch behind it --- earns its keep in the case
-build-and-publish cannot reach: restructuring a node that is \emph{pinned}, its
-address held by the application and so not free to be rebuilt hidden and swapped
-in. A new node could carry its parent pointer into visibility because it was
-assembled in private; a pinned node cannot, so its parent pointer has to be
+build-and-publish cannot reach: restructuring a node that is \emph{pinned}. A
+node is pinned when its address is held somewhere the writer cannot reach to
+update --- an application handle, a cache in another subsystem, a value some
+unrelated structure has already stored away. Copying is \rcu's usual escape from
+an in-place edit: rebuild the node in private and swap it in with one store. But
+a swap is complete only if every reference to the old node is redirected, and a
+writer can redirect the references it owns and no others. One reference it does
+not own is enough.
+
+Widening the \pseudotxn does not dissolve this, and it is worth saying why. A
+commit changes \emph{slots}, and a slot is a word the facility has been told
+about (\cref{sec:embedderowes}); a handle in an application variable, or a
+pointer held by a structure this facility does not manage, is not a slot and
+cannot be enrolled in a record set. A wider commit absorbs more of the
+structure's own pointers, which is often worth doing, but it never reaches the
+references the writer does not own.
+
+So the node cannot move, and its edges must change beneath it. A new node could
+carry its parent pointer into visibility because it was assembled in private; a
+pinned node cannot, so its parent pointer has to be
 re-pointed \emph{in place}, while readers can still reach it, and the forward and
 back edges genuinely move under live readers. That is the re-parent above, and it
 is where an atomic switch of both edges --- or, if the edit is split
