@@ -1306,7 +1306,12 @@ step.
 The shape is exactly build~$\rightarrow$~publish~$\rightarrow$~reclaim
 (\cref{sec:background}), with the commit as the single publish. Steps 2 and 4
 bracket it symmetrically: install makes the indirection reader-visible without
-changing any value, and settle removes it without changing any value.
+changing any value, and settle removes it without changing any value. Settle
+\emph{is} the uninstall, which is why there is no fifth step named for it. The
+\code{call\_rcu()} it ends with is not a second action of the same kind: it hands
+the proxies and the group to \rcu and returns, and the free happens a grace
+period later on the reclaim side of build--publish--reclaim. The lifecycle names
+what the writer does, and the writer is finished at settle.
 
 The claim that only one of these four steps is observable is easy to assert and
 worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
