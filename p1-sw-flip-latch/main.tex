@@ -960,8 +960,8 @@ must be reconciled with the dependency-chaining requirement of
 \cref{sec:monotone} --- it \emph{is} a dependency-chained descent, which is why
 it is safe as stated and why it costs the reader no barrier.
 
-It is worth being concrete about when this ordering is needed at all, because a
-great many tree edits never reach for it. Inserting a \emph{new} node is the
+\paragraph{When the rule is needed at all.} It is worth being concrete about
+this, because a great many tree edits never reach for the rule. Inserting a \emph{new} node is the
 case where it is free. Set the node's parent pointer during the build phase,
 while the node is still unpublished and no reader can reach it, and then make it
 reachable with a single store to the child pointer in its parent. The node
@@ -981,7 +981,8 @@ back edges genuinely move under live readers. That is the re-parent above, and i
 is where an atomic switch of both edges --- or, if the edit is split
 across commits, the reverse-order rule --- stops being optional.
 
-Which of the two applies is decided by the structure's traversal orders. The
+\paragraph{Which remedy applies.} The choice is decided by the structure's
+traversal orders. The
 reverse-order rule needs a \emph{single} fixed order to reverse; a cyclic
 structure has none. A doubly-linked list read forward and read backward resolves
 its two edges in opposite relative orders, so no commit order satisfies both
