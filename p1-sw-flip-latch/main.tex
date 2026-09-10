@@ -26,27 +26,27 @@
 % scoped to the commit itself, never to a read+write transaction. Overclaiming
 % here is the single most damaging error available to this paper.
 % ---------------------------------------------------------------------------
-Read-copy-update (RCU) makes a \emph{single} pointer store atomic to concurrent
+Read-copy update (RCU) makes a \emph{single} pointer store atomic to concurrent
 readers, and readers pay nothing for it in the absence of updates.
 This works only when an update is expressible as one store. Updates that must
 change several words coherently---a doubly-linked list's back edge, a skip
-list's tower---fall
-back to copying a larger region, a grace-period drain, or omitting the
-operation. Linux's list does the last: it ships no RCU-safe reverse iterator,
-because \code{\_\_list\_del()} publishes its forward edge with a marked store
-and its back edge with a plain assignment.
+list's tower---fall back to copying a larger region, a grace-period
+drain, careful ordering in reader and updater, or declining it. Linux's
+list has no coherent reverse walk: \code{\_\_list\_del()} publishes its
+forward edge with a marked store, its back edge with a plain assignment,
+so the chains never change as one event.
 
 We describe an RCU \pseudotxn: a frozen set of \record{slot}{old}{new} records
 made visible by one commit step, together with a \sw realization---the
 \fliplatch---in which every proxy in a group names one shared selector word, so
-a single store switches the whole set. Two transacted structures follow: a
-bidirectional list whose two chains stay mutually coherent, so a reader may walk
+one store switches the set. Two transacted structures follow: a
+bidirectional list whose chains stay mutually coherent, so a reader may walk
 it backward, and a hash list.
 
 The guarantee is deliberately weaker than software transactional memory. The
 write set is atomic: every record resolves to its old value before the commit
-and to its new value after. But a reader is \emph{not} a transaction of any
-kind---each of its loads resolves independently, so a traversal spanning several slots may
+and to its new value after. But an \rcu reader is \emph{not} a transaction of any
+kind---each load resolves independently, so a traversal spanning several slots may
 straddle a commit. There is no opacity and no multi-read snapshot; a reader gets
 monotonicity, never new-then-old.
 
@@ -75,42 +75,58 @@ are familiar and each gives something up: copy the enclosing region so the
 change becomes one pointer swap, and pay to copy; drain the readers with a grace
 period so nobody spans the inconsistent window, and pay to wait; impose memory
 ordering so the reader is steered around the inconsistent window instead of being
-made immune to it, and pay in read-side performance~\citep{JoshTriplettPhD}; or
-decline the operation.
+made immune to it~\citep[\S5.3.5]{PaulEdwardMcKenneyPhD}, and pay in read-side
+performance~\citep{JoshTriplettPhD}; or decline the operation.
 
-\Cref{sec:onestore} looks at a library that took the last option, and it is
-the cleanest evidence available that the problem is real, and it is not confined
-to a niche library. Linux's \rcu list --- the most widely deployed there is ---
+\Cref{sec:onestore} looks at a library that declined the coherent form of the
+operation, and it is the cleanest evidence available that the problem is real,
+and it is not confined to a niche library. Linux's \rcu list --- the most widely deployed there is ---
 publishes only its forward chain: \code{\_\_list\_del()} commits the forward
 edge with \code{WRITE\_ONCE()} and writes the back edge with a plain
-assignment, and \code{\_\_list\_add\_rcu()} writes it \emph{after} the release
-that publishes the node. Userspace \rcu's list has the identical shape. The
-consequence is not a subtle ordering nit but a semantic one: the two chains are
-changed by two stores and nothing makes them one event, so there is an interval
-in which they describe different lists --- and a removed node survives as a
-ghost until its grace period elapses, so the \code{prev} view can trail the
-\code{next} view by that long. No barrier fixes either problem. So both
-libraries ship forward iterators and no \rcu-safe reverse walk, and Linux goes
-further, poisoning the back pointer in \code{list\_del\_rcu()} so no concurrent
-\rcu reader can follow it. Reverse traversal is not exotic: the same libraries' non-\rcu lists offer it as
-a matter of course, so its absence from the \rcu variants marks a gap \rcu could
-not close, not a feature nobody wanted.
+assignment, and \code{\_\_list\_add\_rcu()} writes it \emph{after} the
+release that publishes the node. Userspace \rcu's list has the identical
+shape. The consequence is not a subtle ordering nit but a semantic one:
+the two chains are changed by two stores and nothing makes them one
+event, so there is an interval in which they describe different lists
+--- and a removed node survives as a ghost until its grace period
+elapses, so the \code{prev} view can trail the \code{next} view by that
+long. No barrier fixes either problem. So both libraries ship forward
+iterators and no \rcu-safe reverse walk, and Linux goes further, poisoning
+the back pointer in \code{list\_del\_rcu()} so no concurrent \rcu reader can
+follow it. Reverse traversal is not exotic --- the same libraries' non-\rcu
+lists offer it as a matter of course --- and its absence from the \rcu
+variants was a considered tradeoff rather than an inability: the poison that
+rules out a reverse walk buys use-after-delete debugging on the forward one,
+which was judged the more valuable of the two, and userspace \rcu mirrored the
+kernel's interface. What no such tradeoff could have bought is a reverse walk
+\emph{coherent} with the forward one, and when the kernel later did want to
+read a \code{prev} pointer under \rcu it got the reverse step without the
+coherence (\cref{sec:bidirexception}).
 
 \subsection*{Contributions}
 
 This paper describes a facility that gives \rcu writers a second atomic operation ---
 a set of word-sized slots that change together --- without imposing
-significant additional cost on \rcu readers in the absence of updates.
-Specifically:
+significant additional cost on \rcu readers in the absence of updates. Three
+terms recur. The \emph{embedder} is the code that builds a data structure on
+this facility; a \emph{writer} is a thread executing one of that structure's
+updates; and a \emph{slot} is one word-sized, reader-visible location in the
+embedder's own structure --- a list's \code{next} or \code{prev}, a skip list
+tower's forward pointer --- which in practice holds a pointer. The facility
+changes a set of slots at once and owns none of them: the slots, the tag that
+marks them, and the exclusion between writers are all the embedder's
+(\cref{sec:embedderowes}). Specifically:
 
 \begin{itemize}
 \item \textbf{A \pseudotxn model} (\cref{sec:model}): a frozen set of
       \record{slot}{old}{new} records made visible by one commit step. We state
       what it guarantees, and state what it does not before any evaluation ---
-      including the property that a reader is not a transaction of any kind, and
-      the weaker
-      one that it does have: monotone resolution, never new-then-old
-      (\cref{sec:monotone}).
+      including the property that an \rcu reader is not a transaction of any kind, and
+      the weaker one that it does have: monotone resolution, never
+      new-then-old (\cref{sec:monotone}). A reader that resolves a single slot
+      is itself linearizable, taking effect at its own load; it is the
+      traversal of several slots that is not a transaction
+      (\cref{sec:guarantees}).
 
 \item \textbf{The \fliplatch} (\cref{sec:fliplatch}): a \sw realization in which
       every proxy in a group names one shared selector word, so a single release
@@ -118,12 +134,19 @@ Specifically:
       and no abort --- and correspondingly requires writer exclusion, which we
       state as a precondition of the mechanism rather than a caveat on it.
 
-\item \textbf{A per-record tag scheme} (\cref{sec:tags}): the marker lives in
-      spare bits of the slot rather than in per-element state, which is what
-      takes the reader's added loads to zero --- the test is on a register the
-      reader already holds, and costs it only a predicted branch. Because a
+\item \textbf{A per-record tag scheme} (\cref{sec:tags}): while a commit is in
+      flight a slot does not hold its value, but the address of the record that
+      carries it, marked in the pointer's spare bits ---
+      \code{(record\_address | tag)}. The marker therefore lives in the slot
+      rather than in per-element state, which is what takes the reader's added
+      loads to zero --- the test is on a register the reader already holds, and
+      costs it only a predicted branch. Because a
       \pseudotxn may span structures whose pointers are tagged differently, the
       tag must travel with the record rather than be fixed per translation unit.
+      Stealing alignment bits is neither new nor a private convention: low-bit
+      tagging was established practice by 1993~\citep{gudeman1993typeinfo}, and
+      a standard facility for it is under review for
+      C++~\citep{wg21p3125}.
 
 \item \textbf{Two transacted structures} (\cref{sec:wrappers}): a bidirectional
       list whose two chains stay mutually coherent --- so the reverse walk
@@ -171,12 +194,13 @@ reader does not pay, and what the writer does.
 \section{Background}
 \label{sec:background}
 
-This section fixes only the vocabulary the rest of the paper needs. Readers
-familiar with \rcu will find nothing new in \cref{sec:rcu} and
-\cref{sec:buildpublish}; \cref{sec:onestore} is where the problem is stated, and
+This section fixes the vocabulary the rest of the paper needs and states the
+guarantee it sets itself against. Readers familiar with \rcu will find little
+new in \cref{sec:rcu} and \cref{sec:buildpublish} beyond the comparison that
+closes the first; \cref{sec:onestore} is where the problem is stated, and
 it is stated on shipped code rather than in the abstract.
 
-\subsection{Read-copy-update}
+\subsection{Read-copy update}
 \label{sec:rcu}
 
 \rcu~\citep{mckenney1998rcu,desnoyers2012urcu} divides a mutation between two
@@ -188,6 +212,22 @@ contend with nothing, and in \urcu's \QSBR mode
 \code{rcu\_read\_lock()} is an empty function --- a debug assertion and nothing
 else. What a reader gets in exchange is narrow but sufficient: any object it
 reaches inside the critical section remains allocated until that section ends.
+
+For a linked structure this is usually stated as a traversal guarantee in two
+parts: a node that stays on the traversal path for the whole traversal will be
+reached, and a node that stays off it for the whole traversal will not be. A
+node inserted or removed while the traversal is in flight may be reached or
+missed, and the reader is not entitled to say which.
+
+What \rcu does not promise is anything about \emph{several} slots at once. Two
+edges changed by two stores are two unrelated events to a reader, whatever order
+they were written in --- the gap \cref{sec:onestore} exhibits on shipped code. A
+\pseudotxn narrows it: the slots of one commit resolve monotonically, never
+new-then-old (\cref{prop:monotone}). Because what decides that is a single
+written-once word rather than an order the reader must be walking in, it holds
+for a traversal of any shape --- including one that goes around a cycle, where
+there is no fixed order to publish against and ordering tricks have nothing to
+work with (\cref{sec:publishorder}).
 
 That is not magic, and it is worth saying where the cost went rather than
 leaving an empty function to look like a free lunch. \QSBR buys its empty read
@@ -226,10 +266,15 @@ loading through it is respected by the hardware, so \code{rcu\_dereference()}
 emits an ordinary load and no barrier.\footnote{The one exception is Alpha, whose
 hardware does not order dependent loads; Userspace \rcu supports it, and enforces
 the dependency there with an explicit \code{cmm\_smp\_read\_barrier\_depends()}. Elsewhere the dependency
-is respected directly: the C11 \code{consume} ordering meant to express it is
-unusable in practice, since compilers promote it to
-\code{acquire}~\citep{boehm2008memorymodel,batty2011cppconcurrency}, so Userspace
-\rcu relies on the dependency itself.}
+is respected directly. The C11 \code{consume} ordering meant to express it is
+not unusable so much as pointless: compilers implement it by promoting it to
+\code{acquire}~\citep{boehm2008memorymodel,batty2011cppconcurrency}, so it costs
+what an acquire costs and buys nothing over writing one. Userspace \rcu
+therefore relies on the dependency itself --- and where a toolchain threatens
+that dependency the ordering is given up rather than defended: an arm64 kernel
+built with \code{CONFIG\_LTO} overrides \code{READ\_ONCE()} to acquire, because
+link-time optimization may turn an address dependency into a control
+one~\citep{linuxarm64rwonce}.}
 
 The whole arrangement rests on one sentence: \emph{readers pay nothing, and in
 exchange a writer gets exactly one atomic operation.} The rest of this paper is about
@@ -243,10 +288,13 @@ three-phase discipline that every \rcu mutation follows:
 
 \begin{enumerate}
 \item \textbf{Build.} Allocate and fully initialize the new nodes \emph{where no
-reader can reach them}. Because they are unreachable, this phase is
-single-threaded by construction: no ordering is needed, no barrier is paid, and
-an operation that fails here has published nothing and can free its work
-immediately with no grace period.
+reader can reach them}. Because they are unreachable, this phase owes readers
+nothing: no ordering is needed on their behalf, no barrier is paid, and an
+operation that fails here has published nothing and can free its work
+immediately with no grace period. Nor is it confined to one thread --- a large
+addition may be built in parallel, and readers are none the wiser. Whatever
+ordering the builders need among themselves is discharged before the publish,
+and the release store that publishes carries everything sequenced before it.
 \item \textbf{Publish.} One release store makes the new structure reachable.
 This is the linearization point, and it is the only instant at which concurrent
 readers change what they see. It is also the paper's pivot: \emph{everything
@@ -260,10 +308,25 @@ period, never before.
 The middle phase is the constraint. Build is unconstrained and reclaim is merely
 deferred, but publish must be \emph{one store}, because a store is the only
 thing commodity hardware will make atomic with respect to a reader that has taken
-no lock and paid no barrier.\footnote{On hardware with transactional memory, a
-whole multi-word update can be published atomically to a lockless
-reader~\citep{ramadan2007txlinux}. Such hardware is not universal; we assume only
-the single-word store and compare-and-swap that hardware provides everywhere.}
+no lock and paid no barrier.\footnote{One near-extinct exception is worth
+naming: the 68020, 68030 and 68040 carried \code{CAS2}, a compare-and-swap over
+two \emph{independently addressed} operands~\citep{motorola1992m68000prm}. What
+later architectures kept was double-\emph{width} compare-and-swap over one
+contiguous pair, which is a different thing, and \code{CAS2} was fixed at two
+locations where a \pseudotxn is not.}
+
+Hardware transactional memory does not dissolve the constraint, though it is the
+first place to look. A transaction can publish a whole multi-word update atomically to
+a lockless reader~\citep{ramadan2007txlinux}, but a commodity implementation may
+abort one for reasons the program neither controls nor predicts, so every user
+needs a non-transactional fallback --- and that fallback meets exactly the
+problem this paper is about. Guaranteed progress does exist: s390's
+\emph{constrained} transaction always commits and needs no abort handler. Its
+price is at most 32 instructions within 256 bytes, with many instructions barred
+outright --- tight enough that IBM documents the facility at assembler level and
+ships an assembly-time checker for the rules~\citep{cebula2013s390tef} --- and
+s390 is not commodity hardware. We assume only the single-word store and
+compare-and-swap that hardware provides everywhere.
 
 This frame carries through the whole series, and it is worth stating the
 punchline now so that \cref{sec:model} lands as an extension rather than a
@@ -320,7 +383,9 @@ only. Userspace \rcu draws the same line by omission: its plain list offers
 The backward chain exists in both libraries and every writer maintains it. A
 reader may not walk it.
 
-\paragraph{The kernel's narrow exception proves the rule.} In December 2024 the
+\paragraph{The kernel's narrow exception proves the rule.}
+\label{sec:bidirexception}
+In December 2024 the
 kernel gained a way to read a \code{prev} pointer under
 \rcu~\citep{brauner2024listbidir}: \code{list\_bidir\_del\_rcu()}, which skips
 the poisoning, plus \code{list\_bidir\_prev\_rcu()}, an accessor. It was
@@ -356,8 +421,11 @@ describe different lists, and a reader that walks forward and then hops backward
 sequential list could ever produce.
 
 What is missing is \emph{atomicity across two slots}, and \rcu has no way to ask
-for it. That is why the fix has to be a mechanism rather than a barrier, and it
-is why two libraries, independently, chose to withhold the operation instead.
+for it. That is why the fix has to be a mechanism rather than a barrier. It is
+not why the two libraries withheld the operation --- Linux traded the reverse
+walk for the poison's debugging value, and userspace \rcu mirrored the kernel's
+interface --- but it is why neither could have offered a \emph{coherent} one had
+it chosen to.
 
 There is a second, subtler failure that survives even careful ordering, and it
 is specific to \rcu. An unlinked node is a ghost: it must remain allocated for a
@@ -404,6 +472,15 @@ point,\footnote{Why \emph{at}, not \emph{up to} the commit point? See
 A \pseudotxn is a set of records over pairwise-distinct slots that is
 \emph{frozen} --- closed to further records --- before a single \emph{commit
 step} makes the whole set take effect at once.
+\end{definition}
+
+\begin{definition}[Resolution]
+\label{def:resolve}
+To \emph{resolve} a slot is to read it through the facility's read accessor,
+which returns a value from the embedder's own domain rather than whatever
+encoding the slot may currently hold. Resolution is the only read this model
+speaks about: a bare load of a slot participating in an uncommitted \pseudotxn
+may yield an encoding rather than a value, and nothing here constrains it.
 \end{definition}
 
 Two properties of \cref{def:pseudotxn} carry the entire model, and they concern
@@ -489,6 +566,27 @@ read side is precisely what this facility keeps free.
 \subsection{What is guaranteed}
 \label{sec:guarantees}
 
+The whole reader-visible semantics of the model is one function --- what a slot
+resolves to (\cref{def:resolve}) --- and it has three cases.
+
+\begin{itemize}
+\item A slot in no \pseudotxn resolves to its own contents.
+\item A slot carrying a record of a frozen but not yet committed \pseudotxn
+      resolves to that record's $o$.
+\item A slot carrying a record of a committed \pseudotxn resolves to its $n$.
+\end{itemize}
+
+The cases are exhaustive and the state space is closed: the tidying that follows
+a commit returns each slot to the first case, its contents now $n$, so a slot
+leaves the third case only by ceasing to be transacted at all. There is no state
+in which a slot resolves to neither value, and none in which part of a record
+set has moved to $n$ while part is still $o$.
+
+The four properties below restate this in the terms the rest of the paper uses.
+\Cref{prop:atomicity} is the transition from the second case to the third and
+\cref{prop:notearing} is the absence of any fourth case; the remaining two say
+where that transition happens and how far it reaches.
+
 \begin{property}[Write-set atomicity]
 \label{prop:atomicity}
 Every record in a committed \pseudotxn resolves to its old value $o$ before the
@@ -505,11 +603,12 @@ anything else.
 
 \begin{property}[The commit linearizes at one point]
 \label{prop:lp}
-The commit is a linearizable \emph{write operation}: it takes effect atomically
-at a single instant, the commit step, which is its lone linearization
-point~\citep{herlihy1990linearizability}. The staging that precedes it and the
-tidying that follows change no observable value, so neither is a linearization
-point.
+The commit is a linearizable~\citep{herlihy1990linearizability} \emph{write
+operation}: it takes effect atomically at a single instant, the commit step,
+which is its lone linearization point. The staging that precedes it and the
+tidying that follows change no value a reader can resolve --- the embedder's own
+writer sees both, and a bare load of a parked slot would see the proxy --- so
+neither is a linearization point.
 \end{property}
 
 The scope of \cref{prop:lp} is the write, and only the write --- and the
@@ -518,9 +617,13 @@ read is itself a linearizable operation, taking effect at its own load. What is
 \emph{not} a linearizable operation is a reader's traversal of several slots: it
 is a sequence of loads, not one operation, so it has no linearization point of
 its own and may straddle the commit (\cref{sec:nonguarantees}). Saying the write
-linearizes is therefore a precise and limited claim. It is not the claim that a
-combined read-and-write transaction is linearizable, and still less that it is
-serializable --- neither holds, and neither is asserted anywhere in this paper.
+linearizes is therefore a precise and limited claim, and it is a claim about the
+commit alone. It does not reach the slots a writer read on its way to staging
+one: those reads are not part of the commit step, and nothing in
+\cref{prop:lp} makes a read-then-commit bracket one atomic operation. Still less
+does it reach a \emph{reader's} traversal, which is not a transaction of any
+kind (\cref{sec:nonguarantees}). Serializability is claimed nowhere in this
+paper.
 
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
@@ -534,8 +637,11 @@ serializable --- neither holds, and neither is asserted anywhere in this paper.
 \label{prop:crossstructure}
 Because the record set may span data structures, the commit is one
 linearization point \emph{across all of them}. This is strictly stronger than
-composing independent \rcu structures, where a node can be reachable in $A$
-before it is reachable in $B$. The unit of cross-structure atomicity is exactly
+publishing into $A$ and then into $B$ with two stores, where a node can be
+reachable in $A$ before it is reachable in $B$. A single update-side lock over
+both structures does not close that window: it excludes other \emph{writers},
+and the observer here is a reader, which takes no lock and sees the two
+publications as two events however the writers were serialized. The unit of cross-structure atomicity is exactly
 one \pseudotxn: two commits are two linearization points, the same as two
 unrelated \rcu structures.
 \end{property}
@@ -552,15 +658,17 @@ Splice into the list first, and there is an interval in which $E$ occupies a
 position in the recency list while a lookup for its key still reports it absent.
 The interval is not a few instructions --- the writer can be preempted between
 the two stores --- and no amount of barrier placement removes it, because there
-genuinely are two publications. Callers are left to tolerate the skew, which
+genuinely are two publications (\cref{fig:skew}). Callers are left to tolerate the skew, which
 usually means the structures grow a validity flag, or a lock, and the reason
 \rcu was chosen erodes.
 
-A \pseudotxn names the slots of both structures in one record set: the index
+A \pseudotxn takes the slots of both structures into one write set: the index
 bucket slot that must come to name $E$, and the list edges that splice it into
 position. One commit publishes all of them. $E$ becomes findable and ordered at
 the same instant, and the question of which to publish first stops existing,
 because there is only one publish.
+
+\input{fig-skew}
 
 \Cref{prop:crossstructure} also fixes the boundary, and it is a real one. The
 unit of cross-structure atomicity is one \pseudotxn, not one writer and not one
@@ -596,11 +704,12 @@ of the model rather than defects in it.
 %
 % README's framing rule states it correctly; match it verbatim.
 % ---------------------------------------------------------------------------
-\textbf{A reader is not a transaction of any kind.} It is a sequence of
+\textbf{An \rcu reader is not a transaction of any kind.} It is a sequence of
 single-slot reads, each linearizing at its own access. It does have an \rcu
 read-side critical section --- but a critical section is not a transaction. It
 keeps reachable objects alive; it does not make the loads inside it a unit.
-There is no read set and nothing that begins or commits on the read side: the
+It has no read set of its own --- the read set a \pseudotxn may carry is the
+writer's, not a reader's --- and nothing begins or commits on the read side: the
 \pseudotxn is the writer's object, and a reader meets it one slot at a time. A
 traversal spanning several slots may therefore \emph{straddle} a commit: it can
 observe the \pseudotxn in a slot it reads after the commit and not in one it
@@ -612,6 +721,16 @@ read before.
 STM, deliberately and in exactly one direction: readers are plain \rcu readers
 that pay no per-read barrier. An embedder that needs a multi-read snapshot
 layers its own versioning on top, as with any value-based \mcas.
+
+\textbf{Read validation is opt-in, and this facility does not enforce it.} The
+model admits per-slot read validation: a slot an operation depends on may be
+entered into its read set. What turns that declaration into a check is an
+install compare-and-swap, which the \sw facility does not have
+(\cref{sec:exclusion}) --- under writer exclusion there is no peer to detect, so
+\cref{def:record}'s $o$ serves to \emph{resolve} a proxy rather than to verify
+memory. Marking reads as well as writes is what would serialize the two against
+each other, and it is the \mw facility of the companion paper that pays for the
+detection this one declines.
 
 \textbf{A record's old is a value at an instant, not a value over an interval.}
 \Cref{def:record}'s $o$ is what the slot must hold \emph{at} the commit point,
@@ -1056,10 +1175,10 @@ cannot already hold a parked proxy.
 \subsection{Lifecycle: build, install, commit, settle}
 \label{sec:lifecycle}
 
-The mutation is driven by the \emph{embedder}: the code that builds a data
-structure on this facility and performs its updates. The embedder owns the whole
-lifecycle---all four steps below---and the obligations of
-\cref{sec:embedderowes}; "builder" would name only the first step.
+The mutation is driven by the embedder, whose writers perform the structure's
+updates. The embedder owns the whole lifecycle---all four steps below---and the
+obligations of \cref{sec:embedderowes}; "builder" would name only the first
+step.
 \begin{enumerate}
 \item \textbf{Build} the new structure where readers cannot reach it.
 \item \textbf{Install.} The record set is frozen at this point: these are the
@@ -2078,7 +2197,7 @@ corrupts quietly.
 The remaining limits cannot be violated because they are not promises. They are
 what the model \emph{is}.
 
-\textbf{No reader snapshot.} A reader is not a transaction of any kind
+\textbf{No reader snapshot.} An \rcu reader is not a transaction of any kind
 (\cref{sec:nonguarantees}); a traversal spanning slots may straddle a commit. An
 embedder that needs a coherent multi-slot read layers its own versioning on top.
 Two standard families do this without disturbing the base facility: a
@@ -2985,7 +3104,7 @@ state and no additional load, and it is gone once the mutation settles
 
 The guarantee is deliberately weaker than transactional memory, and we have
 tried to be more precise about the weakness than about the strength. The write
-set is atomic; a reader is not a transaction of any kind, and a traversal
+set is atomic; an \rcu reader is not a transaction of any kind, and a traversal
 spanning several
 slots may straddle a commit. There is no opacity and no multi-read snapshot.
 What a reader gets instead is monotonicity --- never new-then-old

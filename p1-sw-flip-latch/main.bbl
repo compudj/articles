@@ -1,4 +1,4 @@
-\begin{thebibliography}{44}
+\begin{thebibliography}{48}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -62,6 +62,13 @@ Rodney~A. Brooks.
   garbage collection on stock hardware.
 \newblock In \emph{Proc.\ ACM Symposium on LISP and Functional Programming
   (LFP)}, pages 256--262, 1984.
+
+\bibitem[Cebula(2013)]{cebula2013s390tef}
+Richard Cebula.
+\newblock Introduction to the z/architecture transactional-execution facility.
+\newblock IBM High Level Assembler documentation, 2013.
+\newblock Introduced on the IBM System z EC12. Constrained transactions always
+  commit, within a limit of 32 instructions and 256 bytes.
 
 \bibitem[Desnoyers et~al.(2012)Desnoyers, McKenney, Stern, Dagenais, and
   Walpole]{desnoyers2012urcu}
@@ -211,10 +218,10 @@ Henry~M. Levy.
 \newblock Chapter on the {IBM} {System/38}, an early commercial platform with
   hardware tag bits on pointer-sized words.
 
-\bibitem[{Linux kernel contributors}(2026)]{linux2026rculist}
+\bibitem[{Linux kernel contributors}(2026{\natexlab{a}})]{linux2026rculist}
 {Linux kernel contributors}.
 \newblock \code{include/linux/rculist.h} and \code{include/linux/list.h}.
-\newblock Linux kernel source, 2026.
+\newblock Linux kernel source, 2026{\natexlab{a}}.
 \newblock URL
   \url{https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git}.
 \newblock GPL-2.0. Read at \code{linux-next} tag \code{next-20260226}.
@@ -223,6 +230,15 @@ Henry~M. Levy.
   \code{\_\_list\_add\_rcu()} publishes the forward edge with
   \code{rcu\_assign\_pointer()} and then writes \code{next->prev} plainly,
   after the node is reachable.
+
+\bibitem[{Linux kernel contributors}(2026{\natexlab{b}})]{linuxarm64rwonce}
+{Linux kernel contributors}.
+\newblock \code{arch/arm64/include/asm/rwonce.h}.
+\newblock Linux kernel source, 2026{\natexlab{b}}.
+\newblock GPL-2.0. Read at \code{v7.0-rc3}. Under \code{CONFIG\_LTO},
+  \code{\_\_READ\_ONCE()} is overridden to provide RCpc acquire semantics,
+  because LTO raises the risk of the compiler converting an address dependency
+  headed by \code{READ\_ONCE()} into a control dependency.
 
 \bibitem[Matveev et~al.(2015)Matveev, Shavit, Felber, and
   Marlier]{matveev2015rlu}
@@ -234,6 +250,15 @@ Alexander Matveev, Nir Shavit, Pascal Felber, and Patrick Marlier.
   USA, October 4-7, 2015}, pages 168--183. {ACM}, 2015.
 \newblock \doi{10.1145/2815400.2815406}.
 \newblock URL \url{https://doi.org/10.1145/2815400.2815406}.
+
+\bibitem[McKenney(2004)]{PaulEdwardMcKenneyPhD}
+Paul~E. McKenney.
+\newblock \emph{Exploiting Deferred Destruction: An Analysis of
+  Read-Copy-Update Techniques in Operating System Kernels}.
+\newblock PhD thesis, OGI School of Science and Engineering at Oregon Health
+  and Sciences University, 2004.
+\newblock URL
+  \url{http://www.rdrop.com/~paulmck/RCU/RCUdissertation.2004.07.14e1.pdf}.
 
 \bibitem[McKenney(2008)]{mckenney2008cyclicsearch511}
 Paul~E. McKenney.
@@ -367,6 +392,14 @@ Maged~M. Michael.
   15\penalty0 (6):\penalty0 491--504, 2004.
 \newblock \doi{10.1109/TPDS.2004.8}.
 \newblock URL \url{https://doi.org/10.1109/TPDS.2004.8}.
+
+\bibitem[{Motorola, Inc.}(1992)]{motorola1992m68000prm}
+{Motorola, Inc.}
+\newblock {M68000} family programmer's reference manual.
+\newblock Motorola document M68000PRM/AD, 1992.
+\newblock URL \url{https://www.nxp.com/docs/en/reference-manual/M68000PRM.pdf}.
+\newblock \code{CAS2}, ``Compare and Swap Dual Operands'', atomically compares
+  and swaps two independently addressed operands on the 68020, 68030 and 68040.
 
 \bibitem[Ramadan et~al.(2007)Ramadan, Rossbach, Porter, Hofmann, Bhandari, and
   Witchel]{ramadan2007txlinux}
