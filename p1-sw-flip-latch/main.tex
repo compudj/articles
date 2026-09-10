@@ -1039,8 +1039,10 @@ without opacity.
 \rcu exists because readers dominate.\footnote{Read dominance is the typical
 case, not a rule: \rcu also serves update-heavy uses --- as a deferred reclaimer
 that sidesteps the ABA problem, or where the read path must meet a real-time
-deadline whatever the write rate. A \pseudotxn is shaped for the read-dominated
-case regardless.} Its entire contract is that a reader pays
+deadline whatever the write rate. A \pseudotxn does not change shape for those:
+it moves cost to the writer either way, which suits a read-dominated workload
+and equally a bounded read path, and is the wrong trade only where commit
+throughput is the scarce resource.} Its entire contract is that a reader pays
 nothing: no lock, no barrier, no write to shared state. Every design that adds
 multi-pointer atomicity on top of \rcu must decide what to charge that reader,
 and the answer is what separates them (\cref{tab:comparison}).
