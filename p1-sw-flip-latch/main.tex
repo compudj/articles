@@ -225,9 +225,10 @@ they were written in --- the gap \cref{sec:onestore} exhibits on shipped code. A
 \pseudotxn narrows it: the slots of one commit resolve monotonically, never
 new-then-old (\cref{prop:monotone}). Because what decides that is a single
 written-once word rather than an order the reader must be walking in, it holds
-along a dependency chain of any shape --- including one that closes a cycle,
-where there is no fixed order to publish against and ordering tricks have
-nothing to work with (\cref{sec:publishorder}). A reader that instead reaches
+along a dependency chain whatever the chain's shape --- including one that
+resolves a slot twice, and including a walk around a structure for which no
+fixed publish order exists at all, where the ordering tricks of
+\cref{sec:publishorder} have nothing to work with. A reader that instead reaches
 two slots independently must order those loads itself.
 
 That is not magic, and it is worth saying where the cost went rather than
@@ -865,17 +866,21 @@ observes $s_j$ as new too. Once a reader crosses into the new state it stays
 there for the remainder of its traversal. It sees a prefix of old and a suffix
 of new, and the crossing point is wherever the commits caught it.
 
-Distinctness is a real condition and not bookkeeping. A traversal that returns
-to a slot it has already resolved --- a walk that closes a cycle --- puts one
-slot at two positions, and a slot has one publish instant: the rule would have
-to publish $s_1$ last and also before $s_1$'s second appearance, so for such a
+Distinctness is a real condition and not bookkeeping, and it is a condition on
+slots rather than on the shape of the path. A reader may return to a node it has
+already visited without resolving any slot twice: the descend-then-ascend reader
+below does exactly that, reading a parent's child link on the way down and a
+child's parent link on the way back up, which are two different words. What the
+rule cannot survive is resolving one slot twice. That puts one slot at two
+positions while a slot has one publish instant --- the rule would have to
+publish $s_1$ last and also before $s_1$'s second appearance --- so for such a
 reader it cannot be stated at all. Resolve the ambiguity either way and
 new-then-old is admitted --- resolve $s_1$, then $s_2$ after $t_2$, then $s_1$
 again before $t_1$ --- which is the one observation the rule exists to prevent.
 This bounds the \emph{ordering} rule and nothing else. \Cref{prop:monotone} is
 untouched by it: under a single \pseudotxn the deciding word is written once, so
-a slot that has resolved new resolves new on every later visit, and a traversal
-that closes a cycle is as monotone as one that does not.
+a slot that has resolved new resolves new on every later visit, and a reader
+that resolves the same slot repeatedly is as monotone as one that does not.
 
 \paragraph{Why a prefix of old and a suffix of new is enough.} The two
 observations the reader can be left with are not equally troublesome, and the
