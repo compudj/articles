@@ -930,8 +930,8 @@ The rule keeps the two edges of the move coherent; it does not make the move
 atomic with respect to a whole traversal. Moving $E$'s subtree under lockless
 readers has the consequences \rcu moves always have: a concurrent reader can skip
 the subtree, visit it twice, or --- where a lookup's own path is its key --- find
-a key still present at a location it has left. When those are tolerable, and how
-a structure that cannot tolerate them contains them, is the subject of later
+a key still present at a location it has departed from. When those are tolerable, and how
+a structure that cannot tolerate them compensates for them, is the subject of later
 papers in this series. What the model here secures is only the narrower guarantee
 the rule provides: the two edges are never seen to disagree, so no reader
 observes the move half-completed.
@@ -1591,7 +1591,7 @@ what plain \rcu cannot offer --- it publishes one edit at a time and must sequen
 the two, so a reader can straddle them.
 
 Split the removals into separate commits and the straddle returns: a forward walk
-can hold \code{A} after \code{D} has left the tail, reading
+can hold \code{A} after \code{D} is gone from the tail, reading
 \code{A}\,$\leftrightarrow$\,\code{B}\,$\leftrightarrow$\,\code{C}, a list that
 existed at no instant; and because a reverse walk resolves the edges in the
 opposite order, no commit order spares both directions --- reversing the two
