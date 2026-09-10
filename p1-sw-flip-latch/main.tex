@@ -223,13 +223,14 @@ What \rcu does not promise is anything about \emph{several} slots at once. Two
 edges changed by two stores are two unrelated events to a reader, whatever order
 they were written in --- the gap \cref{sec:onestore} exhibits on shipped code. A
 \pseudotxn narrows it: the slots of one commit resolve monotonically, never
-new-then-old (\cref{prop:monotone}). Because what decides that is a single
-written-once word rather than an order the reader must be walking in, it holds
-along a dependency chain whatever the chain's shape --- including one that
-resolves a slot twice, and including a walk around a structure for which no
-fixed publish order exists at all, where the ordering tricks of
-\cref{sec:publishorder} have nothing to work with. A reader that instead reaches
-two slots independently must order those loads itself.
+new-then-old (\cref{prop:monotone}). One commit is one instant, so this asks
+nothing of the writer beyond committing once, and nothing of the reader beyond
+a dependency chain --- the chain's shape does not matter, and a walk around a
+cyclic structure is served as readily as a walk down a list. A reader that
+reaches two slots independently, with no chain between them, must order those
+loads itself. Splitting one edit across \emph{several} commits is a different
+question, with its own benefits and its own conditions on the traversal, and
+\cref{sec:publishorder} takes it up.
 
 That is not magic, and it is worth saying where the cost went rather than
 leaving an empty function to look like a free lunch. \QSBR buys its empty read
