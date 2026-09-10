@@ -810,8 +810,13 @@ race that no test on a strongly-ordered machine will ever reproduce.
 \label{sec:publishorder}
 
 \Cref{sec:nonguarantees} invites an obvious objection. If a reader gets no
-snapshot, and a traversal touching several slots may straddle a commit, how is
-any multi-slot traversal ever correct? The answer is not that snapshots are
+snapshot, and a traversal touching several slots may straddle a commit, how can
+a multi-slot traversal ever be relied on? \emph{Correct} will not settle it,
+because it is not one criterion: a definition strict enough to rule this
+facility out rules plain \rcu out with it, since an \rcu reader may likewise
+act on a value a writer has already replaced. The question that can be settled
+is narrower --- what does a traversal need in order to reach a conclusion it may
+act on, and does it get it? The answer is not that snapshots are
 recovered somewhere later. It is that a snapshot is only one way of providing what
 the reader actually needs, and there is a cheaper way to provide it.
 
