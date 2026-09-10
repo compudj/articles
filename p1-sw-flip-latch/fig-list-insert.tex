@@ -123,7 +123,7 @@ the selector $0\!\to\!1$. \emph{settle} leaves the pointers holding the plain ne
 node \code{E}. The new node is built privately first, its own \code{next} and
 \code{prev} set to \code{N} and \code{P} before it is reachable. Because nothing
 is removed, no list node is reclaimed; only the transaction's own descriptor
-records are, after a grace period (cf.\ Fig.~\ref{fig:fliplatch} for the full
+records are, after a grace period (cf.\ \cref{fig:fliplatch} for the full
 proxy/selector anatomy).}
 \label{fig:listinsert}
 \end{figure}

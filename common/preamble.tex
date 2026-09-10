@@ -56,6 +56,11 @@
 % hyperref late, cleveref last.
 \usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
 \usepackage{cleveref}
+% cleveref abbreviates figures ("fig. 6") but spells out every other class
+% this series references -- section, table, property, definition. Spell
+% figures out too, so a cross-reference reads the same wherever it points.
+\crefname{figure}{figure}{figures}
+\Crefname{figure}{Figure}{Figures}
 
 % ---------------------------------------------------------------------------
 % C listings style, for the API and pseudocode excerpts. Enablement is the

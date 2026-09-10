@@ -1205,7 +1205,15 @@ Each slot in the set is made to hold a \emph{tagged} pointer to a small
 \emph{proxy} rather than the target directly. A proxy carries
 $\{\mathit{old},\mathit{new}\}$ and a pointer to a shared \emph{flip group}
 carrying one boolean \emph{selector} word. Resolving a proxy returns
-$\mathit{old}$ while the selector is $0$, and $\mathit{new}$ once it is $1$.
+$\mathit{old}$ while the selector is $0$, and $\mathit{new}$ once it is $1$. Two
+states are what this facility needs, not all a selector could carry. A third is
+the obvious extension and the companion paper's \mw facility has one, for
+\emph{abort}: a commit that contends can fail, and a reader must be able to see
+that it did. Under exclusion a commit cannot fail, so the state cannot arise
+here --- which is why the shared status vocabulary reduces to a boolean in this
+paper (\cref{sec:exclusion}). A many-valued selector is a different extension
+again, and \cref{sec:varselector} sets out what a generation counter would buy
+and what it would cost.
 
 Everything follows from one property: \textbf{every proxy in a group reads the
 same selector.} A single store flipping that selector therefore switches the

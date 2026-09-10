@@ -145,6 +145,6 @@ reader already parked on \code{E} reads straight through them;
 \code{synchronize\_rcu} waits out the grace period until that reader drains, and
 only then is \code{free(E)} --- together with the transaction's descriptor
 records --- safe. This drain-and-free is ordinary RCU, after the transaction,
-not part of it (cf.\ Fig.~\ref{fig:fliplatch}).}
+not part of it (cf.\ \cref{fig:fliplatch}).}
 \label{fig:listremove}
 \end{figure}
