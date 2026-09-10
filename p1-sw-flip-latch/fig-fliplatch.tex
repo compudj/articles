@@ -45,17 +45,31 @@
 \draw[dep] (p2.east) -- (sel.west);
 \draw[dep] (p3.east) -- (sel.south west);
 
-% ---- resolution ------------------------------------------------------------
-\node[old] (o1) at (11.6, 1.15) {$o_1$};
-\node[new] (n1) at (11.6, 0.05) {$n_1$};
-% Labels are sloped: the sel=0 arrow rises about 27 degrees, and a horizontal
-% label placed "above" its midpoint is crossed by the arrow's own line.
-\draw[arr, gray!70!black] (sel.east) -- node[above, sloped, font=\scriptsize, pos=0.5] {\code{sel}=0} (o1.west);
-\draw[arr, thick] (sel.east) -- node[below, sloped, font=\scriptsize, pos=0.5] {\code{sel}=1} (n1.west);
+% ---- resolution: the WHOLE old set, or the WHOLE new set ------------------
+% Not one row expanded and the other two implied -- that misses the point of
+% the figure, which is that the selector moves the entire set together. Two
+% arrows, two groups; the reader sees three slots resolving as one.
+\node[old] (o1) at (11.3,  2.45) {$o_1$};
+\node[old] (o2) at (11.3,  1.75) {$o_2$};
+\node[old] (o3) at (11.3,  1.05) {$o_3$};
+\node[draw, densely dashed, gray!60, inner sep=2.2mm, fit=(o1)(o2)(o3)] (oldset) {};
 
-\node[align=left, font=\footnotesize, anchor=north west] at (9.7, -0.9)
-  {Every proxy reads the \emph{same} \code{sel}.\\
-   One store switches all of them.};
+\node[new] (n1) at (11.3, -1.05) {$n_1$};
+\node[new] (n2) at (11.3, -1.75) {$n_2$};
+\node[new] (n3) at (11.3, -2.45) {$n_3$};
+\node[draw, densely dashed, green!45!black, inner sep=2.2mm, fit=(n1)(n2)(n3)] (newset) {};
+
+% The selector value labels the GROUP, not the arrow. On the path a label is
+% crossed by its own line; beside the path it collides with the "flip group"
+% caption. On the group it is unambiguous (the arrow points at the group the
+% condition selects) and it cannot collide with anything.
+\draw[arr, gray!70!black] (sel.east) -- (oldset.west);
+\draw[arr, thick]         (sel.east) -- (newset.west);
+\node[font=\scriptsize, anchor=south] at (oldset.north) {\code{sel}=0};
+\node[font=\scriptsize, anchor=south] at (newset.north) {\code{sel}=1};
+
+\node[align=center, font=\footnotesize\itshape, anchor=north] at (11.3, -3.05)
+  {one word decides\\the whole set};
 
 % ---- the flip --------------------------------------------------------------
 \draw[-latex, very thick, orange!70!black]
@@ -64,12 +78,13 @@
   {the commit:\\one release store};
 
 \end{tikzpicture}
-\caption{The flip-latch, installed. Each slot in the set holds a \emph{tagged}
-pointer to a proxy rather than its target; each proxy carries
-$\{\mathit{old},\mathit{new}\}$ and reads one shared selector word. While
-\code{sel} is $0$ every proxy resolves to its old target, so installation is
-invisible to readers. The commit is a single release store, $0 \to 1$, after
-which every proxy resolves to its new target --- so one store switches the
-entire set, with no instant at which the set is part-old and part-new.}
+\caption{The flip-latch, installed, with three slots standing for $N$. Each slot
+holds a \emph{tagged} pointer to a proxy rather than to its target; each proxy
+carries $\{\mathit{old},\mathit{new}\}$ and reads one shared selector word.
+While \code{sel} is $0$ every proxy in the group resolves to its old target, so
+installation is invisible to readers. The commit is a single release store,
+$0 \to 1$, after which every proxy resolves to its new target. The two dashed
+groups are what one store chooses between: there is no instant at which the set
+is part-old and part-new, and no per-slot work at commit time.}
 \label{fig:fliplatch}
 \end{figure}
