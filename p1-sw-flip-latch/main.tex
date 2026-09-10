@@ -884,11 +884,22 @@ duration of a traversal --- is the cost \rcu exists to avoid.
 New-then-old is a different animal. A reader that observes the new value of one
 slot and then the old value of another has seen two effects of a single state
 transition in reverse order, and no sequential execution of the data structure
-produces that. There is nothing the reader can do about it locally: it cannot
-tell the stale load from a fresh one, so its only recourse is to re-read
-everything and compare --- which is to say, to build a snapshot. \emph{This is
-the observation that forces snapshots, and it is the one the model already
-forbids.} \Cref{prop:monotone} rules it out by construction, because the
+produces that.
+
+Whether that harms anyone is the caller's question rather than the structure's.
+A lookup whose answer may be either the old value or the new is unharmed by
+seeing them out of order; one whose answer must agree with a decision already
+taken is not. Where it does harm, the reader cannot repair it unaided --- it
+cannot tell a stale load from a fresh one --- but it need not build a snapshot
+to be told. A seqcount around the traversal detects an interfering update after
+the fact and retries, which is how Linux's dentry cache guards a path walk
+against a concurrent rename~\citep{linux2026dcache}; a per-element lock
+prevents the interleaving instead, as \rcu's early System~V IPC work
+did~\citep{Arcangeli03}. Both are real remedies, and both are paid for on the
+read side on every traversal, whether or not a writer ever appears.
+
+\emph{This is the observation that forces those remedies, and it is the one the
+model already forbids.} \Cref{prop:monotone} rules it out by construction, because the
 deciding word is written once and never written back.
 
 So the design rule does not weaken the reader's obligations and then apologize

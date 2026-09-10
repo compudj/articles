@@ -1,4 +1,4 @@
-\begin{thebibliography}{48}
+\begin{thebibliography}{50}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -22,6 +22,16 @@ Maya Arbel{-}Raviv and Trevor Brown.
   Leibniz-Zentrum f{\"{u}}r Informatik, 2017.
 \newblock \doi{10.4230/LIPIcs.DISC.2017.4}.
 \newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2017.4}.
+
+\bibitem[Arcangeli et~al.(2003)Arcangeli, Cao, McKenney, and
+  Sarma]{Arcangeli03}
+Andrea Arcangeli, Mingming Cao, Paul~E. McKenney, and Dipankar Sarma.
+\newblock Using read-copy update techniques for {System V IPC} in the {Linux}
+  2.5 kernel.
+\newblock In \emph{Proceedings of the 2003 USENIX Annual Technical Conference
+  (FREENIX Track)}, pages 297--310. USENIX Association, June 2003.
+\newblock URL
+  \url{https://www.usenix.org/legacy/publications/library/proceedings/usenix03/tech/freenix03/full_papers/arcangeli/arcangeli.pdf}.
 
 \bibitem[Batty et~al.(2011)Batty, Owens, Sarkar, Sewell, and
   Weber]{batty2011cppconcurrency}
@@ -218,10 +228,19 @@ Henry~M. Levy.
 \newblock Chapter on the {IBM} {System/38}, an early commercial platform with
   hardware tag bits on pointer-sized words.
 
-\bibitem[{Linux kernel contributors}(2026{\natexlab{a}})]{linux2026rculist}
+\bibitem[{Linux kernel contributors}(2026{\natexlab{a}})]{linux2026dcache}
+{Linux kernel contributors}.
+\newblock \code{fs/dcache.c}.
+\newblock Linux kernel source, 2026{\natexlab{a}}.
+\newblock GPL-2.0. Read at \code{v7.0-rc3}. \code{rename\_lock} is a seqlock;
+  \code{d\_walk()} brackets its traversal with
+  \code{read\_seqbegin\_or\_lock()} and \code{need\_seqretry()}, restarting the
+  walk when a rename intervened.
+
+\bibitem[{Linux kernel contributors}(2026{\natexlab{b}})]{linux2026rculist}
 {Linux kernel contributors}.
 \newblock \code{include/linux/rculist.h} and \code{include/linux/list.h}.
-\newblock Linux kernel source, 2026{\natexlab{a}}.
+\newblock Linux kernel source, 2026{\natexlab{b}}.
 \newblock URL
   \url{https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git}.
 \newblock GPL-2.0. Read at \code{linux-next} tag \code{next-20260226}.
@@ -231,10 +250,10 @@ Henry~M. Levy.
   \code{rcu\_assign\_pointer()} and then writes \code{next->prev} plainly,
   after the node is reachable.
 
-\bibitem[{Linux kernel contributors}(2026{\natexlab{b}})]{linuxarm64rwonce}
+\bibitem[{Linux kernel contributors}(2026{\natexlab{c}})]{linuxarm64rwonce}
 {Linux kernel contributors}.
 \newblock \code{arch/arm64/include/asm/rwonce.h}.
-\newblock Linux kernel source, 2026{\natexlab{b}}.
+\newblock Linux kernel source, 2026{\natexlab{c}}.
 \newblock GPL-2.0. Read at \code{v7.0-rc3}. Under \code{CONFIG\_LTO},
   \code{\_\_READ\_ONCE()} is overridden to provide RCpc acquire semantics,
   because LTO raises the risk of the compiler converting an address dependency

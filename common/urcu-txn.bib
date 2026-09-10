@@ -1951,3 +1951,20 @@
                   transactions always commit, within a limit of 32 instructions
                   and 256 bytes}
 }
+
+% Cited in Sec. 3.6 as a deployed instance of repairing a straddled traversal
+% after the fact rather than preventing it. Verified 2026-09-10 against the
+% local tree at v7.0-rc3: rename_lock is a seqlock (DEFINE_SEQLOCK, fs/dcache.c),
+% and d_walk() brackets its tree walk with read_seqbegin_or_lock() /
+% need_seqretry(), restarting when a rename intervened -- the counter is
+% re-sampled, not the data.
+@misc{linux2026dcache,
+  author       = {{Linux kernel contributors}},
+  title        = {\code{fs/dcache.c}},
+  howpublished = {Linux kernel source},
+  year         = {2026},
+  note         = {GPL-2.0. Read at \code{v7.0-rc3}. \code{rename\_lock} is a
+                  seqlock; \code{d\_walk()} brackets its traversal with
+                  \code{read\_seqbegin\_or\_lock()} and \code{need\_seqretry()},
+                  restarting the walk when a rename intervened}
+}
