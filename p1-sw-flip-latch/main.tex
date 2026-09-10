@@ -835,9 +835,9 @@ reaches two slots independently presents no read order for the writer to agree
 with, and a structure with no single traversal order, such as any cycle or a
 list read in both directions, offers none to reverse. Both cases return below.
 
-\paragraph{The rule.} Suppose a reader resolves slots in a fixed order
-$s_1, s_2, \ldots, s_k$, and the writer splits the edit across several
-\pseudotxns rather than one. Then:
+\paragraph{The rule.} Suppose a reader resolves $k$ \emph{distinct} slots in a
+fixed order $s_1, s_2, \ldots, s_k$, and the writer splits the edit across
+several \pseudotxns rather than one. Then:
 
 \begin{quote}
 \emph{Commit in the reverse of the reader's read order: publish $s_k$ first and
@@ -856,6 +856,18 @@ later slot $s_j$ with $j > i$ we have $a_j > a_i > t_i > t_j$, so the reader
 observes $s_j$ as new too. Once a reader crosses into the new state it stays
 there for the remainder of its traversal. It sees a prefix of old and a suffix
 of new, and the crossing point is wherever the commits caught it.
+
+Distinctness is a real condition and not bookkeeping. A traversal that returns
+to a slot it has already resolved --- a walk that closes a cycle --- puts one
+slot at two positions, and a slot has one publish instant: the rule would have
+to publish $s_1$ last and also before $s_1$'s second appearance, so for such a
+reader it cannot be stated at all. Resolve the ambiguity either way and
+new-then-old is admitted --- resolve $s_1$, then $s_2$ after $t_2$, then $s_1$
+again before $t_1$ --- which is the one observation the rule exists to prevent.
+This bounds the \emph{ordering} rule and nothing else. \Cref{prop:monotone} is
+untouched by it: under a single \pseudotxn the deciding word is written once, so
+a slot that has resolved new resolves new on every later visit, and a traversal
+that closes a cycle is as monotone as one that does not.
 
 \paragraph{Why a prefix of old and a suffix of new is enough.} The two
 observations the reader can be left with are not equally troublesome, and the
