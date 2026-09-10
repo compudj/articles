@@ -162,8 +162,8 @@ marks them, and the exclusion between writers are all the embedder's
       throughout, against a machine drift of 0.8\% --- while the facility also
       delivers the reverse walk plain \rcu cannot offer under mutation at all.
       Against the schemes that \emph{do} offer it, and which give readers
-      strictly more, the reader pays 14--21\% for existence and 27--50\% for
-      RLU. A single writer with readers running pays about twice, and a profile
+      strictly more, the reader pays 14--21\% for existence structures and
+      27--50\% for RLU. A single writer with readers running pays about twice, and a profile
       says where that goes --- 3.4\% of cycles in the commit, the rest in
       allocation and grace-period reclaim.
 
@@ -188,7 +188,10 @@ answers pay for it in the same place: state attached to every element, and
 work on the reader's path. This facility pays in neither. \Cref{sec:costcomparison}
 places it against those answers---existence structures, RLU, and STM---in detail,
 and \cref{sec:measured} measures both halves of the claim on a list: what the
-reader does not pay, and what the writer does.
+reader does not pay, and what the writer does. \emph{Existence
+structures}~\citep{mckenney2015issaquah} are the nearest of the three: each
+element names an \emph{existence group}, and one store to that group's state
+word changes the membership of every element in it at once.
 
 % ===========================================================================
 \section{Background}
