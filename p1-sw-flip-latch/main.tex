@@ -225,9 +225,10 @@ they were written in --- the gap \cref{sec:onestore} exhibits on shipped code. A
 \pseudotxn narrows it: the slots of one commit resolve monotonically, never
 new-then-old (\cref{prop:monotone}). Because what decides that is a single
 written-once word rather than an order the reader must be walking in, it holds
-for a traversal of any shape --- including one that goes around a cycle, where
-there is no fixed order to publish against and ordering tricks have nothing to
-work with (\cref{sec:publishorder}).
+along a dependency chain of any shape --- including one that closes a cycle,
+where there is no fixed order to publish against and ordering tricks have
+nothing to work with (\cref{sec:publishorder}). A reader that instead reaches
+two slots independently must order those loads itself.
 
 That is not magic, and it is worth saying where the cost went rather than
 leaving an empty function to look like a free lunch. \QSBR buys its empty read
@@ -756,10 +757,12 @@ reader's reads are not mutually atomic, but neither are they unrelated.
 \begin{property}[Monotone resolution]
 \label{prop:monotone}
 The word that decides a \pseudotxn's outcome is written once and never written
-back. A reader resolving several slots of one \pseudotxn over time therefore
-observes a monotone sequence --- $o \ldots o, n \ldots n$ --- and
-\textbf{never $n$ then $o$}. A reader may lag a commit; it never regresses
-across one.
+back. A reader that resolves several slots of one \pseudotxn \emph{along a
+dependency chain} --- each hop's address derived from the value the previous hop
+loaded --- therefore observes a monotone sequence --- $o \ldots o, n \ldots n$
+--- and \textbf{never $n$ then $o$}. A reader may lag a commit; it never
+regresses across one. Hops that are not so chained carry no such edge, and the
+reader must order them itself; the scope below states when and how.
 \end{property}
 
 \Cref{prop:monotone} is strictly more than treating each slot as an independent
@@ -786,7 +789,8 @@ value the previous hop loaded --- carries the order for free on every
 architecture \urcu supports, as does any build using the default C11
 dereference. A reader that hops \emph{without} that chain, by re-reading a
 pointer it cached earlier or by walking between two independently-reached
-slots, has no such edge: under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on
+slots --- two separate structures, or two sibling subtrees of one, as a
+depth-first walk without parent pointers reaches them --- has no such edge: under \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on
 weakly-ordered hardware its two loads may be reordered, and it can observe the
 new value on the later slot and the old on the earlier one. To avoid it, such a reader must use an acquire load or a dependency.
 
