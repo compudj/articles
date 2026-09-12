@@ -1770,7 +1770,13 @@ section.
 this \pseudotxn has already recorded one and its committed value otherwise, and
 a recording store that \emph{fuses} a second edit of a slot onto the existing
 record --- keeping the committed old, advancing the new --- rather than
-appending a duplicate. A transaction holds at most one record per slot. Keeping
+appending a duplicate. A transaction holds at most one record per slot. The load records nothing: it
+enters no read set and is validated against nothing, because under exclusion
+there is nothing to validate it against. It reports this \pseudotxn's own
+pending state and no more, which is why the choice it offers the writer is
+whether a load sees that pending state --- not whether the slot is tracked, and
+not whether the slot is transacted, since a transacted slot must be read through
+the facility either way (\cref{sec:tagcontract}). Keeping
 the committed old is a constraint a redo log does not have and the \fliplatch
 does: the record's old value is what a reader resolves the proxy to before the
 commit, so it must stay the value the slot would have held all along, however
