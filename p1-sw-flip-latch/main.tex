@@ -1657,6 +1657,14 @@ comparing two independently-reached slots, a cached pointer or a \code{prev} and
 a \code{next} read from nodes it did not chain between, must supply its own
 acquire.
 
+The acquire buys the ordering and nothing more, which is worth being plain
+about: the two resolutions may still fall either side of a commit, and a node
+one of them found may have been removed before the other ran. So the comparison
+can disagree although each resolution it was built from was itself coherent.
+\Cref{prop:coherence} holds \emph{at} a resolution, not \emph{between} two of
+them. A reader that needs two resolutions to agree is asking for a snapshot, and
+\cref{sec:nonguarantees} does not offer one.
+
 \paragraph{Across updates, not a snapshot.} \Cref{prop:coherence} is per-update:
 one commit switches its own two edges together, so no reader catches a single
 edit half-applied. Whether two edits are \emph{separate} commits, though, is the
