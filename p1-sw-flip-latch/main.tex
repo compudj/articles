@@ -1558,13 +1558,19 @@ ABIs.
 \subsection{What the tag buys}
 \label{sec:tagbuys}
 
-The tag is the whole of the facility's presence in a reader's world. There is no
+The tag is the whole of the facility's presence in a reader's world, absent a
+concurrent commit on the slot being read. There is no
 header, no side table, no per-element field --- the marker occupies bits of a
 word the structure already had and the reader already loads. That is why
 \cref{tab:comparison}'s last row reads zero in the loads column, and it is why
 the structure a
 reader traverses in the steady state is byte-for-byte the one it would traverse
 with no facility linked at all.
+
+While a slot is parked the reader pays more, and this is where it pays: it
+follows the tagged pointer to the proxy and reads the selector. That is the
+facility's entire charge on the read side, and it is transient by construction
+--- it lasts from install to settle, on that slot and no other.
 
 The price is that the facility cannot own the encoding. It does not know which
 bits a given structure has left, so it cannot choose for the embedder ---
