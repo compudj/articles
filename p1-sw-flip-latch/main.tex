@@ -1642,8 +1642,10 @@ does not, so every resolution reads from a state in which the two chains agree.
 
 This does not freeze the list for a long-lived reader --- nothing here does, and
 \cref{sec:nonguarantees} said so. A reader may still observe an operation that
-commits during its walk. What is guaranteed is that whatever it observes is
-internally coherent in both directions \emph{at each step}.
+commits during its walk. What is guaranteed is that \emph{at each step of that
+walk} --- at each single resolution the reader performs --- what it observes is
+coherent in both \emph{link} directions: the \code{next} and the \code{prev}
+agree.
 
 ``At each step'' is the precise scope, and it is \cref{sec:monotone}'s
 dependency-chaining caveat in concrete form. Coherence is a property of a single
