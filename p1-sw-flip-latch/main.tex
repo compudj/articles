@@ -1708,9 +1708,9 @@ The hash-bucket sibling is shaped like the kernel's hlist: the head is a single
 Its backward link is the elegant part. A node's \code{pprev} is a pointer to the
 \emph{slot that names it} --- \code{\&prev->next}, or \code{\&head->first} ---
 rather than a pointer to the previous node. So the head's single pointer is just
-another \code{next} slot, and \textbf{no operation carries a head special
-case}: first-position insert and delete are the general code path with a
-different slot address.
+another \code{next} slot, and \textbf{no operation special-cases the head}:
+first-position insert and delete are the general code path with a different slot
+address.
 
 Readers walk forward only, so a structural operation has exactly one
 reader-visible edge --- the \code{next} slot it re-points. That edge is
