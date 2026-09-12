@@ -1385,7 +1385,7 @@ no contention to abort on.
 \subsection{What the embedder owes}
 \label{sec:embedderowes}
 
-The facility is deliberately incomplete: it supplies the latch, and leaves three
+The facility is deliberately incomplete: it supplies the \fliplatch, and leaves three
 obligations with the structure that embeds it.
 
 \begin{itemize}
@@ -1397,7 +1397,7 @@ obligations with the structure that embeds it.
 \item \textbf{Allocation.} Proxies and the group are the embedder's to allocate,
       with whatever alignment its tagging scheme demands --- often as a single
       backing block with one \code{rcu\_head}.
-\item \textbf{Reclamation.} After settle has unpublished every proxy, the
+\item \textbf{Reclamation.} After settle has uninstalled every proxy, the
       embedder \code{call\_rcu()}s them.
 \end{itemize}
 
@@ -1450,8 +1450,8 @@ abort is the aliasing tag itself, surfaced.
 Two further obligations follow. Every write to a transacted slot must go through
 the facility: one raw store breaks atomicity for every participant, not only the
 writer that made it. And every read must resolve through the facility's accessor,
-since a bare load of a parked slot yields a tagged record address rather than a
-value.
+since a bare load of a parked slot yields a tagged record address rather than
+the value that slot resolves to.
 
 \subsection{Why the tag cannot be fixed}
 \label{sec:pertag}
@@ -2596,7 +2596,7 @@ Omitting settle entirely is the endpoint, and it is \emph{correct}: the proxies
 resolve correctly forever.
 It is also unbounded: every read of that slot pays an indirection permanently,
 the proxies can never be reclaimed, and the structure accumulates a growing
-layer of resolved-but-still-present latches. Settle exists to make the cost
+layer of resolved-but-still-present flip-latches. Settle exists to make the cost
 transient, which is the whole thesis of \cref{sec:whyweakening}; a facility that
 never settled would have per-slot state after all, arrived at by a different
 road.
