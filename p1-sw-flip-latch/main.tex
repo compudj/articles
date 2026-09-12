@@ -1205,6 +1205,8 @@ The flip-latch removes the intermediate states rather than hiding them behind a
 drain, and it does so with one level of indirection
 (\cref{fig:fliplatch}).
 
+\input{fig-anatomy}
+
 Each slot in the set is made to hold a \emph{tagged} pointer to a small
 \emph{proxy} rather than the target directly. A slot in that condition is
 \emph{parked}, and stays parked from the moment the writer points it at the

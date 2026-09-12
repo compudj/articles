@@ -1,0 +1,81 @@
+% Which word names which part. This figure exists because six terms in this
+% paper -- slot, embedder, record, proxy, parked, resolve -- are defined in
+% prose, in three different sections, and a reader who loses one has nowhere to
+% look it up. It is an index to the vocabulary, not an explanation of the
+% mechanism: fig:fliplatch explains the mechanism, and deliberately shows N
+% slots and no embedder structure, which is exactly what a reader needs when the
+% question is "a record of what?".
+%
+% Drawn in TikZ (not an imported image) so the figure ships as source in the
+% arXiv submission and needs no external toolchain to rebuild.
+%
+% The picture must make exactly one thing obvious: the embedder owns the node
+% and the word inside it; everything to the right of that word is the facility's,
+% and exists only between install and settle.
+\par\medskip\noindent\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  fld/.style   = {draw, minimum width=20mm, minimum height=5.5mm, fill=gray!6,
+                  font=\ttfamily\small},
+  slotf/.style = {fld, fill=orange!16, very thick},
+  proxy/.style = {draw, minimum width=30mm, minimum height=9mm, fill=blue!6},
+  grp/.style   = {draw, very thick, minimum width=15mm, minimum height=7mm,
+                  fill=orange!18},
+  tgt/.style   = {draw, rounded corners=2pt, minimum width=13mm,
+                  minimum height=6mm},
+  rec/.style   = {draw, minimum height=7mm, fill=green!8, inner xsep=3mm},
+  arr/.style   = {-latex, thin},
+  dep/.style   = {-latex, thin, densely dotted, gray!70!black},
+  cal/.style   = {font=\footnotesize\itshape, align=center, text=black!75},
+]
+
+% ---- the embedder's node ---------------------------------------------------
+\node[fld]   (k)  at (0,  0.42) {key};
+\node[slotf] (sl) at (0, -0.42) {next};
+\node[draw, thick, inner sep=1.6mm, fit=(k)(sl)] (P) {};
+\node[cal, anchor=south] at (P.north) {a node the \textbf{embedder} owns};
+\node[cal, anchor=east, text width=17mm] at ($(sl.west)+(-0.25,0)$)
+  {one word\\ $=$ a \textbf{slot}};
+
+% ---- parked: the slot points at a proxy ------------------------------------
+\node[proxy] (px) at (6.1, -0.42) {$\{\, o \mapsto E,\; n \mapsto F \,\}$};
+\draw[arr] (sl.east) -- node[above, font=\footnotesize, pos=0.48] {tagged}
+                        node[below, cal, pos=0.48] {\textbf{parked}} (px.west);
+\node[cal, anchor=south] at (px.north) {a \textbf{proxy}};
+
+% ---- the flip group --------------------------------------------------------
+\node[grp] (g) at (6.1, -2.55) {\code{sel}};
+\draw[dep] (px.south) -- (g.north);
+\node[cal, anchor=north, text width=46mm] at ($(g.south)+(0.25,-0.2)$)
+  {the \textbf{flip group}: one selector word, shared by every proxy of one
+   commit};
+
+% ---- what it resolves to ---------------------------------------------------
+\node[tgt, fill=gray!15]  (E) at (9.8,  0.32) {$E$};
+\node[tgt, fill=green!12] (F) at (9.8, -1.16) {$F$};
+% Selector values label the TARGETS, not the arrows: on the path they are
+% crossed by their own line (the same fix fig:fliplatch records).
+\draw[arr, gray!70!black] (px.east) -- (E.west);
+\draw[arr, thick]         (px.east) -- (F.west);
+\node[cal, anchor=west] at ($(E.east)+(0.2,0)$) {old target\\ (\code{sel}=0)};
+\node[cal, anchor=west] at ($(F.east)+(0.2,0)$) {new target\\ (\code{sel}=1)};
+\node[cal, anchor=north, text width=27mm] at (9.8, -1.72)
+  {a reader \textbf{resolves} the slot to whichever the selector names};
+
+% ---- the record: the writer's side -----------------------------------------
+\node[rec] (r) at (0.95, -3.3) {$\langle\, s,\; o \to n \,\rangle$, \code{proxy\_tag}};
+\node[cal, anchor=north, text width=44mm] at (0.95, -3.85)
+  {one \textbf{record}: names the slot, carries its two values and its tag.\\
+   The writer stages these; they form the \textbf{pseudo-transaction}};
+\draw[dep] (r.north) -- node[right, cal, pos=0.45] {names} (sl.south);
+
+\end{tikzpicture}
+\captionof{figure}{Which word names which part, at the one moment all of them
+apply: a slot installed on a proxy, after \cref{sec:lifecycle}'s install and
+before its settle. Everything left of the slot belongs to the embedder and
+outlives the commit; everything right of it belongs to the facility and exists
+only between install and settle. The record is the writer's description of the
+change, and never itself reachable by a reader.}
+\label{fig:anatomy}
+\end{minipage}\par\medskip
