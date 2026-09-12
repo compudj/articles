@@ -8,6 +8,13 @@
 % synchronize_rcu must drain that reader before free(E). That drain-and-free is
 % ordinary RCU, AFTER the transaction, not part of it.
 %
+% The record table is drawn TWICE, before and after the commit, with the live
+% column shaded. Drawn once it showed the records only in the state the commit
+% is about to leave, so the one thing the commit does -- move which column the
+% readers see -- had to be inferred. The second copy is also what displays the
+% interval between the commit and the settle: same records, still parked, now
+% resolving new. The slots are rewritten only at the settle to the right of it.
+%
 % Self-contained TikZ (no external toolchain), matching fig-fliplatch.tex.
 \begin{figure}[t]
 \centering
@@ -15,136 +22,147 @@
   font=\small,
   lnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8},
   ghost/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8, dashed, text=gray!55, draw=gray!55},
-  sel/.style     = {draw, very thick, minimum width=13mm, minimum height=8mm, fill=orange!18},
   rowlab/.style  = {align=center, font=\footnotesize\itshape, text=black!75},
   colhead/.style = {align=center, font=\footnotesize\itshape},
   phase/.style   = {font=\footnotesize\itshape, text=black!70},
   biarr/.style   = {latex-latex, semithick},
   gedge/.style   = {latex-latex, thin, densely dashed, gray!55},
-  dep/.style     = {-latex, thin, densely dotted, gray!70!black},
-  selbox/.style  = {draw, very thick, minimum width=33mm, minimum height=5mm, fill=orange!18, inner xsep=3pt, font=\footnotesize},
+  selbox/.style  = {draw, very thick, minimum height=5mm, fill=orange!18, inner xsep=3pt, font=\footnotesize},
   trow/.style    = {anchor=west, inner sep=0pt, minimum height=6mm, font=\footnotesize},
   pick/.style    = {-latex, thin, gray!55},
   ptr/.style     = {-latex, semithick},
+  live/.style    = {fill=orange!16},
 ]
 
 % ---- column headers (reader states) ----------------------------------------
-\node[colhead] at (2.50, 6.35) {before commit};
-\node[colhead] at (8.40, 6.35) {after commit};
-\node[colhead] at (10.85, 6.35) {after synchronize};
+\node[colhead] at (1.95, 6.35) {before commit};
+\node[colhead] at (8.50, 6.35) {after commit};
+\node[colhead] at (12.85, 6.35) {after synchronize};
 
 % ---- reader-row dividers: at the commit, and at the end of synchronize ------
-\draw[thin, gray!45, densely dashed] (6.35, 6.1) -- (6.35, 3.15);
-\draw[thin, gray!45, densely dashed] (10.0, 6.1) -- (10.0, 3.15);
+\draw[thin, gray!45, densely dashed] (6.20, 6.1) -- (6.20, 3.15);
+\draw[thin, gray!45, densely dashed] (12.20, 6.1) -- (12.20, 3.15);
 
 % ---- separators & row labels ----------------------------------------------
-\draw[thin, gray!45] (-1.9, 3.05) -- (12.0, 3.05);
-\node[rowlab] at (-0.95, 4.70) {Reader\\(bidirectional)};
-\node[rowlab] at (-0.95, 1.35) {Updater\\(RCU pseudo-\\transaction)};
+\draw[thin, gray!45] (-2.0, 3.05) -- (13.55, 3.05);
+\node[rowlab] at (-1.15, 4.70) {Reader\\(bidirectional)};
+\node[rowlab] at (-1.15, 1.35) {Updater\\(RCU pseudo-\\transaction)};
 
 % ===== ROW 1 : reader's view -- P<->E<->N before, P<->N after ================
-\node[lnode] (r1P) at (2.5, 5.9) {\code{P}};
-\node[lnode] (r1E) at (2.5, 4.7) {\code{E}};
-\node[lnode] (r1N) at (2.5, 3.5) {\code{N}};
+\node[lnode] (r1P) at (1.95, 5.9) {\code{P}};
+\node[lnode] (r1E) at (1.95, 4.7) {\code{E}};
+\node[lnode] (r1N) at (1.95, 3.5) {\code{N}};
 \draw[biarr] (r1P) -- (r1E);
 \draw[biarr] (r1E) -- (r1N);
 
-\node[lnode] (r2P) at (8.4, 5.9) {\code{P}};
-\node[ghost] (r2E) at (8.4, 4.7) {\code{E}};
-\node[lnode] (r2N) at (8.4, 3.5) {\code{N}};
+\node[lnode] (r2P) at (8.50, 5.9) {\code{P}};
+\node[ghost] (r2E) at (8.50, 4.7) {\code{E}};
+\node[lnode] (r2N) at (8.50, 3.5) {\code{N}};
 \draw[gedge] (r2P) -- (r2E);
 \draw[gedge] (r2E) -- (r2N);
 \draw[biarr] (r2P.east) to[out=0, in=0] (r2N.east);
 \node[left=1mm of r2E, font=\scriptsize, text=gray!55] {bypassed};
 
 % after synchronize -- all readers drained; the list is a clean P <-> N
-\node[lnode] (r3P) at (10.85, 5.9) {\code{P}};
-\node[lnode] (r3N) at (10.85, 3.5) {\code{N}};
+\node[lnode] (r3P) at (12.85, 5.9) {\code{P}};
+\node[lnode] (r3N) at (12.85, 3.5) {\code{N}};
 \draw[biarr] (r3P) -- (r3N);
 
 % ===== ROW 2 : the transaction, phase by phase =============================
-% build -- the descriptor as a table (slot | old | new); selector box above it
-\node[selbox] (selB) at (2.50, 2.72) {selector:~$0$};
-\node[trow, fill=blue!14] (hdr)  at (0.85, 2.10) {\makebox[13mm][c]{\textit{slot}}\makebox[10mm][c]{\textit{old}\,(0)}\makebox[10mm][c]{\textit{new}\,(1)}};
-\node[trow, fill=blue!6]  (rec1) at (0.85, 1.50) {\makebox[13mm][c]{\code{P.next}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{N}}};
-\node[trow, fill=blue!6]  (rec2) at (0.85, 0.90) {\makebox[13mm][c]{\code{N.prev}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{P}}};
-\draw[thin, blue!45] (0.85, 0.6) rectangle (4.15, 2.4);
-\draw[thin, blue!45] (2.15, 0.6) -- (2.15, 2.4);
-\draw[thin, blue!45] (3.15, 0.6) -- (3.15, 2.4);
-\draw[thin, blue!45] (0.85, 1.8) -- (4.15, 1.8);
+% build -- the records as a table (slot | old | new); "old" is the live column
+\node[selbox, minimum width=27mm] (selB) at (1.95, 2.72) {selector:~$0$};
+\fill[live] (1.70, 0.6) rectangle (2.70, 1.8);
+\node[trow, fill=blue!14] (hdr)  at (0.60, 2.10) {\makebox[11mm][c]{\textit{slot}}\makebox[10mm][c]{\textit{old}\,(0)}\makebox[10mm][c]{\textit{new}\,(1)}};
+\node[trow, fill=blue!6]  (rec1) at (0.60, 1.50) {\makebox[11mm][c]{\code{P.next}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{N}}};
+\node[trow, fill=blue!6]  (rec2) at (0.60, 0.90) {\makebox[11mm][c]{\code{N.prev}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{P}}};
+\draw[thin, blue!45] (0.60, 0.6) rectangle (3.70, 2.4);
+\draw[thin, blue!45] (1.70, 0.6) -- (1.70, 2.4);
+\draw[thin, blue!45] (2.70, 0.6) -- (2.70, 2.4);
+\draw[thin, blue!45] (0.60, 1.8) -- (3.70, 1.8);
 \draw[pick] (rec1.west) to[out=180,in=180] (selB.west);
 \draw[pick] (rec2.west) to[out=180,in=180] (selB.south west);
 
-% install -- a copy of the list; its pointers redirected into the record rows
-\node[lnode] (iP) at (5.65, 1.50) {\code{P}};
-\node[lnode] (iN) at (5.65, 0.90) {\code{N}};
+% install -- the list's pointers redirected into the record rows
+\node[lnode] (iP) at (4.45, 1.50) {\code{P}};
+\node[lnode] (iN) at (4.45, 0.90) {\code{N}};
 \draw[ptr] (iP.west) -- (rec1.east) node[midway, above, font=\scriptsize] {\code{next}};
 \draw[ptr] (iN.west) -- (rec2.east) node[midway, above, font=\scriptsize] {\code{prev}};
 
-% commit -- the same selector, flipped (aligned above the commit phase)
-\node[selbox, minimum width=27mm] (selC) at (6.35, 2.72) {selector:~$0 \to 1$};
+% commit -- the same selector, flipped
+\node[selbox, minimum width=20mm] (selC) at (5.60, 2.72) {selector:~$0 \to 1$};
 
-% settle -- the pointers now hold their new values; E is bypassed (P <-> N)
-\node[lnode] (sP) at (7.70, 1.85) {\code{P}};
-\node[lnode] (sN) at (7.70, 0.65) {\code{N}};
+% after the commit -- the SAME records, still parked, now resolving "new"
+\node[selbox, minimum width=24mm] (selA) at (7.85, 2.72) {selector:~$1$};
+\fill[live] (8.40, 0.6) rectangle (9.40, 1.8);
+\node[trow, fill=blue!14] (ahdr)  at (6.30, 2.10) {\makebox[11mm][c]{\textit{slot}}\makebox[10mm][c]{\textit{old}\,(0)}\makebox[10mm][c]{\textit{new}\,(1)}};
+\node[trow, fill=blue!6]  (arec1) at (6.30, 1.50) {\makebox[11mm][c]{\code{P.next}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{N}}};
+\node[trow, fill=blue!6]  (arec2) at (6.30, 0.90) {\makebox[11mm][c]{\code{N.prev}}\makebox[10mm][c]{\code{E}}\makebox[10mm][c]{\code{P}}};
+\draw[thin, blue!45] (6.30, 0.6) rectangle (9.40, 2.4);
+\draw[thin, blue!45] (7.40, 0.6) -- (7.40, 2.4);
+\draw[thin, blue!45] (8.40, 0.6) -- (8.40, 2.4);
+\draw[thin, blue!45] (6.30, 1.8) -- (9.40, 1.8);
+
+% settle -- the slots rewritten to their new values; E is bypassed (P <-> N)
+\node[lnode] (sP) at (10.45, 1.85) {\code{P}};
+\node[lnode] (sN) at (10.45, 0.65) {\code{N}};
 \draw[ptr] (sP) to[bend left=40] node[right=1pt, font=\scriptsize] {\code{next}} (sN);
 \draw[ptr] (sN) to[bend left=40] node[left=1pt,  font=\scriptsize] {\code{prev}} (sP);
 
 % ---- reclaim tail: ordinary RCU, AFTER the transaction ---------------------
 % synchronize: E is unlinked, but its own links still point at N and P, so a
 % reader parked on E reads straight through -- drain it over the grace period
-\node[ghost] (dE) at (9.15, 1.55) {\code{E}};
+\node[ghost] (dE) at (11.55, 1.55) {\code{E}};
 \fill[black!70] ([yshift=1.3mm]dE.north) circle (1.7pt);
 \node[font=\scriptsize, above=2.2mm of dE, align=center] {parked\\reader};
-\node[font=\scriptsize, text=gray!60, below=0.5mm of dE, align=center]
-  {links \code{N},\,\code{P}\\untouched};
-% free: after the grace period, no reader on E -> reclaim E and the descriptors
-\node[ghost] (fE) at (10.95, 1.55) {\code{E}};
+% free: after the grace period, no reader on E -> reclaim E and the records
+\node[ghost] (fE) at (12.85, 1.55) {\code{E}};
 \draw[gray!55] (fE.north west) -- (fE.south east);
 \draw[gray!55] (fE.south west) -- (fE.north east);
-\node[font=\scriptsize, below=0.5mm of fE, align=center] {\code{free(E)}\\+ descriptors};
+\node[font=\scriptsize, below=0.5mm of fE, align=center] {\code{free(E)}\\+ records};
 \draw[-latex, thin, gray!55] (dE.east) -- (fE.west)
   node[midway, above, font=\scriptsize, text=gray!60] {drains};
 
-% ===== ROW 3 : updater -- the lifecycle, as phase spans; reclaim set off =====
-\draw[thin] (0.2, 0.35) -- (11.7, 0.35);
-\foreach \x in {0.2, 4.2, 5.7, 7.0, 8.35, 10.0, 11.7} { \draw[thin] (\x, 0.24) -- (\x, 0.46); }
-\node[phase] at (2.50, 0.03) {build};
-\node[phase] at (4.95, 0.03) {install};
-\node[phase] at (6.35, 0.03) {commit};
-\node[phase] at (7.68, 0.03) {settle};
-\node[phase] at (9.18, 0.03) {synchronize};
-\node[phase] at (10.85, 0.03) {free};
+% ===== the lifecycle ruler ==================================================
+\draw[thin] (0.2, 0.35) -- (13.55, 0.35);
+\foreach \x in {0.2, 4.1, 5.0, 6.2, 10.85, 12.20, 13.55} { \draw[thin] (\x, 0.24) -- (\x, 0.46); }
+\node[phase] at (2.15, 0.03) {build};
+\node[phase] at (4.35, 0.03) {install};
+\node[phase] at (5.60, 0.03) {commit};
+\node[phase] at (9.20, 0.03) {settle};
+\node[phase] at (11.50, 0.03) {synchronize};
+\node[phase] at (12.85, 0.03) {free};
 
 % the commit store, rising from the commit phase into the flipped selector
-\draw[-latex, very thick, orange!70!black] (6.35, 0.55) -- (selC.south);
-\node[left, font=\scriptsize, text=black] at (6.20, 2.05) {one store};
+\draw[-latex, very thick, orange!70!black] (5.60, 0.55) -- (selC.south);
+\node[left, font=\scriptsize, text=black] at (5.45, 2.05) {one store};
 
 % ---- legend for the record notation ---------------------------------------
-\node[anchor=west, align=left, font=\scriptsize, text=black!75] at (-1.9, -0.55)
-  {Each record is a row \{\textit{slot},\,\textit{old},\,\textit{new}\}; the shared selector picks the column\\
-   the readers see --- the \textit{old} value while it reads $0$, the \textit{new} value after the flip to $1$.};
+\node[anchor=west, align=left, font=\scriptsize, text=black!75] at (-2.0, -0.72)
+  {Each record is a row \{\textit{slot},\,\textit{old},\,\textit{new}\}; the shaded column is the one the readers see. The commit\\
+   moves the shading and nothing else --- the records, and the slots parked on them, are unchanged by it.};
 
 \end{tikzpicture}
 \caption{Removing \code{E} from
 \code{P}\,$\leftrightarrow$\,\code{E}\,$\leftrightarrow$\,\code{N} of a
 bidirectional list, leaving \code{P}\,$\leftrightarrow$\,\code{N}, through the
-flip-latch. The reader's row carries the list: it traverses
+\fliplatch. The reader's row carries the list: it traverses
 \code{P}\,$\leftrightarrow$\,\code{E}\,$\leftrightarrow$\,\code{N} before the
 commit and \code{P}\,$\leftrightarrow$\,\code{N} after --- in either direction,
-never a half-linked node. The second row is the updater's RCU pseudo-transaction:
-\emph{build} the descriptor (each moving edge bound to its
+never a half-linked node. The second row is the updater's \pseudotxn:
+\emph{build} the records (each moving edge bound to its
 \{\textit{old},\,\textit{new}\} values, here \textit{old}\,$=$\,\code{E} and
 \textit{new} the bypassing neighbour, all reading one shared selector),
 \emph{install} the list's pointers into those records, \emph{commit} the single
-store that flips the selector $0\!\to\!1$, and \emph{settle} the pointers to
-their new values (\code{P.next}\,$=$\,\code{N}, \code{N.prev}\,$=$\,\code{P}).
-Unlike insert, a node leaves the list. At the commit \code{E} is unlinked, but
-its own \code{next} and \code{prev} still point at \code{N} and \code{P}, so a
-reader already parked on \code{E} reads straight through them;
+store that flips the selector $0\!\to\!1$, and \emph{settle} the slots to their
+new values (\code{P.next}\,$=$\,\code{N}, \code{N.prev}\,$=$\,\code{P}). The
+table appears twice because the commit changes nothing but which column is live:
+between it and the settle the same records are still parked, now resolving
+\textit{new}. Unlike insert, a node leaves the list. At the commit \code{E} is
+unlinked, but its own \code{next} and \code{prev} still point at \code{N} and
+\code{P}, so a reader already parked on \code{E} reads straight through them;
 \code{synchronize\_rcu} waits out the grace period until that reader drains, and
-only then is \code{free(E)} --- together with the transaction's descriptor
-records --- safe. This drain-and-free is ordinary RCU, after the transaction,
+only then is \code{free(E)} --- together with the transaction's records ---
+safe. This drain-and-free is ordinary \rcu, after the transaction,
 not part of it (cf.\ \cref{fig:fliplatch}).}
 \label{fig:listremove}
 \end{figure}
