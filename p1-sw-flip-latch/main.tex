@@ -1795,6 +1795,18 @@ on the ordinary accessors, before the first record is staged, and only the
 neighbour links the edits touch are read transactionally. No shape of update is ruled out by this. The
 choice is which accessor the search uses, and it is the caller's to make.
 
+Why a search at all, rather than reading the answer out of the slot? Because
+until the commit there is nothing in the slot to read. Records are staged into
+the handle's array and \emph{no proxy is installed} until the commit parks them
+(\cref{sec:lifecycle}), so a slot this \pseudotxn has already recorded still
+holds its committed value, and the write set is the only place the pending edit
+exists. Installing eagerly --- parking each slot as its record is added --- would
+let the writer resolve its own pending state through the proxy and retire the
+search altogether. It would also cost what \cref{sec:tagnotptr} buys: a parked
+slot names a record's \emph{address}, so the record array could no longer grow
+by moving, and a write set whose width is not known in advance would need stable
+per-record allocation instead (\cref{sec:varproxy}).
+
 \emph{Walking transactionally costs a find per step, and the find is cheap.}
 Every transactional load asks the same question the recording store asks ---
 \emph{is this slot already pending?} --- and the phrasing invites a picture of
