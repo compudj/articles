@@ -1315,12 +1315,13 @@ what the writer does, and the writer is finished at settle.
 
 The claim that only one of these four steps is observable is easy to assert and
 worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
-the lifecycle, alongside what a concurrent reader resolving $s$ actually
-obtains.
+the lifecycle --- and through the states either side of it, so six rows for four
+steps --- alongside what a concurrent reader resolving $s$ actually obtains.
 
 \begin{table}[tb]
 \centering
-\caption{One transacted slot $s$ through the lifecycle. The reader's column
+\caption{One transacted slot $s$ through the lifecycle, bracketed by the state
+before it begins and the state after it ends. The reader's column
 changes exactly once. Install and settle both rewrite $s$ --- they are stores to
 a word readers are concurrently loading --- yet neither changes what resolving
 $s$ yields, which is why the commit is the only linearization point.}
