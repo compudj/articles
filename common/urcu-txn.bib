@@ -1968,3 +1968,39 @@
                   \code{read\_seqbegin\_or\_lock()} and \code{need\_seqretry()},
                   restarting the walk when a rename intervened}
 }
+
+% Cited in P1 Sec. 6.4 as a programmer-facing dial over the read SET -- the axis
+% an STM does expose -- as against this facility's dial over whether a read is
+% instrumented at all. Verified 2026-09-12 from the EPFL DCL transactions wiki
+% (authors, title, venue, year) and the Springer chapter DOI. Page range not
+% verified and so not claimed.
+@inproceedings{felber2009elastic,
+  author       = {Pascal Felber and Vincent Gramoli and Rachid Guerraoui},
+  title        = {Elastic Transactions},
+  booktitle    = {Distributed Computing, 23rd International Symposium
+                  ({DISC} 2009)},
+  series       = {Lecture Notes in Computer Science},
+  publisher    = {Springer},
+  year         = {2009},
+  doi          = {10.1007/978-3-642-04355-0_12},
+  note         = {$\varepsilon$-STM gives the programmer elastic and normal
+                  transaction modes; an elastic transaction may drop what it has
+                  read and resume in a fresh one}
+}
+
+% Cited in P1 Sec. 6.4 for the OTHER direction the STM literature attacks read
+% instrumentation: the compiler elides barriers it can prove unnecessary, rather
+% than the programmer choosing. Verified 2026-09-12 against the paper itself
+% (EPFL Infoscience copy): title page gives the three authors and affiliations,
+% and the copyright block gives "SPAA'09, August 11-13, 2009, Calgary, Alberta,
+% Canada". The 60%/90%/45% barrier figures quoted in Sec. 6.4 are the paper's.
+@inproceedings{dragojevic2009captured,
+  author       = {Aleksandar Dragojevi\'{c} and Yang Ni and
+                  Ali-Reza Adl-Tabatabai},
+  title        = {Optimizing Transactions for Captured Memory},
+  booktitle    = {Proceedings of the {ACM} Symposium on Parallelism in
+                  Algorithms and Architectures ({SPAA} 2009)},
+  publisher    = {{ACM}},
+  address      = {Calgary, Alberta, Canada},
+  year         = {2009}
+}

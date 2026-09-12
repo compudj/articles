@@ -1,4 +1,4 @@
-\begin{thebibliography}{50}
+\begin{thebibliography}{52}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -96,12 +96,30 @@ Dave Dice, Ori Shalev, and Nir Shavit.
 \newblock In \emph{Proc.\ 20th International Symposium on Distributed Computing
   (DISC)}, pages 194--208, 2006.
 
+\bibitem[Dragojevi\'{c} et~al.(2009)Dragojevi\'{c}, Ni, and
+  Adl-Tabatabai]{dragojevic2009captured}
+Aleksandar Dragojevi\'{c}, Yang Ni, and Ali-Reza Adl-Tabatabai.
+\newblock Optimizing transactions for captured memory.
+\newblock In \emph{Proceedings of the {ACM} Symposium on Parallelism in
+  Algorithms and Architectures ({SPAA} 2009)}, Calgary, Alberta, Canada, 2009.
+  {ACM}.
+
 \bibitem[Dus\'{\i}kov\'{a}(2026)]{wg21p3125}
 Hana Dus\'{\i}kov\'{a}.
 \newblock constexpr pointer tagging.
 \newblock ISO/IEC JTC1/SC22/WG21 P3125R5, 2026.
 \newblock URL
   \url{https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2026/p3125r5.html}.
+
+\bibitem[Felber et~al.(2009)Felber, Gramoli, and Guerraoui]{felber2009elastic}
+Pascal Felber, Vincent Gramoli, and Rachid Guerraoui.
+\newblock Elastic transactions.
+\newblock In \emph{Distributed Computing, 23rd International Symposium ({DISC}
+  2009)}, Lecture Notes in Computer Science. Springer, 2009.
+\newblock \doi{10.1007/978-3-642-04355-0_12}.
+\newblock $\varepsilon$-STM gives the programmer elastic and normal transaction
+  modes; an elastic transaction may drop what it has read and resume in a fresh
+  one.
 
 \bibitem[Feldman et~al.(2015)Feldman, LaBorde, and
   Dechev]{feldman2015waitfreemcas}

@@ -1883,12 +1883,19 @@ merely observed.
 the difference is the bargain of this paper in miniature. Its read barrier sits
 on \emph{every} read, so a search inside a
 transaction is reconciled whether or not the caller gave it a thought --- and
-every read pays, whether or not it needed to. Where an STM does give the
-programmer a dial, it is over what stays in the read \emph{set} rather than over
-whether a read is instrumented at all: \citet{herlihy2003dstm}'s \emph{early
-release} lets a transaction discard an object it has already read, which reduces
-what a conflict can invalidate but not what the read cost. Here reconciliation
-follows the accessor. A writer that must walk its own pending state loads transactionally
+every read pays, whether or not it needed to. That cost is well known, and the
+literature attacks it from two directions, neither of them this one. The
+programmer-facing dials we are aware of are over what stays in the read
+\emph{set}: \citet{herlihy2003dstm}'s \emph{early release} discards an object
+already read, and \citet{felber2009elastic}'s elastic transactions let a caller
+run a transaction in a mode that may drop what it has read and resume in a fresh
+one. Both reduce what a conflict can invalidate; neither reduces what a read
+cost. Where the instrumentation itself is reduced, it is the compiler that
+reduces it, and it does not ask ---
+\citet{dragojevic2009captured} find most of the barriers a baseline compiler
+emits to be on memory captured by the transaction, and elide them by analysis.
+Here reconciliation follows the accessor instead, and the choice is the
+writer's. A writer that must walk its own pending state loads transactionally
 and pays the find; one that need not, or that knows its slots are disjoint, pays
 nothing; and a \emph{reader} is not in the scheme at all, since its traversal is
 uninstrumented plain \rcu, indistinguishable from a read outside any
