@@ -1481,8 +1481,10 @@ Those slots have different free bits, so \emph{one transaction needs two tags at
 once}. A per-translation-unit macro cannot express that; the tag has to travel
 with the record.
 
-So each record carries its own \code{proxy\_tag}, supplied when the record is
-added, and heterogeneous slots share one facility, each resolved through its own
+So each record --- one \record{s}{o}{n} triple naming one slot
+(\cref{def:record}) --- carries its own \code{proxy\_tag}, supplied by the
+writer at the moment it adds that record to the \pseudotxn it is staging.
+Heterogeneous slots therefore share one facility, each resolved through its own
 tag.
 
 Three things must be kept apart here: the tag's \emph{meaning}, the slot, and the
