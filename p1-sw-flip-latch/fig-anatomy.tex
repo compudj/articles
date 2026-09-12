@@ -26,7 +26,7 @@
                   minimum height=6mm},
   rec/.style   = {draw, minimum height=7mm, fill=green!8, inner xsep=3mm},
   arr/.style   = {-latex, thin},
-  dep/.style   = {-latex, thin, densely dotted, gray!70!black},
+  dep/.style   = {-latex, thin, densely dotted, black!65},
   cal/.style   = {font=\footnotesize\itshape, align=center, text=black!75},
 ]
 
@@ -56,7 +56,7 @@
 \node[tgt, fill=green!12] (F) at (9.8, -1.16) {$F$};
 % Selector values label the TARGETS, not the arrows: on the path they are
 % crossed by their own line (the same fix fig:fliplatch records).
-\draw[arr, gray!70!black] (px.east) -- (E.west);
+\draw[arr, black!65] (px.east) -- (E.west);
 \draw[arr, thick]         (px.east) -- (F.west);
 \node[cal, anchor=west] at ($(E.east)+(0.2,0)$) {old target\\ (\code{sel}=0)};
 \node[cal, anchor=west] at ($(F.east)+(0.2,0)$) {new target\\ (\code{sel}=1)};

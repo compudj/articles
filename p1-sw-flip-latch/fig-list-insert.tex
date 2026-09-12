@@ -25,10 +25,10 @@
   phase/.style   = {font=\footnotesize\itshape, text=black!70},
   biarr/.style   = {latex-latex, semithick},
   arr/.style     = {-latex, thin},
-  dep/.style     = {-latex, thin, densely dotted, gray!70!black},
+  dep/.style     = {-latex, thin, densely dotted, black!65},
   selbox/.style  = {draw, very thick, minimum width=33mm, minimum height=5mm, fill=orange!18, inner xsep=3pt, font=\footnotesize},
   trow/.style    = {anchor=west, inner sep=0pt, minimum height=6mm, font=\footnotesize},
-  pick/.style    = {-latex, thin, gray!55},
+  pick/.style    = {-latex, thin, black!55},
   ptr/.style     = {-latex, semithick},
 ]
 
@@ -37,10 +37,10 @@
 \node[colhead] at (9.5, 6.35) {after commit};
 
 % ---- neutral before | after boundary through the reader row ----------------
-\draw[thin, gray!45, densely dashed] (7.3, 6.1) -- (7.3, 3.15);
+\draw[thin, black!45, densely dashed] (7.3, 6.1) -- (7.3, 3.15);
 
 % ---- separators & row labels ----------------------------------------------
-\draw[thin, gray!45] (-1.9, 3.05) -- (11.9, 3.05);
+\draw[thin, black!45] (-1.9, 3.05) -- (11.9, 3.05);
 \node[rowlab] at (-0.95, 4.70) {Reader\\(bidirectional)};
 \node[rowlab] at (-0.95, 1.35) {Updater\\(RCU pseudo-\\transaction)};
 

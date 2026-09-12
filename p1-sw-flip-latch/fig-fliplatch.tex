@@ -18,7 +18,7 @@
   new/.style    = {target, fill=green!12},
   sel/.style    = {draw, very thick, minimum width=17mm, minimum height=8mm, fill=orange!18},
   arr/.style    = {-latex, thin},
-  dep/.style    = {-latex, thin, densely dotted, gray!70!black},
+  dep/.style    = {-latex, thin, densely dotted, black!65},
 ]
 
 % ---- slots (the words the reader loads) -------------------------------------
@@ -52,7 +52,7 @@
 \node[old] (o1) at (11.3,  2.45) {$o_1$};
 \node[old] (o2) at (11.3,  1.75) {$o_2$};
 \node[old] (o3) at (11.3,  1.05) {$o_3$};
-\node[draw, densely dashed, gray!60, inner sep=2.2mm, fit=(o1)(o2)(o3)] (oldset) {};
+\node[draw, densely dashed, black!55, inner sep=2.2mm, fit=(o1)(o2)(o3)] (oldset) {};
 
 \node[new] (n1) at (11.3, -1.05) {$n_1$};
 \node[new] (n2) at (11.3, -1.75) {$n_2$};
@@ -63,7 +63,7 @@
 % crossed by its own line; beside the path it collides with the "flip group"
 % caption. On the group it is unambiguous (the arrow points at the group the
 % condition selects) and it cannot collide with anything.
-\draw[arr, gray!70!black] (sel.east) -- (oldset.west);
+\draw[arr, black!65] (sel.east) -- (oldset.west);
 \draw[arr, thick]         (sel.east) -- (newset.west);
 \node[font=\scriptsize, anchor=south] at (oldset.north) {\code{sel}=0};
 \node[font=\scriptsize, anchor=south] at (newset.north) {\code{sel}=1};

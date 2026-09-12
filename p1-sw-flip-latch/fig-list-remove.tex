@@ -20,15 +20,15 @@
 \begin{tikzpicture}[
   font=\small,
   lnode/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8},
-  ghost/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8, dashed, text=gray!55, draw=gray!55},
+  ghost/.style   = {draw, rounded corners=2pt, minimum width=8mm, minimum height=5.5mm, fill=gray!8, dashed, text=black!55, draw=black!55},
   rowlab/.style  = {align=center, font=\footnotesize\itshape, text=black!75},
   colhead/.style = {align=center, font=\footnotesize\itshape},
   phase/.style   = {font=\footnotesize\itshape, text=black!70},
   biarr/.style   = {latex-latex, semithick},
-  gedge/.style   = {latex-latex, thin, densely dashed, gray!55},
+  gedge/.style   = {latex-latex, thin, densely dashed, black!55},
   selbox/.style  = {draw, very thick, minimum height=5.5mm, fill=orange!18, inner xsep=3pt, font=\footnotesize},
   trow/.style    = {anchor=west, inner sep=0pt, minimum height=5mm, font=\footnotesize},
-  pick/.style    = {-latex, thin, gray!70!black, densely dotted},
+  pick/.style    = {-latex, thin, black!65, densely dotted},
   slotv/.style   = {font=\scriptsize, anchor=west, text=black!85},
 ]
 
@@ -36,8 +36,8 @@
 \node[colhead] at (1.70, 6.75) {before commit};
 \node[colhead] at (7.60, 6.75) {after commit};
 \node[colhead] at (11.05, 6.75) {after synchronize};
-\draw[thin, gray!45, densely dashed] (5.45, 6.5) -- (5.45, 3.85);
-\draw[thin, gray!45, densely dashed] (9.80, 6.5) -- (9.80, 3.85);
+\draw[thin, black!45, densely dashed] (5.45, 6.5) -- (5.45, 3.85);
+\draw[thin, black!45, densely dashed] (9.80, 6.5) -- (9.80, 3.85);
 \node[rowlab] at (-1.25, 5.30) {Reader\\(bidirectional)};
 
 \node[lnode] (r1P) at (1.70, 6.3) {\code{P}};
@@ -53,13 +53,13 @@
 \draw[gedge] (r2E) -- (r2N);
 \draw[biarr] (r2P.east) to[out=0, in=0] (r2N.east);
 \node[left=1.5mm of r2E, font=\scriptsize, align=right]
-  {\textcolor{gray!55}{bypassed;}\\ \textcolor{black!75}{a reader may}\\ \textcolor{black!75}{still be here}};
+  {\textcolor{black!55}{bypassed;}\\ \textcolor{black!75}{a reader may}\\ \textcolor{black!75}{still be here}};
 
 \node[lnode] (r3P) at (11.05, 6.3) {\code{P}};
 \node[lnode] (r3N) at (11.05, 4.3) {\code{N}};
 \draw[biarr] (r3P) -- (r3N);
 
-\draw[thin, gray!45] (-2.1, 3.80) -- (12.6, 3.80);
+\draw[thin, black!45] (-2.1, 3.80) -- (12.6, 3.80);
 
 % ===== BAND 2 : the records -- ONE set, for the whole transaction ============
 \node[rowlab] at (-1.25, 2.65) {Records\\(one set,\\build to free)};
@@ -91,9 +91,9 @@
 % bracket: these records exist for every phase below
 % This bar belongs to the RECORDS above it: ticks up, spanning every phase,
 % because the record set outlives all of them.
-\draw[thin, gray!55] (0.2, 1.86) -- (12.4, 1.86);
-\draw[thin, gray!55] (0.2, 1.86) -- (0.2, 1.94);
-\draw[thin, gray!55] (12.4, 1.86) -- (12.4, 1.94);
+\draw[thin, black!55] (0.2, 1.86) -- (12.4, 1.86);
+\draw[thin, black!55] (0.2, 1.86) -- (0.2, 1.94);
+\draw[thin, black!55] (12.4, 1.86) -- (12.4, 1.94);
 
 % ===== BAND 3 : what each slot holds, phase by phase =========================
 \node[rowlab] at (-1.25, 0.95) {Slots\\(what each\\one holds)};
@@ -108,9 +108,9 @@
 % This bar belongs to the SLOTS below it: ticks down, spanning install to
 % settle, because that is exactly how long a slot stays parked -- the commit
 % happens inside the span and does not end it.
-\draw[thin, gray!55] (2.9, 1.42) -- (9.5, 1.42);
-\draw[thin, gray!55] (2.9, 1.42) -- (2.9, 1.34);
-\draw[thin, gray!55] (9.5, 1.42) -- (9.5, 1.34);
+\draw[thin, black!55] (2.9, 1.42) -- (9.5, 1.42);
+\draw[thin, black!55] (2.9, 1.42) -- (2.9, 1.34);
+\draw[thin, black!55] (9.5, 1.42) -- (9.5, 1.34);
 % Label set off-centre: the span's midpoint is where the commit arrow rises.
 \node[font=\scriptsize, text=black!70, anchor=south, inner sep=1pt] at (4.40, 1.43)
   {\textit{parked}};
@@ -157,7 +157,7 @@ disturb --- and its new direct value once \emph{settled}. The commit is a single
 store into the selector, and it is the only arrow here that reaches from a phase
 into the records. Unlike insert, a node leaves the list. At the commit \code{E}
 is unlinked, but its own \code{next} and \code{prev} still point at \code{N} and
-\code{P}, so a reader already parked on \code{E} reads straight through them;
+\code{P}, so a reader already standing on \code{E} reads straight through them;
 \code{synchronize\_rcu} waits out the grace period until that reader drains, and
 only then is \code{free(E)} --- together with the records --- safe. This
 drain-and-free is ordinary \rcu, after the transaction, not part of it
