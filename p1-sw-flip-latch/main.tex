@@ -658,7 +658,10 @@ both structures does not close that window: it excludes other \emph{writers},
 and the observer here is a reader, which takes no lock and sees the two
 publications as two events however the writers were serialized. The unit of cross-structure atomicity is exactly
 one \pseudotxn: two commits are two linearization points, the same as two
-unrelated \rcu structures.
+unrelated \rcu structures. This property is also what the facility pays for
+downstream: structures that may be spanned together need not share a pointer
+encoding, so the proxy marker cannot be a constant chosen once
+(\cref{sec:pertag}).
 \end{property}
 
 \paragraph{Worked example.} Consider a cache with two access paths: entries are
