@@ -159,15 +159,16 @@ marks them, and the exclusion between writers are all the embedder's
 \item \textbf{Measurements on the reader axis} (\cref{sec:measured}), scaling to
       192 cores: on the same traversal and a byte-identical element, the
       transacted list's reader adds one predicted branch per node and no load.
-      On a list walked in allocation order, which the prefetcher keeps in L1,
-      that branch costs up to 13.5\%; once hops miss L1 it costs nothing
-      measurable, and a control that adds only that branch to plain \rcu{}
-      matches the facility in both cases. The facility also delivers the
+      On a list whose nodes are scattered in memory, as a list allocated over
+      time is, that branch costs nothing measurable at any reader count; only
+      on a list walked in allocation order, which the prefetcher keeps in L1,
+      does it cost up to 13.5\%. A control that adds only that branch to plain
+      \rcu{} matches the facility in both cases. The facility also delivers the
       reverse walk plain \rcu cannot offer under mutation at all.
       Against the schemes that \emph{do} offer it, and which give readers
-      strictly more, the reader pays 15--16\% for existence structures and
-      15--36\% for RLU on a list walked in allocation order, and 7\% and
-      9--10\% once hops miss L1. A single writer with readers running pays about twice, and a profile
+      strictly more, the reader pays 7\% for existence structures and 9--10\%
+      for RLU on scattered nodes, and 15--16\% and 15--36\% on a list walked
+      in allocation order. A single writer with readers running pays about twice, and a profile
       says where that goes --- 3.4\% of cycles in the commit, the rest in
       allocation and grace-period reclaim.
 
@@ -1151,10 +1152,10 @@ bought. A reader who needs a snapshot cannot take this facility and economize --
 they need a different facility.
 
 What can be said across that boundary is what the stronger guarantee costs the
-\emph{reader}, and \cref{fig:readclass} says it: 15--36\% against RLU, and
-15--16\% against existence, whose per-element guarantee is likewise stronger
-than ours, on a list walked in allocation order; 9--10\% and 7\% on one whose
-hops miss L1. Those figures are sound in the only direction that matters here,
+\emph{reader}, and \cref{fig:readclass} says it: 9--10\% against RLU, and
+7\% against existence, whose per-element guarantee is likewise stronger than
+ours, on a list whose nodes are scattered in memory; 15--36\% and 15--16\% on
+one walked in allocation order. Those figures are sound in the only direction that matters here,
 because they run in our favor and against the grain of the trade --- the other
 schemes charge the reader more \emph{and} deliver more, so the gap is a price,
 not a defect. What would not be sound is ranking write throughput across the
@@ -1992,21 +1993,19 @@ only after a grace period.
 % list's forward+backward walk against rculist's forward+forward and showed the
 % facility ~8% AHEAD of plain RCU, which was an artifact of the access pattern.
 %
-% fig:readcost is from scripts/p1_resolve_control_noguard.csv in the benchmark
-% tree (bench ec54f21, scripts/run_p1_resolve_control.sh with TAG=_noguard,
-% engine b3e23f9f, packed 24-byte nodes): five 3 s runs per arm, arm order
-% rotated per run, each point the median over runs of the ratio to rculist in
-% the same run. Per-node instruction/branch/load counts are from
-% scripts/p1_resolve_deref_noguard.csv. The earlier parity figure (1.006-1.029)
-% came from a loop whose runaway step guard read its limit from memory; that
-% guard alone moved the tag test's cost between 0% and ~7% (bench 56bdca4), so
-% it was removed and must not come back.
-%
-% tab:stall is from scripts/p1_stall.csv (bench 44cd638,
-% scripts/run_p1_stall.sh, same binary configuration plus BENCH_SHUFFLE): one
-% reader, five rotated runs, rows seq10k and shuf10k. The L3/DRAM sentence is
-% the shuf1m/shuf4m rows of the same file. The walk-order 13.5% is a property of
-% a list the prefetcher keeps in L1; do not quote it without the layout.
+% fig:readcost (a) is from scripts/p1_resolve_control_shuffled.csv (bench
+% ac0b138, scripts/run_p1_resolve_control.sh with BENCH_SHUFFLE=1
+% TAG=_shuffled); (b) is from scripts/p1_resolve_control_noguard.csv (bench
+% ec54f21, TAG=_noguard). Both: engine b3e23f9f, packed 24-byte nodes, five 3 s
+% runs per arm, arm order rotated per run, each point the median over runs of
+% the ratio to rculist in the same run. Per-node instruction/branch/load counts
+% are from scripts/p1_resolve_deref_noguard.csv. The ns/hop figures and the
+% L3/DRAM sentence are from scripts/p1_stall.csv (bench 44cd638, one reader).
+% The earlier parity figure (1.006-1.029) came from a loop whose runaway step
+% guard read its limit from memory; that guard alone moved the tag test's cost
+% between 0% and ~7% (bench 56bdca4), so it was removed and must not come back.
+% The walk-order 13.5% is a property of a list the prefetcher keeps in L1; do
+% not quote it without the layout.
 %
 % fig:readclass is from scripts/p1_readclass.csv (bench 06f998a,
 % scripts/run_p1_readclass.sh): the same guard-free harness, existence/RLU/
@@ -2039,8 +2038,8 @@ one-writer sweep therefore stops at 191 readers. Userspace \rcu's
 QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
 per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
 figure is the mean of two three-second runs of the \code{bench\_list\_scale}
-harness, except \cref{fig:readcost}, \cref{tab:stall} and \cref{fig:readclass},
-which are medians over five. The
+harness, except \cref{fig:readcost} and \cref{fig:readclass}, which are medians over
+five. The
 harness checks reader-visible coherence on every traversal it
 performs, in both directions; it reported no violation in any run reported here.
 
@@ -2062,67 +2061,93 @@ forward and backward, which is the operation they share.
 
 \paragraph{Reads pay no extra load for the \pseudotxn layer.} \Cref{fig:readcost}
 gives the read ceiling with no writer running, as a ratio to \code{rculist} at
-each reader count, every arm walking forward twice. The loop is deliberately
-bare, and so is the layout: each step loads the next pointer and the key, checks
-that keys ascend, and does nothing else, and the nodes sit in memory in the order
-the walk visits them. Whatever the facility adds per step shows at its largest.
-Beside the two engines are three controls, each \code{rculist} with exactly one
-kind of work added per step: a load of a word the walk does not otherwise read
-(\emph{+load}); the facility's own tag test on the pointer just loaded, never
-true on a list that holds no proxies (\emph{+tag test}); and a load of a word of
-the element's own followed by a test of that word (\emph{+load +test}), the
-shape of a scheme that marks each element in state of its own.
+each reader count, every arm walking forward twice over the same 10\,000 nodes
+in two layouts. In (a) the nodes sit at random positions in memory, list order
+and keys unchanged, as the nodes of a list allocated over time do, so every hop
+misses L1 and waits on L2, about 3.8\,ns. In (b) they sit in the order the walk
+visits them, so the prefetcher has each next node in L1 before the walk reaches
+it and a hop costs about 1.1\,ns, close to the L1 load-to-use latency of the
+pointer chase itself; that is the layout in which whatever the facility adds per
+step shows at its largest. The loop is deliberately bare in both: each step
+loads the next pointer and the key, checks that keys ascend, and does nothing
+else. Beside the two engines are three controls, each \code{rculist} with
+exactly one kind of work added per step: a load of a word the walk does not
+otherwise read (\emph{+load}); the facility's own tag test on the pointer just
+loaded, never true on a list that holds no proxies (\emph{+tag test}); and a
+load of a word of the element's own followed by a test of that word
+(\emph{+load +test}), the shape of a scheme that marks each element in state of
+its own.
 
 % NOT a float, deliberately. As a [tb] float this was placed at the top of the
 % page the section starts on -- above the section heading, reading as belonging
 % to sec:reclaim -- and \FloatBarrier did not hold it there. It is small, and it
 % belongs beside the sentence that introduces it, so it is anchored.
 % \captionof (caption, via subcaption) numbers it as a figure.
-% A ratio axis, deliberately: each arm adds a per-step constant, and the ratio
-% shows it flat across the sweep. The absolute curves all rise linearly to
-% ~170k visits/s and a 7% gap between two of them is hard to see at that scale.
+% A ratio axis, deliberately, and the SAME y range in both panels: each arm adds
+% a per-step constant, the ratio shows it flat across the sweep, and a shared
+% scale lets (a) be read against (b) at a glance.
 \par\medskip\noindent\begin{minipage}{\linewidth}
 \centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.92\linewidth, height=5.2cm,
-  xlabel={Readers}, ylabel={Read ceiling / \code{rculist}},
-  xmin=0, xmax=196, ymin=0.76, ymax=1.02,
-  xtick={0,32,64,96,128,160,192},
-  ytick={0.8,0.85,0.9,0.95,1.0},
+\pgfplotsset{readcost/.style={
+  width=0.95\linewidth, height=5.4cm,
+  xlabel={Readers}, xmin=0, xmax=196, ymin=0.76, ymax=1.02,
+  xtick={0,64,128,192}, ytick={0.8,0.85,0.9,0.95,1.0},
   yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
-  legend style={draw=none, fill=none, font=\footnotesize,
-                at={(0.5,-0.3)}, anchor=north},
-  legend columns=3, legend cell align=left,
   tick label style={font=\footnotesize},
   label style={font=\footnotesize},
+  title style={font=\footnotesize},
   grid=major, grid style={gray!20},
   axis lines=left,
-]
+}}
+\begin{minipage}[t]{0.49\linewidth}
+\begin{tikzpicture}
+\begin{axis}[readcost, title={(a) Scattered nodes (L2 hops)},
+  ylabel={Read ceiling / \code{rculist}},
+  legend style={draw=none, fill=white, fill opacity=0.8, text opacity=1,
+                font=\footnotesize, at={(0.97,0.04)}, anchor=south east},
+  legend cell align=left]
 \addplot[thick, color=black!55, dashed, domain=0:196, samples=2] {1};
 \addlegendentry{\code{rculist}}
-\addplot[mark=triangle, mark size=2pt, thick, color=black!55]
-  table[x=readers, y=load, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=triangle, mark size=1.6pt, thick, color=black!55]
+  table[x=readers, y=load, col sep=comma] {data/fig-readcost-shuffled.csv};
 \addlegendentry{+load}
-\addplot[mark=o, mark size=1.5pt, thick, color=black!55]
-  table[x=readers, y=resolve, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=o, mark size=1.2pt, thick, color=black!55]
+  table[x=readers, y=resolve, col sep=comma] {data/fig-readcost-shuffled.csv};
 \addlegendentry{+tag test}
-\addplot[mark=*, mark size=1.5pt, thick, color=blue!65!black]
-  table[x=readers, y=txn, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=*, mark size=1.2pt, thick, color=blue!65!black]
+  table[x=readers, y=txn, col sep=comma] {data/fig-readcost-shuffled.csv};
 \addlegendentry{\code{txn\_sw\_list}}
-\addplot[mark=diamond, mark size=2pt, thick, color=black!55]
-  table[x=readers, y=loadbr, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=diamond, mark size=1.6pt, thick, color=black!55]
+  table[x=readers, y=loadbr, col sep=comma] {data/fig-readcost-shuffled.csv};
 \addlegendentry{+load +test}
 \end{axis}
 \end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\linewidth}
+\begin{tikzpicture}
+\begin{axis}[readcost, title={(b) Walk order (L1 hops)}]
+\addplot[thick, color=black!55, dashed, domain=0:196, samples=2] {1};
+\addplot[mark=triangle, mark size=1.6pt, thick, color=black!55]
+  table[x=readers, y=load, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=o, mark size=1.2pt, thick, color=black!55]
+  table[x=readers, y=resolve, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=*, mark size=1.2pt, thick, color=blue!65!black]
+  table[x=readers, y=txn, col sep=comma] {data/fig-readcost.csv};
+\addplot[mark=diamond, mark size=1.6pt, thick, color=black!55]
+  table[x=readers, y=loadbr, col sep=comma] {data/fig-readcost.csv};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}
 \captionof{figure}{Read ceiling relative to \code{rculist}, no writer running,
-every arm walking forward twice over byte-identical 24-byte elements. The gray
-curves are \code{rculist} with one kind of per-step work added. Hardware counters
-confirm that each adds exactly what it names, and that \code{txn\_sw\_list}
-executes the same instructions, branches and loads per node as \emph{+tag test}.
-Every curve is flat in the reader count, so each gap is a per-step constant
-rather than a scaling effect. Each point is the median over five runs of the
-ratio to \code{rculist} measured in the same run.}
+every arm walking forward twice over byte-identical 24-byte elements, in two
+layouts of the same 10\,000 nodes: (a) at random positions in memory, list order
+and keys unchanged; (b) in the order the walk visits them. The gray curves are
+\code{rculist} with one kind of per-step work added. Hardware counters confirm
+that each adds exactly what it names, and that \code{txn\_sw\_list} executes the
+same instructions, branches and loads per node as \emph{+tag test}. Every curve
+is flat in the reader count, so each gap is a per-step constant rather than a
+scaling effect. Each point is the median over five runs of the ratio to
+\code{rculist} measured in the same run.}
 \label{fig:readcost}
 \end{minipage}\par\medskip
 
@@ -2130,62 +2155,35 @@ Per node, \code{rculist} executes eight instructions, two of them branches and
 two of them loads. The transacted list executes ten: the same eight, plus one
 test and one branch, and no load. That is \cref{tab:comparison}'s row counted
 rather than read off the source --- zero added loads, one added branch --- and
-the \emph{+tag test} control shows that this branch is the whole of the
-facility's read-side cost. The control, which adds that branch and nothing else
-to plain \rcu, reads 11.5\% below \code{rculist} at every reader count; the
-transacted list reads 13.5\% below. The two execute identical instruction
-streams, so the 2\% between them is not mechanism. All five arms scale linearly
-across the 192 cores, each gaining a factor of 188.6 to 188.9 from one reader to
-192, or 98.2--98.4\% of ideal.
+the \emph{+tag test} control, whose instruction stream is identical, shows that
+this branch is the whole of the facility's read-side cost.
 
-That cost belongs to the layout, not to the facility. The list in
-\cref{fig:readcost} sits in memory in the order the walk visits it, so the
-prefetcher has each next node in L1 before the walk reaches it, and a hop costs
-about 1.1\,ns, close to the L1 load-to-use latency of the pointer chase itself.
-\Cref{tab:stall} moves the same 10\,000 nodes to random positions in memory,
-leaving list order and keys unchanged, so that every hop misses L1 and waits on
-L2, about 3.8\,ns. The tag test's cost disappears: the control reads 1.002 of
-\code{rculist} and the transacted list 1.003, each within 0.6\% of it in every
-run. A branch that is predicted, and that nothing waits on, costs issue slots
-rather than latency, and a hop that stalls leaves those slots idle. Shuffled
-lists of one and four million nodes, whose hops reach L3 and DRAM, are
-consistent with this: no arm is distinguishable from \code{rculist} within run-to-run noise, up
-to 12\% at L3 and 4\% at DRAM. A list whose nodes were allocated over time, or
-that does not fit in L1, stalls on every hop. Only a list walked in allocation
-order and small enough for the prefetcher to keep in L1 shows the tag test at
-all.
+On scattered nodes that branch costs nothing measurable. The control and the
+transacted list read 1.002 to 1.004 of \code{rculist} at every reader count from
+1 to 192, and match each other to within 0.05\%. A branch that is predicted, and
+that nothing waits on, costs issue slots rather than latency, and a hop that
+stalls on L2 leaves those slots idle. We do not claim the 0.2\% on the positive
+side; the facility does strictly more work than plain \rcu. Scattered lists of
+one and four million nodes, whose hops reach L3 and DRAM, are consistent with
+this: at one reader no arm is distinguishable from \code{rculist} within
+run-to-run noise, up to 12\% at L3 and 4\% at DRAM. Every arm scales at
+97.3--98.4\% of ideal from one reader to 192, in both layouts.
 
-% Anchored, for the same reason as fig:readcost above. Only the two clean
-% layouts are tabulated: the 1M-node layout varies +-12% from process to
-% process whatever the arm, and the 4M-node rates are printed to 0.1 Mvisits/s
-% (~1.2% at 8.6); both are summarized in the text instead.
-\par\medskip\noindent\begin{minipage}{\linewidth}
-\centering
-\small
-\begin{tabular}{@{}l r c c c c@{}}
-\toprule
-Layout & ns/hop & +load & +tag test & \code{txn\_sw\_list} & +load +test \\
-\midrule
-Walk order (L1 hops) & 1.1 & 0.931 & 0.884 & 0.864 & 0.799 \\
-Shuffled (L2 hops)   & 3.8 & 0.961 & 1.002 & 1.003 & 0.981 \\
-\bottomrule
-\end{tabular}
-\captionof{table}{Read rate relative to \code{rculist}, one reader, no writer,
-over the same 10\,000 nodes in two layouts: in the order the walk visits them,
-and at random positions in memory with list order and keys unchanged. Each cell
-is the median over five runs of the ratio measured within a run; ns/hop is
-\code{rculist}'s.}
-\label{tab:stall}
-\end{minipage}\par\medskip
+Only in walk order, where each hop hits L1, does the branch show: the control
+reads 11.5\% below \code{rculist} and the transacted list 13.5\% below, at every
+reader count. The 2\% between them there is not mechanism --- their instruction
+streams are identical, and on scattered nodes they coincide. A list whose nodes
+were allocated over time, or that does not fit in L1, stalls on every hop. Only
+a list walked in allocation order and small enough for the prefetcher to keep
+in L1 shows the tag test at all.
 
 The comparison with other schemes therefore cannot rest on per-step instruction
-counts either. On the shuffled layout the two load controls, which load a word
-on a line the walk has already fetched, cost 2--4\%, where on L1 hops they cost
+counts either. On scattered nodes the two load controls, which load a word on a
+line the walk has already fetched, cost 2--4\%, where on L1 hops they cost
 7--20\%. What separates schemes on a traversal that stalls is the lines they
-touch: every line a scheme adds per element is another miss the traversal
-must absorb. A
-\pseudotxn adds none (\cref{tab:comparison}); the schemes measured next attach
-per-element state.
+touch: every line a scheme adds per element is another miss the traversal must
+absorb. A \pseudotxn adds none (\cref{tab:comparison}); the schemes measured
+next attach per-element state.
 
 \paragraph{What the stronger guarantees cost the reader.}
 \Cref{fig:readclass} places the same traversal against the schemes that also
@@ -2195,9 +2193,9 @@ a \pseudotxn gives only monotone resolution (\cref{prop:monotone}) --- so the
 gaps are what that extra guarantee costs on the read side, which is the
 comparison \cref{sec:whyweakening} promises and never quantifies.
 
-% Two panels, deliberately: walk order shows each scheme's per-step instruction
-% cost at its largest, as fig:readcost does; shuffled shows what a traversal
-% whose hops stall pays (tab:stall). Separate y scales -- a hop that misses L1
+% Two panels, in the order of fig:readcost: scattered nodes show what a
+% traversal whose hops stall pays; walk order shows each scheme's per-step
+% instruction cost at its largest. Separate y scales -- a hop that misses L1
 % cuts every rate about threefold.
 \par\medskip\noindent\begin{minipage}{\linewidth}
 \centering
@@ -2215,45 +2213,45 @@ comparison \cref{sec:whyweakening} promises and never quantifies.
 }}
 \begin{minipage}[t]{0.49\linewidth}
 \begin{tikzpicture}
-\begin{axis}[readclass, title={(a) Walk order (L1 hops)},
-  ylabel={Millions of node visits/s}, ymax=162000,
+\begin{axis}[readclass, title={(a) Scattered nodes (L2 hops)},
+  ylabel={Millions of node visits/s}, ymax=55000,
   legend pos=north west, legend cell align=left,
   legend style={draw=none, fill=none, font=\footnotesize}]
 \addplot[mark=*, mark size=1.2pt, thick, color=blue!65!black]
-  table[x=readers, y=txn, col sep=comma] {data/fig-readclass.csv};
+  table[x=readers, y=txn, col sep=comma] {data/fig-readclass-shuffled.csv};
 \addlegendentry{\code{txn\_sw\_list}}
 \addplot[mark=triangle, mark size=1.6pt, thick, color=teal!70!black]
-  table[x=readers, y=existence, col sep=comma] {data/fig-readclass.csv};
+  table[x=readers, y=existence, col sep=comma] {data/fig-readclass-shuffled.csv};
 \addlegendentry{Existence}
 \addplot[mark=square, mark size=1.2pt, thick, color=orange!80!black]
-  table[x=readers, y=rlu, col sep=comma] {data/fig-readclass.csv};
+  table[x=readers, y=rlu, col sep=comma] {data/fig-readclass-shuffled.csv};
 \addlegendentry{RLU}
 \addplot[mark=diamond, mark size=1.6pt, thick, color=purple!70!black]
-  table[x=readers, y=mvrlu, col sep=comma] {data/fig-readclass.csv};
+  table[x=readers, y=mvrlu, col sep=comma] {data/fig-readclass-shuffled.csv};
 \addlegendentry{MV-RLU}
 \end{axis}
 \end{tikzpicture}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.49\linewidth}
 \begin{tikzpicture}
-\begin{axis}[readclass, title={(b) Shuffled (L2 hops)}, ymax=55000]
+\begin{axis}[readclass, title={(b) Walk order (L1 hops)}, ymax=162000]
 \addplot[mark=*, mark size=1.2pt, thick, color=blue!65!black]
-  table[x=readers, y=txn, col sep=comma] {data/fig-readclass-shuffled.csv};
+  table[x=readers, y=txn, col sep=comma] {data/fig-readclass.csv};
 \addplot[mark=triangle, mark size=1.6pt, thick, color=teal!70!black]
-  table[x=readers, y=existence, col sep=comma] {data/fig-readclass-shuffled.csv};
+  table[x=readers, y=existence, col sep=comma] {data/fig-readclass.csv};
 \addplot[mark=square, mark size=1.2pt, thick, color=orange!80!black]
-  table[x=readers, y=rlu, col sep=comma] {data/fig-readclass-shuffled.csv};
+  table[x=readers, y=rlu, col sep=comma] {data/fig-readclass.csv};
 \addplot[mark=diamond, mark size=1.6pt, thick, color=purple!70!black]
-  table[x=readers, y=mvrlu, col sep=comma] {data/fig-readclass-shuffled.csv};
+  table[x=readers, y=mvrlu, col sep=comma] {data/fig-readclass.csv};
 \end{axis}
 \end{tikzpicture}
 \end{minipage}
 \captionof{figure}{Read ceiling, no writer, all four walking forward then
 backward --- the operation they share --- over the same list in the two layouts
-of \cref{tab:stall}: (a) nodes in the order the walk visits them, (b) at random
-positions in memory, list order and keys unchanged. At 192 readers the
-transacted list leads existence by 1.16, RLU by 1.33 and MV-RLU by 2.97 in walk
-order, and by 1.07, 1.09 and 1.42 shuffled. Existence is measured in its best
+of \cref{fig:readcost}: (a) at random positions in memory, list order and keys
+unchanged, (b) in the order the walk visits them. At 192 readers the transacted
+list leads existence by 1.07, RLU by 1.09 and MV-RLU by 1.42 on scattered
+nodes, and by 1.16, 1.33 and 2.97 in walk order. Existence is measured in its best
 per-element layout, carrying only its tagged word (a 32-byte element) with the
 writer-only state segregated; charging it for the reference implementation's
 136-byte element would measure a struct layout rather than the design. MV-RLU
@@ -2262,24 +2260,23 @@ constant. Each point is the median of five runs.}
 \label{fig:readclass}
 \end{minipage}\par\medskip
 
-Existence is the closest. In walk order it trails the transacted list by 15--16\%
-at every reader count, and the counters show exactly what
-\cref{tab:comparison} attributes to it: one extra load and one extra branch per
-node, where the \pseudotxn adds one branch and no load. Shuffled, where each hop
-stalls on L2, the gap narrows to 7\%: that is what the stall does not hide, and
-it is also where existence's 32-byte element against 24 shows, since fewer
-elements share a line; we have not separated the two. That the margin is this
-small is the honest form of the claim, and a stronger one than a larger number
-would be --- it says the \pseudotxn wins because it attaches \emph{no}
-per-element state, not because an implementation chose a fat one.
+Existence is the closest. On scattered nodes it trails the transacted list by
+7\% at every reader count. That is what the stall does not hide: its extra load,
+and its 32-byte element against 24, which puts fewer elements on a line; we have
+not separated the two. In walk order it trails by 15--16\%, and the counters
+show exactly what \cref{tab:comparison} attributes to it: one extra load and one
+extra branch per node, where the \pseudotxn adds one branch and no load. That
+the margin is this small is the honest form of the claim, and a stronger one
+than a larger number would be --- it says the \pseudotxn wins because it
+attaches \emph{no} per-element state, not because an implementation chose a fat
+one.
 
-RLU matches existence in walk order up to 32 readers, at 15\%, then bends: above
-64 readers it falls away from linear, reaching 85\% of ideal scaling at 192,
-and the gap widens to 26--36\%.
-Shuffled it scales like the others and trails by 9--10\%. We have not found what
-bends the walk-order curve. The transacted list and existence scale at
-97.6--98.3\% of ideal in both layouts; MV-RLU at 83\% in walk order and 92\%
-shuffled.
+RLU trails by 9--10\% on scattered nodes, scaling like the others. In walk order
+it matches existence up to 32 readers, at 15\%, then bends: above 64 readers it
+falls away from linear, reaching 85\% of ideal scaling at 192, and the gap
+widens to 26--36\%. We have not found what bends the walk-order curve. The
+transacted list and existence scale at 97.6--98.3\% of ideal in both layouts;
+MV-RLU at 92\% on scattered nodes and 83\% in walk order.
 
 \paragraph{The writer pays about twice.} \Cref{fig:writecost} measures the same
 list with a single writer and readers running concurrently.
