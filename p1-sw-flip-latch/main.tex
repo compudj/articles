@@ -3097,7 +3097,7 @@ path avoids and either of which may miss cache. That cost is bounded---only the
 slots a commit touches, and only while it is in flight---but it is real, so
 \cref{tab:comparison}'s figures describe the steady-state fast path.
 
-That is the honest shape of the claim, and it is still the shape we want: the
+That is the claim, and it is still the one we want: the
 branch is common to every design in the table, so it is not where the comparison
 is decided. What separates this design is that its test operates on a value the
 reader already had, while every other design must first go and fetch the thing
