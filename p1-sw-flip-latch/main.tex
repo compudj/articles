@@ -3432,8 +3432,10 @@ What we have not found in that prior art is the combination: a marker that is
 \textbf{transient} (so the structure's steady state is unchanged),
 \textbf{non-blocking for readers} (they resolve through it to old-or-new rather
 than waiting on it, unlike \citet{mckenney2008filerename926}), and
-\textbf{free of per-element state} (it lives in the slot's spare bits rather
-than in a field or header, unlike existence and RLU) --- together with the
+\textbf{free of per-element state} (it adds no field or header to any element:
+while a commit is in flight it occupies spare bits of the slot being changed,
+and otherwise nothing, unlike existence and RLU, whose per-element state is
+permanent) --- together with the
 consequence that follows: because the marker is per-slot rather than per-object,
 a \pseudotxn can span slots whose encodings differ, which forces the per-record
 tag (\cref{sec:pertag}) and which we are likewise not aware of in prior work.
