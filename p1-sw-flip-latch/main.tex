@@ -2656,6 +2656,13 @@ reclamation already pays.
 
 \subsection{The tag}
 \label{sec:vartag}
+\suppressfloats[t]
+
+\input{fig-tagword}
+
+\Cref{fig:tagword} lays out the encodings this section compares: the low-bit
+tag this facility uses, the high-bit alternative, and a reserved range that
+spends no bits of the word at all.
 
 \paragraph{Width, and the alignment it implies.} A one-bit tag needs only
 two-byte alignment of the record, which any pointer has. The four-bit tag this

@@ -1,0 +1,89 @@
+% The encodings sec:vartag compares, drawn as the 64-bit word a slot holds.
+% McKenney asked for a diagram of this section's nomenclature: tag width and
+% alignment, low versus high bits, the reader's test, recovering the proxy by
+% subtraction, and the zero-anchored reserved range with its index handles are
+% all defined in prose only.
+%
+% Drawn in TikZ (not an imported image) so the figure ships as source in the
+% arXiv submission and needs no external toolchain to rebuild.  Colors follow
+% fig:anatomy: orange for the slot's facility-owned bits, blue for a proxy.
+%
+% The picture must make one thing obvious per row: where the marker sits in the
+% word, what the reader's test is, and how the proxy is recovered.
+\begin{figure}[tb]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  fld/.style  = {draw, minimum height=6.5mm, inner sep=0pt, font=\footnotesize},
+  addr/.style = {fld, fill=gray!6},
+  paddr/.style= {fld, fill=blue!6},
+  tagf/.style = {fld, fill=orange!22, very thick, font=\footnotesize\ttfamily},
+  lowf/.style = {fld, fill=gray!15, font=\footnotesize},
+  bit/.style  = {font=\scriptsize\ttfamily, text=black!60},
+  ttl/.style  = {font=\footnotesize\bfseries, anchor=west},
+  lbl/.style  = {font=\footnotesize\itshape, anchor=east, text=black!75},
+  op/.style   = {font=\footnotesize, anchor=west, align=left},
+]
+% Geometry: a word is 7.0 cm wide; a 4-bit field is 1.3 cm.
+\def\W{7.0}\def\L{1.3}\def\X{2.2}  % word width, 4-bit field width, word x-origin
+\def\O{9.45}                        % x of the annotation column
+
+% ---------------------------------------------------------------- (a) low bits
+\node[ttl] at (0, 0.55) {(a) Low-bit tag --- this facility};
+% plain value
+\node[lbl] at (\X-0.1, 0) {plain value};
+\node[addr, minimum width={(\W-\L)*1cm}, anchor=west] (a1) at (\X, 0)
+  {a node address, or any value};
+\node[lowf, minimum width={\L cm}, anchor=west] at (a1.east) {$\neq$ tag};
+% parked
+\node[lbl] at (\X-0.1, -0.8) {parked slot};
+\node[paddr, minimum width={(\W-\L)*1cm}, anchor=west] (a2) at (\X, -0.8)
+  {proxy address, 16-byte aligned};
+\node[tagf, minimum width={\L cm}, anchor=west] (a2t) at (a2.east) {tag};
+% bit numbers
+\node[bit, anchor=north west] at ($(a2.south west)+(0,-0.02)$) {63};
+\node[bit, anchor=north east] at ($(a2.south east)+(0,-0.02)$) {4};
+\node[bit, anchor=north west] at ($(a2t.south west)+(0,-0.02)$) {3};
+\node[bit, anchor=north east] at ($(a2t.south east)+(0,-0.02)$) {0};
+\node[op] at (\O, -0.4)
+  {test: \code{(v \& tag) == tag}, one AND\\
+   proxy: \code{v - tag}, folded into the load};
+
+% --------------------------------------------------------------- (b) high bits
+\node[ttl] at (0, -2.05) {(b) High-bit tag --- the alternative};
+\node[lbl] at (\X-0.1, -2.6) {parked slot};
+\node[tagf, minimum width={\L cm}, anchor=west] (b1t) at (\X, -2.6) {tag};
+\node[paddr, minimum width={(\W-\L)*1cm}, anchor=west] (b1) at (b1t.east)
+  {proxy address};
+\node[bit, anchor=north west] at ($(b1t.south west)+(0,-0.02)$) {63};
+\node[bit, anchor=north east] at ($(b1t.south east)+(0,-0.02)$) {60};
+\node[bit, anchor=north east] at ($(b1.south east)+(0,-0.02)$) {0};
+\node[op] at (\O, -2.6)
+  {test: the mask needs a register\\
+   proxy: an extra instruction first};
+
+% ------------------------------------------------------------ (c) reserved range
+\node[ttl] at (0, -3.85) {(c) Reserved range, anchored at zero --- no bits spent};
+\node[lbl] at (\X-0.1, -4.4) {parked slot};
+\node[addr, minimum width={(\W-2.6)*1cm}, anchor=west] (c1) at (\X, -4.4)
+  {zero: below any allocation};
+\node[tagf, minimum width={2.6cm}, anchor=west, font=\footnotesize] (c1t) at (c1.east)
+  {index $<N$};
+\node[bit, anchor=north west] at ($(c1.south west)+(0,-0.02)$) {63};
+\node[bit, anchor=north east] at ($(c1t.south east)+(0,-0.02)$) {0};
+\node[op] at (\O, -4.4)
+  {test: \code{v < N}, one compare\\
+   proxy: \code{pool[v]}};
+\end{tikzpicture}
+\caption{The encodings \cref{sec:vartag} compares, on a 64-bit slot. (a) While
+a commit is in flight this facility parks a proxy's address in the slot with the
+tag added in its low bits, which the proxy's 16-byte alignment guarantees clear;
+every value the slot may otherwise hold must not carry the tag pattern
+(\cref{sec:tagcontract}). Subtracting the tag recovers the same address as
+masking it off, since the proxy's own tag bits are clear. (b) A high-bit tag
+leaves the low bits to the embedder; on x86-64 a mask of several high bits does
+not fit an immediate, and recovering the proxy takes an instruction of its own.
+(c) A reserved range spends no bits of the word: a handle is an index below the
+pool size $N$, which must cover every proxy live within a grace period.}
+\label{fig:tagword}
+\end{figure}
