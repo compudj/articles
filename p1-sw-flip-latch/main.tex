@@ -1,8 +1,13 @@
 \documentclass[11pt]{article}
 
 \usepackage[margin=1in]{geometry}
+% McKenney: "s/table 5/Table 5/".  Capitalize every cross-reference name, not
+% tables alone, so "Table 3" never sits beside "figure 6".  P1 only: the shared
+% preamble spells names lowercase, and P2 keeps that until it is reviewed.
+\PassOptionsToPackage{capitalise}{cleveref}
 \input{../common/preamble}
 \input{../common/macros}
+\crefname{figure}{Figure}{Figures}
 
 % Draft build: `make draft` drops draft.flag to surface TODO/CITE/NOTE markers.
 % Submission builds leave it absent, so the markers vanish.
