@@ -1973,6 +1973,7 @@ only after a grace period.
 % ===========================================================================
 \section{Measured Cost}
 \label{sec:measured}
+\suppressfloats[t]
 
 % ---------------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
@@ -2082,15 +2083,13 @@ load of a word of the element's own followed by a test of that word
 (\emph{+load +test}), the shape of a scheme that marks each element in state of
 its own.
 
-% NOT a float, deliberately. As a [tb] float this was placed at the top of the
-% page the section starts on -- above the section heading, reading as belonging
-% to sec:reclaim -- and \FloatBarrier did not hold it there. It is small, and it
-% belongs beside the sentence that introduces it, so it is anchored.
-% \captionof (caption, via subcaption) numbers it as a figure.
+% A [tb] float (McKenney: figures at the top or bottom of the page). The
+% \suppressfloats[t] after the section heading keeps it from being placed above
+% that heading, which is what once made it read as belonging to sec:reclaim.
 % A ratio axis, deliberately, and the SAME y range in both panels: each arm adds
 % a per-step constant, the ratio shows it flat across the sweep, and a shared
 % scale lets (a) be read against (b) at a glance.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+\begin{figure}[tb]
 \centering
 \pgfplotsset{readcost/.style={
   width=0.95\linewidth, height=5.4cm,
@@ -2142,7 +2141,7 @@ its own.
 \end{axis}
 \end{tikzpicture}
 \end{minipage}
-\captionof{figure}{Read ceiling relative to \code{rculist}, no writer running,
+\caption{Read ceiling relative to \code{rculist}, no writer running,
 every arm walking forward twice over byte-identical 24-byte elements, in two
 layouts of the same 10\,000 nodes: (a) at random positions in memory, list order
 and keys unchanged; (b) in the order the walk visits them. The gray curves are
@@ -2153,7 +2152,7 @@ is flat in the reader count, so each gap is a per-step constant rather than a
 scaling effect. Each point is the median over five runs of the ratio to
 \code{rculist} measured in the same run.}
 \label{fig:readcost}
-\end{minipage}\par\medskip
+\end{figure}
 
 Per node, \code{rculist} executes eight instructions, two of them branches and
 two of them loads. The transacted list executes ten: the same eight, plus one
@@ -2201,7 +2200,7 @@ comparison \cref{sec:whyweakening} promises and never quantifies.
 % traversal whose hops stall pays; walk order shows each scheme's per-step
 % instruction cost at its largest. Separate y scales -- a hop that misses L1
 % cuts every rate about threefold.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+\begin{figure}[tb]
 \centering
 \pgfplotsset{readclass/.style={
   width=0.95\linewidth, height=5.4cm,
@@ -2250,7 +2249,7 @@ comparison \cref{sec:whyweakening} promises and never quantifies.
 \end{axis}
 \end{tikzpicture}
 \end{minipage}
-\captionof{figure}{Read ceiling, no writer, all four walking forward then
+\caption{Read ceiling, no writer, all four walking forward then
 backward --- the operation they share --- over the same list in the two layouts
 of \cref{fig:readcost}: (a) at random positions in memory, list order and keys
 unchanged, (b) in the order the walk visits them. At 192 readers the transacted
@@ -2262,7 +2261,7 @@ writer-only state segregated; charging it for the reference implementation's
 runs its global-clock configuration, which needs no calibrated per-machine
 constant. Each point is the median of five runs.}
 \label{fig:readclass}
-\end{minipage}\par\medskip
+\end{figure}
 
 Existence is the closest. On scattered nodes it trails the transacted list by
 7\% at every reader count. That is what the stall does not hide: its extra load,
@@ -2286,9 +2285,9 @@ MV-RLU at 92\% on scattered nodes and 83\% in walk order.
 list with a single writer and readers running concurrently, in the two layouts
 of \cref{fig:readcost}.
 
-% Anchored, for the same reason as fig:readcost above. Two panels in the order
-% of fig:readcost, on one y scale so the two layouts read against each other.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+% A [tb] float, like fig:readcost. Two panels in the order of fig:readcost, on
+% one y scale so the two layouts read against each other.
+\begin{figure}[tb]
 \centering
 \pgfplotsset{writecost/.style={
   width=0.95\linewidth, height=5.2cm,
@@ -2325,7 +2324,7 @@ of \cref{fig:readcost}.
 \end{axis}
 \end{tikzpicture}
 \end{minipage}
-\captionof{figure}{One writer, with concurrent readers: update throughput, each
+\caption{One writer, with concurrent readers: update throughput, each
 side under an uncontended writer mutex, in the two layouts of
 \cref{fig:readcost}. Both reclaim through \code{call\_rcu()} and neither changes
 \rcu flavor, so the separation isolates the \pseudotxn layer. Both writers
@@ -2335,7 +2334,7 @@ reader count; in walk order the cheaper writer loses more, so the ratio falls
 from 1.65 at one reader to 1.30 at eight and climbs back to 1.97 by 191. Each
 point is the median of five runs.}
 \label{fig:writecost}
-\end{minipage}\par\medskip
+\end{figure}
 
 The tax is about twice. On scattered nodes it is close to a constant, 1.8 to 2.1
 at every reader count from 1 to 191. In walk order it has a shape: plain \rcu's
