@@ -3479,7 +3479,8 @@ tried to be more precise about the weakness than about the strength. The write
 set is atomic; an \rcu reader is not a transaction of any kind, and a traversal
 spanning several
 slots may straddle a commit. There is no opacity and no multi-read snapshot.
-What a reader gets instead is monotonicity --- never new-then-old
+What a reader gets instead is monotonicity --- never new-then-old along a
+dependency chain, and across other hops only where the reader orders them itself
 (\cref{sec:monotone}) --- and that middle ground is exploitable rather than
 merely tolerable: an embedder that commits in the reverse of its readers'
 traversal order gets old-prefix, new-suffix observations and needs no
