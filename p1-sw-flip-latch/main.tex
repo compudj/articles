@@ -169,8 +169,8 @@ marks them, and the exclusion between writers are all the embedder's
       strictly more, the reader pays 7\% for existence structures and 9--10\%
       for RLU on scattered nodes, and 15--16\% and 15--36\% on a list walked
       in allocation order. A single writer with readers running pays about twice, and a profile
-      says where that goes --- 3.4\% of cycles in the commit, the rest in
-      allocation and grace-period reclaim.
+      says where that goes --- 8\% of the writer's cycles in the commit, most
+      of the rest in allocation and \code{call\_rcu} reclaim plumbing.
 
 \item \textbf{The design space we did not take} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
@@ -2019,7 +2019,10 @@ only after a grace period.
 % fig:writecost and the no-reader ratio are from scripts/p1_writecost.csv
 % (bench 75f841a, scripts/run_p1_writecost.sh): guard-free readers, engine
 % b3e23f9f, packed nodes, both layouts, five runs, medians. The writer-cost
-% profile is older and predates this batch. The superseded scripts/p1_sw_list.csv
+% profile is scripts/p1_writer_profile.csv (bench df31f0f,
+% scripts/run_p1_writer_profile.sh): no reader, no writer mutex, per-thread
+% categories; writer-thread shares, and shares of the txn-minus-rculist gap. The
+% superseded scripts/p1_sw_list.csv
 % was taken on engine 5fc3cadf with the mismatched traversal and must not be
 % cited. Profile figures are from a cycle profile of a single-writer, no-reader
 % run. Cite no percentage not in those.
@@ -2347,14 +2350,19 @@ coherence.
 
 \paragraph{Where the writer's cost goes.} A writer tax of two to two and a half times
 invites the conclusion that the flip is expensive. It is worth disposing of
-that, because the profile says the opposite. In a cycle profile of a
-single-writer run with no reader --- the widest ratio, and so the least
-favorable place to look --- the commit
-itself, \code{urcu\_txn\_sw\_commit\_flavor}, accounts for 3.4\% of cycles. Ahead
-of it sit the allocator, at 10.7\% in jemalloc's \code{malloc}, and the per-CPU
-\code{call\_rcu} plumbing: 7.7\% in \code{sched\_getcpu} and 8.4\% across the two
-lookups that find the current CPU's queue. Those are \rcu's shared
-infrastructure, and plain \rcu pays them too --- just fewer times.
+that, because the profile says the opposite. We profiled both lists with a
+single writer, no reader and no writer mutex --- the widest ratio, 3.1, and so
+the least favorable place to look --- and counted the writer's own thread, the
+one that sets the update rate; reclaim runs on a \code{call\_rcu} worker on
+another core. The commit step itself, \code{urcu\_txn\_sw\_commit\_flavor}, is 8\%
+of the transacted writer's cycles. The list operation, with the staging the
+facility inlines into it --- recording two edges and installing their proxies ---
+is 27\%. The rest is \rcu's shared infrastructure: 37\% in the per-CPU
+\code{call\_rcu} plumbing (\code{sched\_getcpu}, the two lookups that find the
+current CPU's queue, the enqueue and the worker wake-up) and 26\% in allocation,
+including the allocator's own locks. Plain \rcu's writer pays that
+infrastructure too, just less per update: of the difference between the two
+writers, the plumbing and the allocator are 62\%, the commit 12\%.
 
 The mechanism sits in the reclaim contract rather than in the commit. A list
 operation moves two edges, so it parks two proxies, and a parked group block must
