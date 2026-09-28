@@ -2774,8 +2774,9 @@ those bits and restart the access, and the reader's fast path carries no test at
 all. It brings trade-offs of its own. Every resolution of a live proxy costs a
 trap, orders of magnitude above the few loads the resolve costs here, to remove
 a branch that \cref{sec:measured} finds free once hops miss L1. It catches only
-dereferences: a reader that compares a pointer, as a list walk compares against
-its head, would compare the marker itself. And it depends on the address space
+dereferences: a slot holding data rather than a pointer never faults, and a
+reader would take the marker for its value; a reader that compares a pointer, as
+a list walk compares against its head, would compare the marker itself. And it depends on the address space
 leaving such a bit unused, and on a process-wide fault handler, which a library
 installs at its host application's expense. It could sit beside the tag test as
 an option for structures whose readers almost never meet a proxy.
