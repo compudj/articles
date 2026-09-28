@@ -5,6 +5,12 @@
 % tables alone, so "Table 3" never sits beside "figure 6".  P1 only: the shared
 % preamble spells names lowercase, and P2 keeps that until it is reviewed.
 \PassOptionsToPackage{capitalise}{cleveref}
+% Never leave a heading stranded at the foot of a page with two or three lines
+% under it: nobottomtitles* moves a heading that would start in the bottom tenth
+% of the text block to the next page.  Loaded before the shared preamble, so
+% before hyperref.
+\usepackage[nobottomtitles*]{titlesec}
+\renewcommand{\bottomtitlespace}{.1\textheight}
 \input{../common/preamble}
 \input{../common/macros}
 \crefname{figure}{Figure}{Figures}
@@ -532,6 +538,7 @@ that flips the set from old to new.
 
 \subsection{A transaction in the filesystem sense}
 \label{sec:fssense}
+\suppressfloats[t]
 
 The word \emph{transaction} carries two meanings, and only one of them applies
 here. A journaling filesystem stages a batch of block writes, closes the batch,
@@ -545,14 +552,13 @@ snapshot, a point-in-time view held consistent against ongoing writes --- and it
 is well known to be expensive, in copy-on-write traffic and in space. Isolation
 is not cheap anywhere; the only question is whether the workload needs it.
 
-Our model is the first of these, essentially point for point:
+Our model is the first of these, essentially point for point, as
+\cref{tab:fssense} sets out.
 
-% ANCHORED, not a [tb] float, for the reason documented at fig:readcost and
-% tab:comparison.  This table is introduced by the colon above it and by nothing
-% else -- it carries no \cref anywhere -- so as a float it read correctly only by
-% the accident of landing on the same page as its own introduction.  Anchoring
-% makes that structural instead of lucky.  \captionof numbers it as a table.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+% A [tb] float, like every figure and table in the paper (McKenney asked for
+% top or bottom placement).  It was once anchored because it was introduced by a
+% colon and nothing else; the sentence above now references it.
+\begin{table}[tb]
 \centering
 \small
 \begin{tabular}{@{}ll@{}}
@@ -569,11 +575,11 @@ readers are not transactional    & readers are plain \rcu readers \\
 gives atomicity, not isolation   & gives atomicity, not opacity \\
 \bottomrule
 \end{tabular}
-\captionof{table}{The model is the journaling sense of \emph{transaction}, not the
+\caption{The model is the journaling sense of \emph{transaction}, not the
 database sense. The staged record set is the journal; the commit step is the
 commit record.}
 \label{tab:fssense}
-\end{minipage}\par\medskip
+\end{table}
 
 This is why we say \pseudotxn rather than transaction. The prefix is not an
 apology for an incomplete STM; it is a disambiguation for readers who take
@@ -1195,6 +1201,12 @@ interchangeable; they are not (\cref{sec:relrcu}).
 \section{The Single-Writer Flip-Latch}
 \label{sec:fliplatch}
 
+This section builds the mechanism. \Cref{fig:anatomy} names its parts --- slot,
+embedder, record, proxy, parked, resolve --- and serves as an index to those
+terms, which the text defines where each is first needed.
+
+\input{fig-anatomy}
+
 \subsection{The intermediate-state problem}
 \label{sec:intermediate}
 
@@ -1212,12 +1224,11 @@ change none of them were likely looking at.
 
 \subsection{Mechanism: one level of indirection}
 \label{sec:swmechanism}
+\suppressfloats[t]
 
 The flip-latch removes the intermediate states rather than hiding them behind a
 drain, and it does so with one level of indirection
 (\cref{fig:fliplatch}).
-
-\input{fig-anatomy}
 
 Each slot in the set is made to hold a \emph{tagged} pointer to a small
 \emph{proxy} rather than the target directly. A slot in that condition is
@@ -1335,28 +1346,6 @@ worth checking. \Cref{tab:lifecycle} tracks a single transacted slot $s$ through
 the lifecycle --- and through the states either side of it, so six rows for four
 steps --- alongside what a concurrent reader resolving $s$ actually obtains.
 
-\begin{table}[tb]
-\centering
-\caption{One transacted slot $s$ through the lifecycle, bracketed by the state
-before it begins and the state after it ends. The reader's column
-changes exactly once. Install and settle both rewrite $s$ --- they are stores to
-a word readers are concurrently loading --- yet neither changes what resolving
-$s$ yields, which is why the commit is the only linearization point.}
-\label{tab:lifecycle}
-\begin{tabular}{@{}llll@{}}
-\toprule
-Step & $s$ holds & Reader resolving $s$ obtains & Linearization point? \\
-\midrule
-(before)  & $o$, directly            & $o$ & --- \\
-Build     & $o$, directly            & $o$ & no: new nodes unreachable \\
-Install   & tagged proxy, \code{sel}$=0$ & $o$ & no: resolved value unchanged \\
-Commit    & tagged proxy, \code{sel}$=1$ & $n$ & \textbf{yes} \\
-Settle    & $n$, directly            & $n$ & no: resolved value unchanged \\
-(after)   & $n$, directly            & $n$ & --- \\
-\bottomrule
-\end{tabular}
-\end{table}
-
 The third column is the mechanism. It reads $o, o, o, n, n, n$: one transition,
 at the commit, no matter how many slots the set contains or how long the writer
 takes over the other three steps. A reader cannot tell installed-but-uncommitted
@@ -1381,6 +1370,28 @@ check. A facility that checked at install --- a compare-and-swap on the slot,
 paid on every commit --- would have caught the second writer and refused the
 install; this one spends nothing there and asks the embedder for exclusion
 instead.
+
+\begin{table}[tb]
+\centering
+\caption{One transacted slot $s$ through the lifecycle, bracketed by the state
+before it begins and the state after it ends. The reader's column
+changes exactly once. Install and settle both rewrite $s$ --- they are stores to
+a word readers are concurrently loading --- yet neither changes what resolving
+$s$ yields, which is why the commit is the only linearization point.}
+\label{tab:lifecycle}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Step & $s$ holds & Reader resolving $s$ obtains & Linearization point? \\
+\midrule
+(before)  & $o$, directly            & $o$ & --- \\
+Build     & $o$, directly            & $o$ & no: new nodes unreachable \\
+Install   & tagged proxy, \code{sel}$=0$ & $o$ & no: resolved value unchanged \\
+Commit    & tagged proxy, \code{sel}$=1$ & $n$ & \textbf{yes} \\
+Settle    & $n$, directly            & $n$ & no: resolved value unchanged \\
+(after)   & $n$, directly            & $n$ & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Progress}
 \label{sec:swprogress}
@@ -2876,6 +2887,7 @@ would serialize readers on a shared counter.
 % ===========================================================================
 \section{Comparison with prior art}
 \label{sec:costcomparison}
+\suppressfloats[t]
 
 \Cref{sec:whyweakening} argued that every design adding multi-pointer atomicity
 to \rcu must charge the reader something, and that this facility charges the
@@ -2884,12 +2896,10 @@ tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
 and software transactional memory against this work in turn.
 
-% ANCHORED, not a [tb] float, for the reason documented at fig:readcost: as a
-% float this landed at the top of the page the section starts on, ABOVE the
-% section heading, with the tail of the previous section beneath it -- reading
-% as a table belonging to that section rather than to this one.  It belongs
-% beside the sentence that introduces it.  \captionof numbers it as a table.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+% A [tb] float, like every figure and table in the paper.  As a float it once
+% landed above this section's heading; the \suppressfloats[t] after the heading
+% prevents that.
+\begin{table}[tb]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -2930,7 +2940,7 @@ MV-RLU~\citep{kim2019mvrlu}
 % whose caption exceeds a page cannot be set anywhere, so LaTeX deferred it past
 % the bibliography. It now says only what the table needs to be read on its own,
 % and the argument lives in sec:costwalk, where it belongs and already was.
-\captionof{table}{Where each design pays for multi-pointer atomicity, on the read-side
+\caption{Where each design pays for multi-pointer atomicity, on the read-side
 fast path, per dereference. \emph{Extra loads} counts memory references over and
 above the load the reader must issue anyway; \emph{extra branches} counts
 conditional branches. Both are measured, not read off the sources
@@ -2940,7 +2950,7 @@ RLU's pure-reader bypass, and may then walk a version chain whose length the
 reader does not control. \Cref{sec:costwalk} discusses what each column means
 and what it omits.}
 \label{tab:comparison}
-\end{minipage}\par\medskip
+\end{table}
 
 % ---------------------------------------------------------------------------
 % PROVENANCE OF EVERY CELL IN tab:comparison -- VERIFIED FROM SOURCE 2026-07-16.
@@ -3522,9 +3532,12 @@ evaluation, follow in their own papers.
 % ---------------------------------------------------------------------------
 The facility described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
-describes is present in commit
-\code{b3e23f9f558ce895aebe300ddb33aee9281137dc} (2026-07-25), on branch
-\code{urcu-txn-dev} at \url{https://github.com/compudj/userspace-rcu-dev}. The
+describes is present in the commit
+\begin{center}
+\code{b3e23f9f558ce895aebe300ddb33aee9281137dc}
+\end{center}
+dated 2026-07-25, on the \code{urcu-txn-dev} branch of the repository at
+\url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
 

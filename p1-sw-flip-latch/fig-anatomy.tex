@@ -12,7 +12,10 @@
 % The picture must make exactly one thing obvious: the embedder owns the node
 % and the word inside it; everything to the right of that word is the facility's,
 % and exists only between install and settle.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+% Introduced at the head of sec:fliplatch, as the index to that section's terms:
+% introduced inside sec:swmechanism it floated above that subsection's heading,
+% and [b] alone cannot place it (taller than \bottomfraction).
+\begin{figure}[tb]
 \centering
 \begin{tikzpicture}[
   font=\small,
@@ -71,11 +74,11 @@
 \draw[dep] (r.north) -- node[right, cal, pos=0.45] {names} (sl.south);
 
 \end{tikzpicture}
-\captionof{figure}{Which word names which part, at the one moment all of them
+\caption{Which word names which part, at the one moment all of them
 apply: a slot installed on a proxy, after \cref{sec:lifecycle}'s install and
 before its settle. Everything left of the slot belongs to the embedder and
 outlives the commit; everything right of it belongs to the facility and exists
 only between install and settle. The record is the writer's description of the
 change, and never itself reachable by a reader.}
 \label{fig:anatomy}
-\end{minipage}\par\medskip
+\end{figure}

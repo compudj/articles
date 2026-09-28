@@ -10,10 +10,9 @@
 % middle state at all. The absent column is the whole argument; everything
 % else in the drawing is scaffolding for it.
 %
-% ANCHORED, not a float, for the reason documented at tab:fssense: this figure
-% belongs beside the prose that sets it up, and as a float it would read
-% correctly only by the accident of landing on the same page.
-\par\medskip\noindent\begin{minipage}{\linewidth}
+% A [tb] float, like every figure and table in the paper (McKenney asked for
+% top or bottom placement); the prose that sets it up references it.
+\begin{figure}[tb]
 \centering
 \begin{tikzpicture}[
   font=\small,
@@ -83,7 +82,7 @@
 \node[note] at (6.45,-4.45) {no middle state};
 
 \end{tikzpicture}
-\captionof{figure}{Inserting entry $E$ into a cache with two access paths;
+\caption{Inserting entry $E$ into a cache with two access paths;
 dashed $E$ is built but not yet reachable. With
 two publications the order is a choice and neither choice is right: publishing
 into the index first leaves the shaded state, in which a lookup finds $E$ and
@@ -92,4 +91,4 @@ mirror image). The window is not a few instructions --- the writer can be
 preempted inside it. One commit names both slots in a single record set, so the
 shaded state does not exist.}
 \label{fig:skew}
-\end{minipage}\par\medskip
+\end{figure}
