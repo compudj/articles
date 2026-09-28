@@ -2879,17 +2879,7 @@ would serialize readers on a shared counter.
 
 \Cref{sec:whyweakening} argued that every design adding multi-pointer atomicity
 to \rcu must charge the reader something, and that this facility charges the
-least of the designs compared here.\footnote{The least so far. A system whose
-pointers had trapping representations could charge the reader nothing on the
-fast path: the marker would be a value that faults when dereferenced --- as a
-non-canonical address does on x86-64 --- and a fault handler would resolve the
-proxy and restart the access. That removes the one predicted branch, which
-\cref{sec:measured} finds free once hops miss L1, and in exchange turns every
-resolution of a live proxy into a trap, where this design pays a few loads. It
-also catches dereferences only: a reader that compares a pointer, as a list walk
-compares against its head, would compare the marker itself. It is a trade, and
-a poor one for a structure whose readers meet proxies often.} This section makes
-the comparison concrete. \Cref{tab:comparison}
+least. This section makes the comparison concrete. \Cref{tab:comparison}
 tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
 and software transactional memory against this work in turn.
