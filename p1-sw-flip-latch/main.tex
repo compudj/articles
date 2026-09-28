@@ -169,8 +169,9 @@ marks them, and the exclusion between writers are all the embedder's
       strictly more, the reader pays 7\% for existence structures and 9--10\%
       for RLU on scattered nodes, and 15--16\% and 15--36\% on a list walked
       in allocation order. A single writer with readers running pays about twice, and a profile
-      says where that goes --- 8\% of the writer's cycles in the commit, most
-      of the rest in allocation and \code{call\_rcu} reclaim plumbing.
+      says where that goes --- 12\% of the difference from plain \rcu's
+      writer in the commit, most of the rest in deferring one descriptor per
+      update.
 
 \item \textbf{The design space we did not take} (\cref{sec:variations}):
       selector encodings, tag placement and width, proxy allocation, settle
@@ -2019,9 +2020,10 @@ only after a grace period.
 % fig:writecost and the no-reader ratio are from scripts/p1_writecost.csv
 % (bench 75f841a, scripts/run_p1_writecost.sh): guard-free readers, engine
 % b3e23f9f, packed nodes, both layouts, five runs, medians. The writer-cost
-% profile is scripts/p1_writer_profile.csv (bench df31f0f,
-% scripts/run_p1_writer_profile.sh): no reader, no writer mutex, per-thread
-% categories; writer-thread shares, and shares of the txn-minus-rculist gap. The
+% profile is scripts/p1_writer_profile.csv (bench df31f0f, categories fixed in
+% a25ff2f -- scripts/p1_writer_profile_categorize.py documents each): no reader,
+% no writer mutex, writer thread only, shares of the txn-minus-rculist gap. The
+% descriptor slab's sched_getcpu share is apportioned by call count. The
 % superseded scripts/p1_sw_list.csv
 % was taken on engine 5fc3cadf with the mismatched traversal and must not be
 % cited. Profile figures are from a cycle profile of a single-writer, no-reader
@@ -2354,33 +2356,36 @@ that, because the profile says the opposite. We profiled both lists with a
 single writer, no reader and no writer mutex --- the widest ratio, 3.1, and so
 the least favorable place to look --- and counted the writer's own thread, the
 one that sets the update rate; reclaim runs on a \code{call\_rcu} worker on
-another core. The commit step itself, \code{urcu\_txn\_sw\_commit\_flavor}, is 8\%
-of the transacted writer's cycles. The list operation, with the staging the
-facility inlines into it --- recording two edges and installing their proxies ---
-is 27\%. The rest is \rcu's shared infrastructure: 37\% in the per-CPU
-\code{call\_rcu} plumbing (\code{sched\_getcpu}, the two lookups that find the
-current CPU's queue, the enqueue and the worker wake-up) and 26\% in allocation,
-including the allocator's own locks. Plain \rcu's writer pays that
-infrastructure too, just less per update: of the difference between the two
-writers, the plumbing and the allocator are 62\%, the commit 12\%.
+another core. Of the difference between the two writers, the commit step
+itself, \code{urcu\_txn\_sw\_commit\_flavor}, is 12\%, and the staging the
+facility inlines into the list operation --- recording two edges and installing
+their proxies --- is 25\%. The rest is the descriptor's reclaim: 28\% in the
+facility's per-CPU descriptor slab, which allocates the group block and takes it
+back after a grace period, and 33\% in \rcu's \code{call\_rcu} plumbing
+(\code{sched\_getcpu}, the lookups that find the current CPU's queue, the
+enqueue and the worker wake-up), which the transacted writer enters three times
+as often per update as plain \rcu's. Allocating and freeing the nodes, which
+both writers do alike, is no part of the difference.
 
 The mechanism sits in the reclaim contract rather than in the commit. A list
 operation moves two edges, so it parks two proxies, and a parked group block must
 outlive a grace period before it can be freed, because a reader that loaded a
 proxy may still be resolving through it (\cref{sec:reclaim}). Every update
-therefore defers a second object --- the descriptor --- in addition to the node it
-unlinked, where plain \rcu defers only the node. A commit that moves a
+therefore defers the descriptor, in addition to any node it unlinked, where
+plain \rcu defers only the node. A commit that moves a
 \emph{single} edge needs no proxy and frees in place. So the price of a coherent
 backward chain, in this implementation, is largely one extra
 grace-period-deferred free per update.
 
-Two of those costs have known remedies, both in \rcu's own \code{call\_rcu}
-machinery rather than in this facility: an \code{rseq}-supplied CPU id would
-remove the
-\code{sched\_getcpu} call, and an \code{rseq}-based enqueue would shorten the
-rest of the \code{call\_rcu} path. Both would help plain \rcu equally, so neither
-narrows the ratio so much as lowers both sides. The extra deferred free is
-intrinsic to publishing two edges atomically, with one exception the facility
+Those costs have known remedies. Two are in \rcu's own \code{call\_rcu}
+machinery: an \code{rseq}-supplied CPU id would remove the \code{sched\_getcpu}
+call, and an \code{rseq}-based enqueue would shorten the rest of the
+\code{call\_rcu} path. Both help plain \rcu too, and the transacted writer more,
+since it enters that path more often per update. The third is the facility's
+own: returning descriptors to the slab in batches, under one \code{call\_rcu}
+per batch rather than one per update, removes most of the descriptor's share of
+the plumbing; the version measured here does not batch. The extra deferred free
+itself is intrinsic to publishing two edges atomically, with one exception the facility
 already admits: an embedder that knows no reader can hold a proxy may pass a
 synchronous reclaim shim and free in place.
 
