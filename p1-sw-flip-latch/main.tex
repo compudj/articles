@@ -2479,8 +2479,7 @@ atomicity. A value that accidentally carries the tag pattern is
 indistinguishable from a proxy, and a reader will untag it and dereference it as
 a record: that is a wild pointer, not a torn read. Racing writers corrupt slots
 whose values readers then follow. \textbf{These contracts underwrite memory
-safety, not merely atomicity} --- and that is the honest shape of the safety
-argument.
+safety, not merely atomicity} --- and that is the safety argument.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is the series' central honesty point and Sec. 1 should not oversell
