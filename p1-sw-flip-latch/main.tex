@@ -127,8 +127,8 @@ marks them, and the exclusion between writers are all the embedder's
       \record{slot}{old}{new} records made visible by one commit step. We state
       what it guarantees, and state what it does not before any evaluation ---
       including the property that an \rcu reader is not a transaction of any kind, and
-      the weaker one that it does have: monotone resolution, never
-      new-then-old (\cref{sec:monotone}). A reader that resolves a single slot
+      the weaker one that it does have: monotone resolution along a
+      dependency chain, never new-then-old (\cref{sec:monotone}). A reader that resolves a single slot
       is itself linearizable, taking effect at its own load; it is the
       traversal of several slots that is not a transaction
       (\cref{sec:guarantees}).
@@ -2639,8 +2639,8 @@ proxy records the generation at which its new value becomes current, and
 resolution compares the group's counter against it. That buys reusable groups
 --- a group could serve many successive transactions without reallocation ---
 and it is how clock-based schemes such as RLU decide visibility. It costs the
-write-once property, and with it the unconditional monotonicity of
-\cref{prop:monotone}: a counter that advances repeatedly makes ``never
+write-once property, and with it the selector's unconditional monotonicity, on
+which \cref{prop:monotone} rests: a counter that advances repeatedly makes ``never
 new-then-old'' a claim about a range rather than a single transition, and a
 reader must then compare rather than test. We chose the boolean because
 \cref{prop:monotone} is what lets embedders trade a snapshot for a fixed read
