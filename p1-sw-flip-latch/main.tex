@@ -2765,6 +2765,21 @@ lifetime being waited out is a reader's, not a writer's. A range allocator over
 a pool sized that way keeps every proxy independently reclaimable, which is what
 lets many transactions be in flight, and lingering, at once.
 
+\paragraph{Trapping, as an additional mechanism.} The reader's one branch could
+itself be removed by a mechanism this facility does not provide. Setting a top
+bit of the parked value --- one that makes it a non-canonical address on x86-64,
+for instance --- while leaving the record's address in the low bits makes every
+dereference of a parked slot fault; a fault handler can resolve the proxy from
+those bits and restart the access, and the reader's fast path carries no test at
+all. It brings trade-offs of its own. Every resolution of a live proxy costs a
+trap, orders of magnitude above the few loads the resolve costs here, to remove
+a branch that \cref{sec:measured} finds free once hops miss L1. It catches only
+dereferences: a reader that compares a pointer, as a list walk compares against
+its head, would compare the marker itself. And it depends on the address space
+leaving such a bit unused, and on a process-wide fault handler, which a library
+installs at its host application's expense. It could sit beside the tag test as
+an option for structures whose readers almost never meet a proxy.
+
 \subsection{Proxy placement and allocation}
 \label{sec:varproxy}
 
@@ -2858,7 +2873,17 @@ would serialize readers on a shared counter.
 
 \Cref{sec:whyweakening} argued that every design adding multi-pointer atomicity
 to \rcu must charge the reader something, and that this facility charges the
-least. This section makes the comparison concrete. \Cref{tab:comparison}
+least of the designs compared here.\footnote{The least so far. A system whose
+pointers had trapping representations could charge the reader nothing on the
+fast path: the marker would be a value that faults when dereferenced --- as a
+non-canonical address does on x86-64 --- and a fault handler would resolve the
+proxy and restart the access. That removes the one predicted branch, which
+\cref{sec:measured} finds free once hops miss L1, and in exchange turns every
+resolution of a live proxy into a trap, where this design pays a few loads. It
+also catches dereferences only: a reader that compares a pointer, as a list walk
+compares against its head, would compare the marker itself. It is a trade, and
+a poor one for a structure whose readers meet proxies often.} This section makes
+the comparison concrete. \Cref{tab:comparison}
 tabulates the read-side cost each design pays per dereference; the discussion
 that follows places existence structures, RLU and its multi-versioned successor,
 and software transactional memory against this work in turn.
