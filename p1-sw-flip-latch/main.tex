@@ -190,10 +190,12 @@ marks them, and the exclusion between writers are all the embedder's
       rather than only the name of it.
 \end{itemize}
 
-\paragraph{Scope.} This paper covers the \sw case, where writers are mutually
-excluded by the embedder. A companion paper covers the concurrent facility, which
-attacks the same model with a software multi-word compare-and-swap and pays for
-contention detection with machinery this one does not need. The two share the
+\paragraph{Scope.} This paper covers the \sw case, where the embedder excludes
+writers from one another's slots --- typically with a lock per bucket or per
+node, so that writers on disjoint parts of a structure still run concurrently. A
+companion paper covers writers the embedder does not exclude, through a software
+multi-word compare-and-swap that pays for contention detection with machinery
+this one does not need. The two share the
 model of \cref{sec:model} and the status vocabulary, deliberately: an embedder
 written against one migrates to the other without rewriting its commit handling.
 Properties that hold only under exclusion are marked where they appear.
@@ -1269,10 +1271,14 @@ why \cref{prop:monotone} holds.
 \label{sec:exclusion}
 
 The flip-latch is legal \emph{only} under writer mutual exclusion. This is a
-precondition of the mechanism, not a caveat on it --- and an embedder that
-cannot meet it is not out of options. The companion paper's \mw facility
-realizes the same model with the precondition lifted, and pays for the
-difference in exactly the machinery this one omits.
+precondition of the mechanism, not a caveat on it. The exclusion is over the
+slots a \pseudotxn commits, not over the structure: writers whose commits touch
+disjoint slots may run concurrently, each holding a lock that covers every slot
+its commit writes. That is how an embedder ordinarily meets it --- a lock per
+hash bucket, or per node of a tree. An embedder that cannot or will not lock is
+not out of options either: the companion paper's \mw facility realizes the same
+model with the precondition lifted, and pays for the difference in exactly the
+machinery this one omits.
 
 The facility has no install-time CAS, no conflict detection, and no abort. Those
 are precisely the parts that would let two writers discover each other, and they
@@ -1293,8 +1299,8 @@ carry the owner field. It claims the two things that exist to be claimed: the
 \emph{handle}, whose owner is the thread that initialized it (catching a
 \pseudotxn handed between threads mid-flight), and the \emph{slot}, which is
 what two racing writers actually share and so is where the violation is really
-visible. In a correct single-updater program a slot being recorded or parked
-cannot already hold a parked proxy.
+visible. In a correctly excluded program --- no two writers ever sharing a slot
+--- a slot being recorded or parked cannot already hold a parked proxy.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % This is worth stating as a design lesson rather than an implementation
@@ -2406,11 +2412,13 @@ synchronous reclaim shim and free in place.
 
 \paragraph{What this does not measure.} Three absences are deliberate.
 
-There is no writer-scaling panel. The facility is single-writer by contract
-(\cref{sec:exclusion}), so running $N$ writers against it would serialize them
-on a lock and measure that lock. Concurrent writers are a real question and this
-is not the design that answers them; they belong to the multi-writer facility and
-to the evaluation paper. The reader axis is where a read-mostly facility earns
+There is no writer-scaling panel. The facility requires exclusion per slot, not
+per structure (\cref{sec:exclusion}): writers under per-bucket or per-node locks
+commit concurrently on disjoint slots, and how that scales is a property of the
+embedder's lock design as much as of this facility. Under the single lock these
+measurements use, $N$ writers would measure only that lock. Writers the embedder
+does not exclude belong to the multi-writer facility, and a comparison of the
+two to the evaluation paper. The reader axis is where a read-mostly facility earns
 or loses its keep, and it is the axis measured here.
 
 The cross-scheme figures in \cref{fig:readclass} are read-side only, and are not
@@ -3270,8 +3278,10 @@ element and on the reader's path.
 
 Transactional boosting \citep{herlihy2008boosting} is the closest relative on
 the composition axis: coarse abstract locks over cheap physical operations,
-rather than instrumented reads. It is the pattern a lock-plus-\fliplatch design
-converges on, and the companion paper takes it up.
+rather than instrumented reads. It is also the pattern this facility is deployed
+in: the embedder's per-bucket or per-node locks play the part of the abstract
+locks, and the \pseudotxn commits the physical edits under them
+(\cref{sec:exclusion}).
 
 \subsection{Multi-pointer atomicity under RCU}
 \label{sec:relrcu}
@@ -3513,11 +3523,11 @@ alone --- a description that cannot be built from is not a disclosure.
 deliberately the first: the \fliplatch is the model at its smallest, where a
 commit is one store and the hard parts are contracts rather than machinery. A
 companion paper takes up the \mw facility, which realizes the same model for
-concurrent writers, paying in machinery this paper has no need of for the
-exclusion it drops. Because the two share the model of \cref{sec:model} and the
+writers the embedder does not exclude, paying in machinery this paper has no
+need of for the exclusion it drops. Because the two share the model of \cref{sec:model} and the
 status vocabulary---and, at the pinned commit, one descriptor and one status
-word---an embedder that outgrows exclusion changes which discipline a slot
-records under, not how it reasons. The programming model the two facilities share, and the
+word---an embedder that drops exclusion on some slots changes which discipline
+those slots record under, not how it reasons. The programming model the two facilities share, and the
 evaluation, follow in their own papers.
 
 % ===========================================================================
