@@ -165,7 +165,7 @@ marks them, and the exclusion between writers are all the embedder's
       the guarantee and the scope \cref{sec:coherence} states --- and a hash list.
       Several edits compose into one commit, including edits that touch the same
       slots, through a read-your-own-writes discipline (\cref{sec:swcomposition});
-      we give the two obligations that remain.
+      we give the three obligations that remain.
 
 \item \textbf{Measurements on the reader axis} (\cref{sec:measured}), scaling to
       192 cores: on the same traversal and a byte-identical element, the
@@ -1244,8 +1244,9 @@ $\mathit{old}$ while the selector is $0$, and $\mathit{new}$ once it is $1$. Two
 states are what this facility needs, not all a selector could carry. A third is
 the obvious extension and the companion paper's \mw facility has one, for
 \emph{abort}: a commit that contends can fail, and a reader must be able to see
-that it did. Under exclusion a commit cannot fail, so the state cannot arise
-here --- which is why the shared status vocabulary reduces to a boolean in this
+that it did. Under exclusion a commit cannot fail for contention, and one that
+fails for want of memory does so before it parks anything, so the state cannot
+arise here --- which is why the shared status vocabulary reduces to a boolean in this
 paper (\cref{sec:exclusion}). A many-valued selector is a different extension
 again, and \cref{sec:varselector} sets out what a generation counter would buy
 and what it would cost.
@@ -1403,8 +1404,11 @@ Settle    & $n$, directly            & $n$ & no: resolved value unchanged \\
 \label{sec:swprogress}
 
 Under exclusion there is nothing to contend for, and the progress story is
-correspondingly short: a commit cannot fail. There is no abort, because there is
-no contention to abort on.
+correspondingly short: a commit cannot fail for contention. There is no abort,
+because there is no contention to abort on. It can fail only for want of memory:
+a record that could not be allocated latches the handle, and the commit reports
+it and publishes nothing. Reserving capacity with \code{urcu\_txn\_sw\_reserve}
+before the first irreversible side effect rules even that out.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
 % An earlier draft explained here why the API carries an ABORT status value the
@@ -1814,8 +1818,8 @@ link through the load and record through the fusing store, so the second delete
 above reads the \emph{pending} \code{P->next}, chains onto that record, and the
 commit unlinks both victims and leaves $P \leftrightarrow N$ coherent.
 
-Two obligations remain on the caller, and the question of what the first of
-them costs sits between them.
+Three obligations remain on the caller, and the question of what the first of
+them costs sits between the second and the third.
 
 \emph{The search must go through the transactional load, or precede the edits.}
 A traversal is nothing but a sequence of loads, so a caller that walks through
@@ -1829,6 +1833,13 @@ take the cheaper route where it is available: the caller's initial lookup runs
 on the ordinary accessors, before the first record is staged, and only the
 neighbour links the edits touch are read transactionally. No shape of update is ruled out by this. The
 choice is which accessor the search uses, and it is the caller's to make.
+
+\emph{Every anchor must still be live when the \pseudotxn leaves the list.} An
+edit anchored on a node that an earlier edit of the same commit removed is
+anchored on a ghost, and nothing detects it: a single-updater delete leaves no
+mark, so the later edit cannot tell the ghost from a live node. Naming the nodes
+before the first record satisfies the first obligation and says nothing about
+this one.
 
 Why a search at all, rather than reading the answer out of the slot? Because
 until the commit there is nothing in the slot to read. Records are staged into
@@ -1866,7 +1877,7 @@ exclusion (\cref{sec:exclusion}) no other writer can change a slot, so a
 transactional walk has only this writer's own pending edits to reconcile;
 there is no dependency a peer could move underneath it, and no reason to
 transact a slot merely because the walk stepped through it. Nor is there a
-retry to budget for: a commit under exclusion cannot fail
+retry to budget for: a commit under exclusion cannot fail for contention
 (\cref{sec:swprogress}), so nothing in the rest of this subsection --- guards,
 retry budgets, lanes --- arises in this facility at all. Where writers are
 concurrent the question is real, and it has two answers rather than one,
@@ -2421,7 +2432,8 @@ call, and an \code{rseq}-based enqueue would shorten the rest of the
 since it enters that path more often per update. The third is the facility's
 own: returning descriptors to the slab in batches, under one \code{call\_rcu}
 per batch rather than one per update, removes most of the descriptor's share of
-the plumbing; the version measured here does not batch. The extra deferred free
+the plumbing; the pinned engine provides it as a build option
+(\code{URCU\_TXN\_SLAB\_BATCH}), off in the version measured here. The extra deferred free
 itself is intrinsic to publishing two edges atomically, with one exception the facility
 already admits: an embedder that knows no reader can hold a proxy may pass a
 synchronous reclaim shim and free in place.
@@ -2508,7 +2520,8 @@ build.
 \item[Correct composition, and no raw access.] Edits that touch the same slot
   must be composed through the read-your-own-writes path, which fuses them
   (\cref{sec:swcomposition}); the blind fast path and any handle declared
-  disjoint instead require pairwise-distinct slots. Every write to a transacted
+  disjoint instead require pairwise-distinct slots, and no edit may be anchored on
+  a node an earlier edit of the same commit removed. Every write to a transacted
   slot must go through the facility and every read through its accessor.
 \item[Deferred descriptor reclaim.] A descriptor reachable through a slot is
   reclaimed only after a grace period, because a reader may dereference it.
