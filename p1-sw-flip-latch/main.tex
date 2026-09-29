@@ -173,14 +173,14 @@ marks them, and the exclusion between writers are all the embedder's
       On a list whose nodes are scattered in memory, as a list allocated over
       time is, that branch costs nothing measurable at any reader count; only
       on a list walked in allocation order, which the prefetcher keeps in L1,
-      does it cost up to 13.5\%. A control that adds only that branch to plain
+      does it cost up to 12.8\%. A control that adds only that branch to plain
       \rcu{} matches the facility in both cases. The facility also delivers the
       reverse walk plain \rcu cannot offer under mutation at all.
       Against the schemes that \emph{do} offer it, and which give readers
-      strictly more, the reader pays 7\% for existence structures and 9--10\%
-      for RLU on scattered nodes, and 15--16\% and 15--36\% on a list walked
+      strictly more, the reader pays 3\% for existence structures and 2--6\%
+      for RLU on scattered nodes, and 15\% and 22--44\% on a list walked
       in allocation order. A single writer with readers running pays about twice, and a profile
-      says where that goes --- 12\% of the difference from plain \rcu's
+      says where that goes --- 11\% of the difference from plain \rcu's
       writer in the commit, most of the rest in deferring one descriptor per
       update.
 
@@ -1166,9 +1166,9 @@ bought. A reader who needs a snapshot cannot take this facility and economize --
 they need a different facility.
 
 What can be said across that boundary is what the stronger guarantee costs the
-\emph{reader}, and \cref{fig:readclass} says it: 9--10\% against RLU, and
-7\% against existence, whose per-element guarantee is likewise stronger than
-ours, on a list whose nodes are scattered in memory; 15--36\% and 15--16\% on
+\emph{reader}, and \cref{fig:readclass} says it: 2--6\% against RLU, and
+3\% against existence, whose per-element guarantee is likewise stronger than
+ours, on a list whose nodes are scattered in memory; 22--44\% and 15\% on
 one walked in allocation order. Those figures are sound in the only direction that matters here,
 because they run in our favor and against the grain of the trade --- the other
 schemes charge the reader more \emph{and} deliver more, so the gap is a price,
@@ -2017,35 +2017,49 @@ only after a grace period.
 % list's forward+backward walk against rculist's forward+forward and showed the
 % facility ~8% AHEAD of plain RCU, which was an artifact of the access pattern.
 %
-% fig:readcost (a) is from scripts/p1_resolve_control_shuffled.csv (bench
-% ac0b138, scripts/run_p1_resolve_control.sh with BENCH_SHUFFLE=1
-% TAG=_shuffled); (b) is from scripts/p1_resolve_control_noguard.csv (bench
-% ec54f21, TAG=_noguard). Both: engine b3e23f9f, packed 24-byte nodes, five 3 s
-% runs per arm, arm order rotated per run, each point the median over runs of
-% the ratio to rculist in the same run. Per-node instruction/branch/load counts
-% are from scripts/p1_resolve_deref_noguard.csv. The ns/hop figures and the
-% L3/DRAM sentence are from scripts/p1_stall.csv (bench 44cd638, one reader).
+% RE-PINNED 2026-09-29 at urcu-txn-dev 18809ea8. Every figure and number in
+% this section is from the warm-up re-take at bench f989020 (sweeps; every
+% point after BENCH_WARMUP_SEC=4 untimed) and dc08669 (the perf-stat
+% counter pairs, 2 s vs 8 s differenced, taken WITHOUT warm-up: the difference
+% already cancels start-up, and a warm-up adds counted work that varies run to
+% run). The b3e23f9f-era takes are in the bench history (974609c and earlier).
+% Two caveats. RLU's walk-order rate moves ~6-7% between harness builds that
+% differ only in code layout (06f998a vs 974609c on one engine:
+% scripts/p1_readclass_oldsrc.csv, bench 08b2359); existence's and RLU's
+% scattered-node rates rose 4-7% from the b3e23f9f take for a reason not
+% established (not the harness build). Quote neither to better than that.
+%
+% fig:readcost (a) is from scripts/p1_resolve_control_shuffled.csv
+% (scripts/run_p1_resolve_control.sh with BENCH_SHUFFLE=1 TAG=_shuffled); (b)
+% is from scripts/p1_resolve_control_noguard.csv (TAG=_noguard). Both: packed
+% 24-byte nodes, five 3 s runs per arm, arm order rotated per run, each point
+% the median over runs of the ratio to rculist in the same run. Per-node
+% instruction/branch/load counts are from scripts/p1_resolve_deref_noguard.csv.
+% The ns/hop figures and the L3/DRAM sentence are from scripts/p1_stall.csv (one
+% reader; noise there is rculist's run-to-run range over its median).
 % The earlier parity figure (1.006-1.029) came from a loop whose runaway step
 % guard read its limit from memory; that guard alone moved the tag test's cost
 % between 0% and ~7% (bench 56bdca4), so it was removed and must not come back.
-% The walk-order 13.5% is a property of a list the prefetcher keeps in L1; do
+% The walk-order 12.7% is a property of a list the prefetcher keeps in L1; do
 % not quote it without the layout.
 %
-% fig:readclass is from scripts/p1_readclass.csv (bench 06f998a,
-% scripts/run_p1_readclass.sh): the same guard-free harness, existence/RLU/
+% fig:readclass is from scripts/p1_readclass.csv
+% (scripts/run_p1_readclass.sh): the same guard-free harness, existence/RLU/
 % MV-RLU walks specialized so their sorted loops carry no step guard and no
 % per-step random-position test, both layouts, five runs, medians. The counted
 % per-node loads/branches in sec:costcomparison are from
 % scripts/p1_readclass_deref.csv, and RLU's pointer-compare cost from
-% scripts/p1_rlu_cmp.csv (bench 146499f, the RLU_RAWCMP A/B). RLU's walk-order
+% scripts/p1_rlu_cmp.csv (the RLU_RAWCMP A/B). RLU's walk-order
 % bend above 64 readers is measured and unexplained.
 %
 % fig:writecost and the no-reader ratio are from scripts/p1_writecost.csv
-% (bench 75f841a, scripts/run_p1_writecost.sh): guard-free readers, engine
-% b3e23f9f, packed nodes, both layouts, five runs, medians. The writer-cost
-% profile is scripts/p1_writer_profile.csv (bench df31f0f, categories fixed in
-% a25ff2f -- scripts/p1_writer_profile_categorize.py documents each): no reader,
-% no writer mutex, writer thread only, shares of the txn-minus-rculist gap. The
+% (scripts/run_p1_writecost.sh): guard-free readers, packed nodes, both
+% layouts, five runs, medians. The writer-cost profile is
+% scripts/p1_writer_profile.csv (scripts/p1_writer_profile_categorize.py
+% documents each category): no reader, no writer mutex, perf recording only the
+% timed window, writer thread only, shares of the txn-minus-rculist gap. The
+% writer's kernel share is futex wake-ups of the call_rcu worker (the queue
+% cap's), counted with the call_rcu plumbing. The
 % descriptor slab's sched_getcpu share is apportioned by call count. The
 % superseded scripts/p1_sw_list.csv
 % was taken on engine 5fc3cadf with the mismatched traversal and must not be
@@ -2066,7 +2080,7 @@ one-writer sweep therefore stops at 191 readers. Userspace \rcu's
 QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
 per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
 figure is the median of five three-second runs of the \code{bench\_list\_scale}
-harness. The
+harness, each timed after four seconds of untimed warm-up. The
 harness checks reader-visible coherence on every traversal it
 performs, in both directions; it reported no violation in any run reported here.
 
@@ -2184,18 +2198,18 @@ the \emph{+tag test} control, whose instruction stream is identical, shows that
 this branch is the whole of the facility's read-side cost.
 
 On scattered nodes that branch costs nothing measurable. The control and the
-transacted list read 1.002 to 1.004 of \code{rculist} at every reader count from
-1 to 192, and match each other to within 0.05\%. A branch that is predicted, and
+transacted list read 1.002 to 1.003 of \code{rculist} at every reader count from
+1 to 192, and match each other to within 0.06\%. A branch that is predicted, and
 that nothing waits on, costs issue slots rather than latency, and a hop that
 stalls on L2 leaves those slots idle. We do not claim the 0.2\% on the positive
 side; the facility does strictly more work than plain \rcu. Scattered lists of
 one and four million nodes, whose hops reach L3 and DRAM, are consistent with
 this: at one reader no arm is distinguishable from \code{rculist} within
-run-to-run noise, up to 12\% at L3 and 4\% at DRAM. Every arm scales at
-97.3--98.4\% of ideal from one reader to 192, in both layouts.
+run-to-run noise, which reaches 17\% at L3 and 9\% at DRAM. Every arm scales at
+97.4--98.4\% of ideal from one reader to 192, in both layouts.
 
 Only in walk order, where each hop hits L1, does the branch show: the control
-reads 11.5\% below \code{rculist} and the transacted list 13.5\% below, at every
+reads 10.7\% below \code{rculist} and the transacted list 12.7\% below, at every
 reader count. The 2\% between them there is not mechanism --- their instruction
 streams are identical, and on scattered nodes they coincide. A list whose nodes
 were allocated over time, or that does not fit in L1, stalls on every hop. Only
@@ -2275,8 +2289,8 @@ comparison \cref{sec:whyweakening} promises and never quantifies.
 backward --- the operation they share --- over the same list in the two layouts
 of \cref{fig:readcost}: (a) at random positions in memory, list order and keys
 unchanged, (b) in the order the walk visits them. At 192 readers the transacted
-list leads existence by 1.07, RLU by 1.09 and MV-RLU by 1.42 on scattered
-nodes, and by 1.16, 1.33 and 2.97 in walk order. Existence is measured in its best
+list leads existence by 1.03, RLU by 1.03 and MV-RLU by 1.40 on scattered
+nodes, and by 1.15, 1.41 and 2.91 in walk order. Existence is measured in its best
 per-element layout, carrying only its tagged word (a 32-byte element) with the
 writer-only state segregated; charging it for the reference implementation's
 136-byte element would measure a struct layout rather than the design. MV-RLU
@@ -2286,9 +2300,9 @@ constant. Each point is the median of five runs.}
 \end{figure}
 
 Existence is the closest. On scattered nodes it trails the transacted list by
-7\% at every reader count. That is what the stall does not hide: its extra load,
+3\% at every reader count. That is what the stall does not hide: its extra load,
 and its 32-byte element against 24, which puts fewer elements on a line; we have
-not separated the two. In walk order it trails by 15--16\%, and the counters
+not separated the two. In walk order it trails by 15\%, and the counters
 show exactly what \cref{tab:comparison} attributes to it: one extra load and one
 extra branch per node, where the \pseudotxn adds one branch and no load. That
 the margin is this small is the honest form of the claim, and a stronger one
@@ -2296,12 +2310,12 @@ than a larger number would be --- it says the \pseudotxn wins because it
 attaches \emph{no} per-element state, not because an implementation chose a fat
 one.
 
-RLU trails by 9--10\% on scattered nodes, scaling like the others. In walk order
-it matches existence up to 32 readers, at 15\%, then bends: above 64 readers it
+RLU trails by 2--6\% on scattered nodes, scaling like the others. In walk order
+it trails by 22--25\% up to 32 readers, then bends: above 64 readers it
 falls away from linear, reaching 85\% of ideal scaling at 192, and the gap
-widens to 26--36\%. We have not found what bends the walk-order curve. The
+widens to 34--44\%. We have not found what bends the walk-order curve. The
 transacted list and existence scale at 97.6--98.3\% of ideal in both layouts;
-MV-RLU at 92\% on scattered nodes and 83\% in walk order.
+MV-RLU at 90\% on scattered nodes and 84\% in walk order.
 
 \paragraph{The writer pays about twice.} \Cref{fig:writecost} measures the same
 list with a single writer and readers running concurrently, in the two layouts
@@ -2351,20 +2365,21 @@ side under an uncontended writer mutex, in the two layouts of
 \cref{fig:readcost}. Both reclaim through \code{call\_rcu()} and neither changes
 \rcu flavor, so the separation isolates the \pseudotxn layer. Both writers
 collapse between four readers and eight in either layout. On scattered nodes
-they lose in proportion, and the ratio stays between 1.77 and 2.11 at every
+they lose in proportion, and the ratio stays between 1.91 and 2.12 at every
 reader count; in walk order the cheaper writer loses more, so the ratio falls
-from 1.65 at one reader to 1.30 at eight and climbs back to 1.97 by 191. Each
+from 1.92 at one reader to 1.37 at eight and stays between 1.4 and 1.7 up to
+191. Each
 point is the median of five runs.}
 \label{fig:writecost}
 \end{figure}
 
-The tax is about twice. On scattered nodes it is close to a constant, 1.8 to 2.1
+The tax is about twice. On scattered nodes it is close to a constant, 1.9 to 2.1
 at every reader count from 1 to 191. In walk order it has a shape: plain \rcu's
-writer falls from 11.5 to 4.1 million updates per second between four readers
-and eight, while the transacted writer falls from 7.3 to 3.2 --- grace periods
+writer falls from 12.1 to 3.7 million updates per second between four readers
+and eight, while the transacted writer falls from 6.9 to 2.7 --- grace periods
 lengthen for both, and the cheaper writer has more to lose --- so the two
-converge to 1.3 under that load and diverge again, to 2.0 at 191, as the grace
-period stretches further.
+converge to 1.4 under that load and stay within 1.4 to 1.7 as the readers grow
+to 191.
 
 With no reader at all the ratio is wider, 2.5 to 2.6 under the same mutex in
 either layout. We report the figures with readers because that is the regime
@@ -2374,18 +2389,19 @@ coherence.
 \paragraph{Where the writer's cost goes.} A writer tax of two to two and a half times
 invites the conclusion that the flip is expensive. It is worth disposing of
 that, because the profile says the opposite. We profiled both lists with a
-single writer, no reader and no writer mutex --- the widest ratio, 3.1, and so
+single writer, no reader and no writer mutex --- the widest ratio, 3.0, and so
 the least favorable place to look --- and counted the writer's own thread, the
-one that sets the update rate; reclaim runs on a \code{call\_rcu} worker on
-another core. Of the difference between the two writers, the commit step
-itself, \code{urcu\_txn\_sw\_commit\_flavor}, is 12\%, and the staging the
-facility inlines into the list operation --- recording two edges and installing
-their proxies --- is 25\%. The rest is the descriptor's reclaim: 28\% in the
-facility's per-CPU descriptor slab, which allocates the group block and takes it
-back after a grace period, and 33\% in \rcu's \code{call\_rcu} plumbing
-(\code{sched\_getcpu}, the lookups that find the current CPU's queue, the
-enqueue and the worker wake-up), which the transacted writer enters three times
-as often per update as plain \rcu's. Allocating and freeing the nodes, which
+one that sets the update rate. Reclaim runs on a \code{call\_rcu} worker
+pinned to the writer's own CPU, so that reclaim is paid out of the writer's
+budget; it takes about a third of that CPU, and is not in the shares below. Of the difference between the two writers, the commit step
+itself, \code{urcu\_txn\_sw\_commit\_flavor}, is 11\%, and the staging ---
+recording two edges and installing their proxies --- is 21\%. The rest is the
+descriptor's reclaim: 20\% in the facility's per-CPU descriptor slab, which
+allocates the group block and takes it back after a grace period, and 46\% in
+\rcu's \code{call\_rcu} plumbing (\code{sched\_getcpu}, the lookups that find
+the current CPU's queue, the enqueue, and the worker wake-up, including the
+futex call that wakes the worker once its queue reaches the length cap), which
+the transacted writer enters three times as often per update as plain \rcu's. Allocating and freeing the nodes, which
 both writers do alike, is no part of the difference.
 
 The mechanism sits in the reclaim contract rather than in the commit. A list
@@ -3196,14 +3212,14 @@ by moving its fields. Its reference layout places the per-element header at
 offset 16, which pushes the element's key out to offset 128 --- a second cache
 line --- so a traversal touches two lines per element. Reordering so that the
 link pointers, the key and the existence word share the first line, at
-\emph{identical} size and semantics, is worth a factor of 1.9 to 2.2 in read
+\emph{identical} size and semantics, is worth a factor of 2.0 to 2.2 in read
 throughput. Segregating the state the reader never touches --- only the tagged
 word is read during traversal; the group linkage, the reclamation head, the
 callbacks and the writer's lock are not --- takes the element from 136 bytes to
-32 and gains a factor of 2.1 to 2.5 over the reference layout.
+32 and gains a factor of 2.0 to 2.4 over the reference layout.
 
-That progression is why \cref{fig:readclass} reports existence at 1.14--1.21
-rather than the 2.4--2.9 its reference layout yields: the larger number
+That progression is why \cref{fig:readclass} reports existence at 1.03--1.15
+rather than the 2.3--2.7 its reference layout yields: the larger number
 measures a struct layout, not the design. What survives the tuning is the part
 that cannot be tuned away --- one word per element, which is 8 bytes, which is
 what takes a 24-byte element to 32 and puts fewer of them in each line. A
@@ -3215,13 +3231,14 @@ what takes a 24-byte element to 32 and puts fewer of them in each line. A
 % segregated-vs-inline experiment (~2x at 1000 nodes) as a proxy for this
 % effect. We no longer need a proxy: scripts/run_existence_layout.sh measures
 % the SAME algorithm under three per-element layouts, so the spread is layout
-% and nothing else (scripts/existence_layout.csv, engine b3e23f9f):
+% and nothing else (scripts/existence_layout.csv, engine 18809ea8, bench
+% f989020, 4 s warm-up per point):
 %
 %   Mvisits/s, mean of 2      1 rdr        32       192
-%   perfbook  136 B, 3 lines    326    10 311    50 205
-%   packed    136 B, 1 line     623    20 023   108 942
-%   split      32 B, 1 line     692    22 230   123 077
-%   txn_sw_list 24 B            778    25 025   145 772
+%   perfbook  136 B, 3 lines    337    10 701    54 688
+%   packed    136 B, 1 line     659    21 153   122 530
+%   split      32 B, 1 line     690    22 237   129 740
+%   txn_sw_list 24 B            787    25 363   147 506
 %
 % The old caution still applies in spirit and must not be dropped: present
 % this as evidence for the MECHANISM. It IS now a direct measurement of
@@ -3544,9 +3561,9 @@ The facility described here is free software, distributed under
 \code{LGPL-2.1-or-later} as part of Userspace \rcu. Every mechanism this paper
 describes is present in the commit
 \begin{center}
-\code{b3e23f9f558ce895aebe300ddb33aee9281137dc}
+\code{18809ea8e741bd1ca19bc8b479521751370cb1bd}
 \end{center}
-dated 2026-07-25, on the \code{urcu-txn-dev} branch of the repository at
+dated 2026-09-28, on the \code{urcu-txn-dev} branch of the repository at
 \url{https://github.com/compudj/userspace-rcu-dev}. The
 commit hash, not the branch, identifies the disclosed version: the branch is a
 development tip and will move.
