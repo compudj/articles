@@ -2089,9 +2089,19 @@ nodes. The harness pins worker $i$ to physical core $i$ and every sweep stops at
 192 workers, so no measurement below places two threads on one core; the
 one-writer sweep therefore stops at 191 readers. Userspace \rcu's
 QSBR flavor, \code{call\_rcu} with per-CPU worker threads, and jemalloc with
-per-CPU arenas. The list holds 10\,000 nodes with a 200-node churn set. Each
+per-CPU arenas, memory interleaved over all 24 nodes; confining it to the
+readers' own socket moves no read-side figure by more than 3\% up to 96
+readers.
+% The 3% is scripts/p1_readside_placement.csv (bench 041f87e,
+% scripts/run_p1_readside_placement.sh, 2026-09-29): readers 1..96 on socket
+% 0, no writer, the resolve-control arms in both layouts and the readclass
+% arms scattered, all-node interleave vs socket 0's nodes, 2 runs, warm-up 4 s.
+% Largest move: rlu at 96 scattered readers, +3%; every other point within
+% 1.5%.
+The list holds 10\,000 nodes with a 200-node churn set. Each
 figure is the median of five three-second runs of the \code{bench\_list\_scale}
-harness, each timed after four seconds of untimed warm-up. The
+harness, each timed after four seconds of untimed warm-up; a caption says so
+where a figure departs from that. The
 harness checks reader-visible coherence on every traversal it
 performs, in both directions; it reported no violation in any run reported here.
 
@@ -2438,16 +2448,135 @@ itself is intrinsic to publishing two edges atomically, with one exception the f
 already admits: an embedder that knows no reader can hold a proxy may pass a
 synchronous reclaim shim and free in place.
 
-\paragraph{What this does not measure.} Three absences are deliberate.
+\paragraph{Writers scale with the embedder's locks.} Exclusion is over the
+slots a commit writes (\cref{sec:exclusion}), so writers on disjoint slots
+commit at once, each under locks that cover its own. \Cref{fig:writerscale}
+measures the list that way, with the protocol lock-based embedders follow. A
+writer plans its edit without locks: the nodes on either side of the one it
+removes, or of the place it inserts. It then takes the planned nodes' locks in
+ascending order of lock address --- a total order the list's circular shape
+does not disturb --- and validates the plan under them: no planned node
+deleted, the planned links still in place. A failed validation releases the
+locks and plans again, and a delete marks its victim deleted under the lock
+before unlinking it. The mark, and in one variant the lock itself, live in a
+word of the element's tail padding, so the element's size and the reader's path
+are unchanged.
 
-There is no writer-scaling panel. The facility requires exclusion per slot, not
-per structure (\cref{sec:exclusion}): writers under per-bucket or per-node locks
-commit concurrently on disjoint slots, and how that scales is a property of the
-embedder's lock design as much as of this facility. Under the single lock these
-measurements use, $N$ writers would measure only that lock. Writers the embedder
-does not exclude belong to the multi-writer facility, and a comparison of the
-two to the evaluation paper. The reader axis is where a read-mostly facility earns
-or loses its keep, and it is the axis measured here.
+Planning a removal needs the victim's predecessor, and this is where the
+coherent backward chain earns its keep: the writer reads it from the victim's
+own \code{prev}, as a reader may. Plain \rcu writes \code{prev} with a plain
+store after the forward publish, which orders nothing, so a writer that
+followed it to a lock kept inside the node could read that lock before the
+node's initialization is visible. Plain \rcu therefore appears here only under
+address-keyed stripes, which hash the predecessor's address and dereference it
+only once the lock is held; with a lock in the node it would first have to find
+the predecessor by a forward walk, which this facility's writer never pays.
+
+% fig:writerscale is from scripts/p1_writer_scaling_f.csv (bench 041f87e,
+% scripts/run_p1_writer_scaling.sh TAG=_f MEMPLACE=socket): engine 18809ea8,
+% 64-byte-aligned nodes, CHURN = 64 x writers, LIST_SIZE = 2 x CHURN, writer w
+% owning churn slots w, w+n, ... after unique anchors, no readers, 2 s windows
+% after BENCH_WARMUP_SEC=4, five runs, arm order rotated; points are medians,
+% bars min-max. MEMORY: up to 96 writers (socket 0's cores) numactl
+% --interleave over socket 0's nodes 0-11 with the harness's own interleave
+% off; from 128 writers the harness default, interleaved over all 24 nodes.
+% The earlier batch _e used the default throughout and was bistable between 16
+% and 128 writers (spread up to 43% on a plotted arm); diagnosed 2026-09-29 as
+% cross-socket memory: harness interleave on/off, THP never and the call_rcu
+% queue cap off each left it bistable, socket-0-only memory at 96 writers
+% made it tight. At 128 and 160 writers, where writers span both sockets, _f
+% is still two-moded; quote those medians with their spread. 191 -> 192
+% writers jumps 8-23% (bit/stripe/rculist) and 192 is the only tight point
+% above 96; batch _g (160-192, compudjdev VM shut down, 2026-09-29) reproduces
+% it (+9/+5/+24%) with 176-191 two-moded, so not the VM. Not the harness
+% either: reclaim workers are per PU, built from topology independently of the
+% writer count, and main is unpinned, offline, waking every 2 ms. Likely an
+% idle-core power-state effect (C2 enabled, 800 us exit); accepted as is
+% (Mathieu, 2026-09-29), not chased further.
+% NOT plotted: the file's txn_list arm -- the companion paper's CAS-based
+% multi-writer facility (Mathieu, 2026-09-29) -- and rculist with a lock in the
+% node, which is either unsound (it dereferences plain RCU's unordered prev) or
+% pays a forward walk, so not like for like (2026-09-28).
+\begin{figure}[tb]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.95\linewidth, height=6cm,
+  xlabel={Writers}, ylabel={Millions of updates/s},
+  xmin=0, xmax=196, ymin=0, ymax=420,
+  xtick={0,32,64,96,128,160,192},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  grid=major, grid style={gray!20},
+  axis lines=left,
+  legend pos=north west, legend cell align=left,
+  legend style={draw=none, fill=none, font=\footnotesize}]
+\addplot[mark=*, mark size=1.2pt, thick, color=blue!65!black,
+  error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=bit, y error plus=bit_ep, y error minus=bit_em,
+        col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\code{txn\_sw\_list}, lock bit in each node}
+\addplot[mark=o, mark size=1.2pt, thick, color=blue!65!black, dashed,
+  error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=stripe, y error plus=stripe_ep, y error minus=stripe_em,
+        col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\code{txn\_sw\_list}, lock stripes}
+\addplot[mark=square, mark size=1.2pt, thick, color=black!55, dashed,
+  error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=rcu, y error plus=rcu_ep, y error minus=rcu_em,
+        col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\code{rculist}, lock stripes}
+\addplot[mark=triangle, mark size=1.4pt, thick, color=black!55, dotted,
+  error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=mutex, y error plus=mutex_ep, y error minus=mutex_em,
+        col sep=comma] {data/fig-writerscale.csv};
+\addlegendentry{\code{txn\_sw\_list}, one lock}
+\draw[gray!70, densely dotted] (axis cs:96,0) -- (axis cs:96,420);
+\node[anchor=north west, font=\scriptsize, text=gray!90]
+  at (axis cs:96,420) {second socket $\rightarrow$};
+\end{axis}
+\end{tikzpicture}
+\caption{Writers on disjoint slots, each under the locks of the nodes its commit
+touches, taken in ascending lock-address order after an unlocked plan and
+validated under them; no readers. The lock is a bit in each node's tail padding,
+or one of a table of stripes keyed by node address; \code{rculist} can use only
+the stripes. Each writer owns 64 slots of its own and the list holds twice the
+churn, 64-byte-aligned nodes. Up to 96 writers, one socket's cores, memory is
+interleaved over that socket's NUMA nodes; beyond, over both sockets'. Points
+are the median of five two-second windows, each after four seconds of warm-up;
+bars span the five runs.}
+\label{fig:writerscale}
+\end{figure}
+
+Each writer owns its own slots here, so a plan never goes stale and validation
+never fails --- the harness counted no retry in any run --- but every arm pays
+for planning, locking and validating all the same. Nor does any arm search: a
+writer takes the node to remove, or the one to insert after, from a table the
+harness keeps, so the figure carries no lookup cost --- an embedder pays its
+own index's, or a walk, on top. With a lock bit in each node,
+the facility's writer goes from 8.0 million updates per second alone to 377 at
+192 writers, 47 times as many, and 355 times the same list behind one lock,
+which falls from 8.9 million updates per second to about one as writers are
+added. The table of stripes reaches 302. Under the same stripes plain \rcu
+leads by 2.0 alone and by 1.10 to 1.51 from 16 writers up. Given the finest
+lock each can use without a walk --- a bit in the node for the facility, the
+stripes for plain \rcu{} --- plain \rcu still leads by 1.11 to 1.36 from 16 to
+128 writers, and from 160 writers up it leads no more, 0.91 to 1.01: 377
+against 379 at 192.
+
+On this machine where the memory lives matters as much as the locks do. Up to
+96 writers the writers share one socket, and so does their memory. With the
+memory spread over both sockets at every count instead, the runs between 16
+and 128 writers were bistable in every arm, the slower runs as much as 43\%
+below the faster. From 128 writers, where the writers themselves span both
+sockets, the slowest run still falls as much as 23\% below the fastest; only
+at 192, with every core busy, are the runs tight again, and the finer-locked
+arms 8 to 23\% above 191's. How writers scale is a property of the embedder's
+lock design and memory placement as much as of this facility, and this is one
+design; writers the embedder does not exclude belong to the companion paper's
+\mw facility.
+
+\paragraph{What this does not measure.} Two absences are deliberate.
 
 The cross-scheme figures in \cref{fig:readclass} are read-side only, and are not
 a throughput evaluation of RLU, MV-RLU or existence. Their write sides differ in
