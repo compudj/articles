@@ -22,23 +22,23 @@
 ]
 
 % ---- slots: the words the reader loads -------------------------------------
-\node[slot] (s1) at (0, 1.3)  {s$_1$};
+\node[slot] (s1) at (0, 1.2)  {s$_1$};
 \node[slot] (s2) at (0, 0)    {s$_2$};
-\node[slot] (s3) at (0, -1.3) {s$_3$};
+\node[slot] (s3) at (0, -1.2) {s$_3$};
 \node[caption, above=1.5mm of s1] {slots (tagged)};
 
 % ---- proxies ------------------------------------------------------------------
-\node[proxy] (p1) at (3.5, 1.3)  {$\{o_1,\ n_1\}$};
+\node[proxy] (p1) at (3.5, 1.2)  {$\{o_1,\ n_1\}$};
 \node[proxy] (p2) at (3.5, 0)    {$\{o_2,\ n_2\}$};
-\node[proxy] (p3) at (3.5, -1.3) {$\{o_3,\ n_3\}$};
-\node[caption, above=1.5mm of p1] {proxies};
+\node[proxy] (p3) at (3.5, -1.2) {$\{o_3,\ n_3\}$};
+\node[caption, above=1.5mm of p1] (pcap) {proxies};
 \draw[arr] (s1) -- (p1);
 \draw[arr] (s2) -- (p2);
 \draw[arr] (s3) -- (p3);
 
 % ---- the shared selector: the whole point ------------------------------------
 \node[sel] (sel) at (7.6, 0) {sel};
-\node[caption, above=1.5mm of sel] {flip group\\(one word)};
+\node[caption, above=1.5mm of sel] (scap) {flip group\\(one word)};
 \draw[dep] (p1.east) -- (sel.north west);
 \draw[dep] (p2.east) -- (sel.west);
 \draw[dep] (p3.east) -- (sel.south west);
@@ -67,6 +67,21 @@
 % ---- the flip -----------------------------------------------------------------
 \draw[-{Latex[length=2.4mm]}, line width=1.4pt, accent]
   ([yshift=-1.5mm]sel.south) -- ++(0,-0.75)
-  node[below, align=center, font=\footnotesize\bfseries, text=ink]
+  node[below, align=center, font=\footnotesize\bfseries, text=ink] (clbl)
   {the commit:\\one release store, 0 → 1};
+
+% ---- the object all this lives in: the transaction's descriptor -------------
+% The proxies are the descriptor's records in installed form, and the flip
+% group is in the same block -- the one the descriptor slab allocates and
+% call_rcu() returns after settle (slide 24's "txn descriptor").
+\begin{scope}[on background layer]
+\node[draw=accent!55, densely dashed, rounded corners=4pt, fill=accent!4,
+      inner xsep=2.5mm, inner ysep=1.5mm,
+      fit=(pcap)(scap)(p1)(p3)(sel)(clbl)] (desc) {};
+\end{scope}
+\node[anchor=south west, inner sep=1pt, font=\footnotesize\bfseries,
+      text=accent] (dlbl) at ([yshift=0.6mm]desc.north west) {txn descriptor};
+\node[anchor=base west, font=\scriptsize, text=muted]
+  at ([xshift=1.5mm]dlbl.base east)
+  {one block: its records, installed as proxies, and the flip group};
 \end{tikzpicture}

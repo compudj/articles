@@ -559,7 +559,6 @@ membership test --- strictly more, and charged to readers
 
 \begin{frame}{The flip-latch: one level of indirection}
 \centerfig{fig-fliplatch}
-\vspace{2mm}
 \lead{Every proxy reads one selector: \textbf{one release store flips the
 set}.}
 \note{%
@@ -593,8 +592,8 @@ Settle   & $n$, directly & $n$ & no: resolved value unchanged \\
 \begin{itemize}
 \item Install and settle both rewrite the slot, and change nothing a reader
       resolves.
-\item Settle \emph{is} the uninstall. Then \code{call\_rcu()} the block of
-      proxies and group.
+\item Settle \emph{is} the uninstall. Then \code{call\_rcu()} the txn
+      descriptor.
 \end{itemize}
 \note{%
 \begin{itemize}
@@ -703,7 +702,6 @@ next load's displacement.}
 \begin{frame}[fragile]{The API on one slide}
 \begin{codeblock}
 struct urcu_txn_sw_txn txn;                    /* on-stack handle */
-
 urcu_txn_sw_init(&txn);
 urcu_txn_sw_reserve(&txn, 3);                  /* rules out OOM */
 old = urcu_txn_sw_load(&txn, &a->next, TAG);   /* sees own writes */
@@ -711,22 +709,25 @@ urcu_txn_sw_record_chain(&txn, &a->next, old, x, TAG);
 urcu_txn_sw_record(&txn, &b->prev, y, x, TAG); /* blind append */
 if (urcu_txn_sw_commit(&txn) != URCU_TXN_STATUS_OK)
     /* URCU_TXN_STATUS_MEMORY_ERROR: nothing was published */;
-
 /* reader, under rcu_read_lock(): */
 v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
 \end{codeblock}
 \vspace{1mm}
 \begin{itemize}\small
-\item One record: a plain release store, no proxy. Two or more: park, flip,
-      settle, \code{call\_rcu()} the block.
-\item Out-of-memory is sticky: check only the commit's status. It never
-      returns an abort.
+\item \code{record()} appends blindly: slots pairwise distinct.
+      \code{record\_chain()} fuses onto this transaction's record for the
+      slot: committed \emph{old} kept, \emph{new} advanced.
+\item One record commits as a plain release store; more: park, flip,
+      settle, \mbox{\code{call\_rcu()}}. OOM is sticky; never an abort.
 \end{itemize}
 \note{%
 \begin{itemize}
 \item Names verified at 18809ea8, include/urcu/rcu-txn-sw.h.
 \item record() is a blind append over pairwise-distinct slots;
-      record\_chain() fuses a second edit of a slot onto its record.
+      record\_chain() fuses a second edit of a slot onto its record, else
+      appends. The find is a linear scan of the private record array, with a
+      Bloom filter armed lazily for long write sets. On a handle declared
+      disjoint, the find is skipped.
 \item The status enum is shared vocabulary; this engine returns OK or
       MEMORY\_ERROR only.
 \end{itemize}}
@@ -856,8 +857,8 @@ transaction-aware structures, made visible or hidden atomically. Slide
 \vspace{4mm}
 \aside{Three obligations: search through the transaction's load, or before the
 first record; every anchor still live; \code{declare\_disjoint()} is a promise
-(\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT} traps a broken one). Prior art: RYW is
-standard in deferred-update STM, and not claimed.}
+(\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT} traps a broken one). Read-your-own-writes
+itself is standard in deferred-update STM.}
 \note{%
 \begin{itemize}
 \item Nothing here is a race: one writer, editing in program order, would
@@ -897,12 +898,18 @@ reader-visible edge.}
 \talksection{Cost}
 
 \begin{frame}{Reader: zero loads, one branch}
-\begingroup\small Per node: \code{rculist} 8 instructions (2 branches, 2
-loads); \code{txn\_sw\_list} 10: \textbf{+1 test, +1 branch, 0 loads}.\par
+% One list against the other, per node (P1 sec. 7: the same eight
+% instructions, plus one test and one branch, and no load).
+\begingroup\small
+\begin{tabular}{@{}l@{\hspace{3mm}}l@{\hspace{3mm}}r@{ }l@{\hspace{5mm}}l@{}}
+Per node: & \code{rculist}     & 8  & instructions: 2 branches, 2 loads & \\
+          & \code{txn\_sw\_list} & 10 & instructions: 3 branches, 2 loads
+          & \textbf{+1 test, +1 branch, 0 loads} \\
+\end{tabular}\par
 \endgroup
-{\small\color{muted}Read ceiling / \code{rculist} (dashed) at 192 readers, no
-writer. Every curve is flat in the reader count.\par}
 \vspace{1mm}
+{\small\color{muted}Read throughput relative to \code{rculist} (dashed = 1.0),
+\textbf{higher is better}; 192 readers, no writer.\par}
 \centerfig{fig-readcost}
 \vspace{2mm}
 \begin{itemize}\small
@@ -910,8 +917,15 @@ writer. Every curve is flat in the reader count.\par}
       \textbf{free}, 1.002--1.003 of \code{rculist}.
 \item \textbf{Walk order, L1-resident}: it shows, 12.7\% (control 10.7\%).
 \end{itemize}
+% The setup of every cost slide (P1 sec. 7), stated once, on the first;
+% the rest of it is in the note.
+\aside{Setup: 2× AMD EPYC 9654 (192 cores), one thread per core; liburcu QSBR;
+10\,000 nodes; median of five 3\,s runs.}
 \note{%
 \begin{itemize}
+\item The ratio is of throughput (node visits/s, no writer: P1's ``read
+      ceiling''), each arm against rculist in the same run. 0.872 means
+      12.7\% slower. Every curve is flat in the reader count.
 \item Scattered: matches the +tag test control within 0.06\%. L3- and
       DRAM-sized scattered lists: no arm distinguishable from rculist within
       run-to-run noise (17\% at L3, 9\% at DRAM).
@@ -988,7 +1002,7 @@ ranked across this boundary.}
 \vspace{5mm}
 \centerfig{fig-profile}
 \vspace{2mm}
-\aside{Each update defers one extra block, the proxies: \code{call\_rcu} is
+\aside{Each update defers one extra block, the txn descriptor: \code{call\_rcu} is
 entered 3× as often as plain RCU's.}
 \note{%
 \begin{itemize}
@@ -1016,7 +1030,8 @@ order → validate → commit.\par
 \vspace{1mm}
 {\small Lock bit in each node: \textbf{8.0 → 377}, 47× from 1 to 192 writers,
 and 355× the list behind one lock. rculist cannot use an in-node lock: its
-\code{prev} is unordered.\par}
+\code{prev} cannot be accessed coherently, so finding the predecessor takes a
+forward walk.\par}
 \label{fr:writerscale}
 \note{%
 \begin{itemize}

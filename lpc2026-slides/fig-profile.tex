@@ -7,6 +7,15 @@
 %
 % Ordered so the reclaim shares sit together under one brace: the point of the
 % slide is that the flip itself is the smallest piece.
+%
+% What each share holds follows the categorization script
+% (efficios-trie-benchmark scripts/p1_writer_profile_categorize.py), which
+% splits by symbol self time: "commit" is urcu_txn_sw_commit_flavor, into
+% which install, flip and settle are inlined (nothing out of line: the
+% txn writer's "other" is 0.47% against rculist's 0.55%); "staging" is the
+% write function plus urcu_txn_sw_record* / _find* / _list_*. P1 sec. 7's
+% wording ("staging -- recording two edges and installing their proxies")
+% puts install on the wrong side of that split.
 \begin{tikzpicture}[x=1.36mm, y=1cm,
   seg/.style = {draw=paper, line width=0.8pt},
   pct/.style = {font=\small\bfseries, text=paper},
@@ -24,12 +33,12 @@
 \node[pct] at (92.5,0.45) {11\%};
 
 \node[nam] at (23,-0.1)   {\code{call\_rcu} plumbing\\{\scriptsize\color{muted}sched\_getcpu, queue lookup, enqueue, wake-up}};
-\node[nam] at (56,-0.1)   {descriptor slab};
-\node[nam] at (76.5,-0.1) {staging\\{\scriptsize\color{muted}record + install}};
-\node[nam] at (92.5,-0.1) {\textbf{commit}\\{\scriptsize\color{muted}the flip}};
+\node[nam] at (56,-0.1)   {txn descriptor slab};
+\node[nam] at (76.5,-0.1) {staging\\{\scriptsize\color{muted}list op + record}};
+\node[nam] at (92.5,-0.1) {\textbf{commit}\\{\scriptsize\color{muted}install, flip, settle}};
 
 \draw[decorate, decoration={brace, amplitude=2mm}, muted, line width=0.7pt]
   (0.3,1.05) -- (65.7,1.05)
   node[midway, above=2.5mm, font=\footnotesize, text=ink]
-  {the descriptor's reclaim: 66\%};
+  {the txn descriptor's reclaim: 66\%};
 \end{tikzpicture}
