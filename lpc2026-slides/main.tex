@@ -185,6 +185,9 @@
 \newcommand{\lead}[1]{{\large #1\par}}
 \newcommand{\punch}[1]{{\large\bfseries #1\par}}
 \newcommand{\aside}[1]{{\footnotesize\color{muted}#1\par}}
+% A step number in a table (defined here: a \def with a parameter inside a
+% non-fragile frame would need its # doubled).
+\newcommand{\stepnum}[1]{\textcolor{accent}{\textbf{#1}}}
 \newtcolorbox{callout}[1][]{enhanced, colback=paperalt, frame hidden, arc=2pt,
   borderline west={1.6pt}{0pt}{accent}, left=3mm, right=3mm, top=1.5mm,
   bottom=1.5mm, fontupper=\small, before skip=1mm, after skip=1mm, #1}
@@ -362,19 +365,26 @@ useful, and not a coherent reverse walk. No mixing with
 \end{frame}
 
 \begin{frame}{Today's remedies each pay somewhere}
-\begingroup\renewcommand{\arraystretch}{1.22}\arrayrulecolor{muted!60}
-\begin{tabular}{@{}>{\raggedright}p{40mm}>{\raggedright}p{22mm}>{\raggedright\arraybackslash}p{70mm}@{}}
+\begingroup\small\renewcommand{\arraystretch}{1.1}\arrayrulecolor{muted!60}
+% A light rule between rows: several cells wrap, and without one the rows
+% read as one block.
+\def\rowsep{\arrayrulecolor{muted!25}\specialrule{0.4pt}{0.9mm}{0.9mm}%
+  \arrayrulecolor{muted!60}}
+\begin{tabular}{@{}>{\raggedright}p{38mm}>{\raggedright}p{22mm}>{\raggedright\arraybackslash}p{72mm}@{}}
 \toprule
 \textbf{Remedy} & \textbf{Who pays} & \textbf{How} \\
 \midrule
 Copy the region & the writer
-  & allocation, footprint and reclaim on every update --- and a pinned node
-    cannot be copied: references you don't own \\
+  & allocation, footprint and reclaim on every update; a pinned node cannot
+    be copied at all \\
+\rowsep
 Drain with a grace period & the writer
   & waits out every reader in the system \\
+\rowsep
 Steer or validate the reader & \textbf{every reader}
-  & a seqcount retry (the dcache's \code{d\_seq} / \code{rename\_lock}),
+  & seqcount retries (dcache: \code{d\_seq}, \mbox{\code{rename\_lock}}),
     per-element locks: paid on \textbf{every traversal} \\
+\rowsep
 Decline the operation & the user & no RCU reverse iterator \\
 \bottomrule
 \end{tabular}\par\endgroup
@@ -405,27 +415,27 @@ records. A sequence of \textbf{install} stores makes them visible, slot by
 slot, each still resolving \textit{old}; \textbf{one atomic commit step} then
 publishes the transition to \textit{new}, for all of them at once.
 \end{callout}
-\vspace{2mm}
-\begin{columns}[c, onlytextwidth]
-\column{0.74\textwidth}
+\vspace{0.5mm}
 \begingroup\small\renewcommand{\arraystretch}{1.0}\arrayrulecolor{muted!60}
-\begin{tabular}{@{}ll@{}}
+% The first three rows are a sequence and are numbered as one; the rows
+% under the rule are properties of the result, not steps.
+\begin{tabular}{@{}l@{\hspace{2.5mm}}ll@{}}
 \toprule
-\textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
+& \textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
 \midrule
-journal transaction, closed   & record set, frozen \\
-journal blocks, written       & records installed: slots parked, still \emph{old} \\
-commit record                 & the commit step \\
-before commit: old state      & before commit: every record resolves \emph{old} \\
-after commit: new state       & after commit: every record resolves \emph{new} \\
-never a partial batch         & no slot, and no instant, is ever torn \\
-readers are not transactional & readers are plain RCU readers \\
-atomicity, not isolation      & atomicity, not opacity \\
+\stepnum{1} & \textbf{journal transaction closed} & \textbf{record set frozen} \\
+\stepnum{2} & \textbf{journal blocks written}
+         & \textbf{records installed}: slots parked, still \emph{old} \\
+\stepnum{3} & \textbf{commit record written}
+         & \textbf{one commit step}: \emph{old} → \emph{new}, for all \\
+\midrule
+& before commit: old state      & before commit: every record resolves \emph{old} \\
+& after commit: new state       & after commit: every record resolves \emph{new} \\
+& never a partial batch         & no slot, and no instant, is ever torn \\
+& readers are not transactional & readers are plain RCU readers \\
+& atomicity, not isolation      & atomicity, not opacity \\
 \bottomrule
 \end{tabular}\par\endgroup
-\column{0.23\textwidth}
-\lead{``Pseudo-'' is a disambiguation, not an apology.}
-\end{columns}
 \note{%
 \begin{itemize}
 \item Freezing settles \emph{what} takes effect, and comes first; the single
@@ -525,12 +535,13 @@ The reader gets & one slot at a time & never new-then-old
   & isolation, opacity \\
 \bottomrule
 \end{tabular}\par\endgroup
-\vspace{5mm}
+\vspace{4mm}
 \lead{Isolation is a read-side cost once you mutate in place.
-\textbf{We decline to charge readers for it.}}
-\vspace{3mm}
-\aside{Honest asterisk: RLU and existence give readers strictly more --- and
-charge them more (slide~\ref{fr:comparison}).}
+\textbf{RCU pseudo-transactions decline to charge readers for it.}}
+\vspace{2mm}
+\aside{Honest asterisk: RLU gives readers a snapshot, existence a per-element
+membership test --- strictly more, and charged to readers
+(slide~\ref{fr:comparison}).}
 \note{%
 \begin{itemize}
 \item ``Once you mutate in place'' is load-bearing: copy-on-write gives
@@ -1137,7 +1148,8 @@ from old figures. Candidate framing and sources: HANDOFF.md, slide 26.}
 
   \textbf{Isn't this existence?}\\
   Existence adds a per-element field (+1 load, +1 branch) and gives a
-  stronger per-element guarantee. We add no per-element state: 3\% / 15\%.
+  stronger per-element guarantee. Pseudo-transactions add no per-element
+  state: 3\% / 15\%.
   \vspace{0.8mm}
 
   \textbf{ABA?}\\

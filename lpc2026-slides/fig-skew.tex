@@ -7,9 +7,9 @@
 % MIDDLE state in which a reader finds E by key and finds it in no position,
 % and one commit has no middle state at all.
 %
-% The boxes name the node whose pointer comes to name E in each structure.
-% They are descriptions, not identifiers, so they are set in the sans face:
-% "hash bucket node" in monospace would not fit a column.
+% The boxes are the two data structures -- the hash bucket E hashes to, and
+% the LRU list -- not nodes embedded in E. They are descriptions, not
+% identifiers, so they are set in the sans face.
 \begin{tikzpicture}[
   box/.style   = {draw=muted, minimum width=\bw cm, minimum height=5.5mm,
                   fill=paperalt, anchor=west, font=\small},
@@ -25,7 +25,7 @@
   y=0.92cm,
 ]
 % Geometry (cm): column pitch, box width, E's centre from its column's left.
-\def\cw{4.75}\def\bw{2.9}\def\ex{3.8}
+\def\cw{4.6}\def\bw{2.3}\def\ex{3.2}
 \pgfmathsetmacro{\cb}{\cw}      % column 2 (between)
 \pgfmathsetmacro{\cc}{2*\cw}    % column 3 (after)
 \pgfmathsetmacro{\mid}{\cw+\ex/2+0.1}  % centre of the between column
@@ -35,20 +35,20 @@
 \node[hdr] at (-0.15,2.2) {Two publishes (plain RCU)};
 
 \node[note] at (\ex/2,1.55) {before};
-\node[box] (i1) at (0,1.05) {hash bucket node};
-\node[box] (r1) at (0,0.3)  {LRU node};
+\node[box] (i1) at (0,1.05) {hash bucket};
+\node[box] (r1) at (0,0.3)  {LRU};
 \node[gone] (e1) at (\ex,0.675) {$E$};
 
 \node[note, text=old] at (\mid,1.55) {between};
-\node[box] (i2) at (\cb,1.05) {hash bucket node};
-\node[box] (r2) at (\cb,0.3)  {LRU node};
+\node[box] (i2) at (\cb,1.05) {hash bucket};
+\node[box] (r2) at (\cb,0.3)  {LRU};
 \node[ent]  (e2) at (\cb+\ex,0.675) {$E$};
 \draw[arr] (i2.east) -- (e2.north west);
 \draw[stub] (r2.east) -- ++(0.2,0) node[right, inner sep=1pt, text=old] {$\times$};
 
 \node[note] at (\cc+\ex/2,1.55) {after};
-\node[box] (i3) at (\cc,1.05) {hash bucket node};
-\node[box] (r3) at (\cc,0.3)  {LRU node};
+\node[box] (i3) at (\cc,1.05) {hash bucket};
+\node[box] (r3) at (\cc,0.3)  {LRU};
 \node[ent]  (e3) at (\cc+\ex,0.675) {$E$};
 \draw[arr] (i3.east) -- (e3.north west);
 \draw[arr] (r3.east) -- (e3.south west);
@@ -60,12 +60,12 @@
 % Same columns as row 1, so its before/after labels are not repeated.
 \node[hdr] at (-0.15,-1.0) {One commit (pseudo-transaction)};
 
-\node[box] (i4) at (0,-1.5)  {hash bucket node};
-\node[box] (r4) at (0,-2.25) {LRU node};
+\node[box] (i4) at (0,-1.5)  {hash bucket};
+\node[box] (r4) at (0,-2.25) {LRU};
 \node[gone] (e4) at (\ex,-1.875) {$E$};
 
-\node[box] (i5) at (\cc,-1.5)  {hash bucket node};
-\node[box] (r5) at (\cc,-2.25) {LRU node};
+\node[box] (i5) at (\cc,-1.5)  {hash bucket};
+\node[box] (r5) at (\cc,-2.25) {LRU};
 \node[ent]  (e5) at (\cc+\ex,-1.875) {$E$};
 \draw[arr] (i5.east) -- (e5.north west);
 \draw[arr] (r5.east) -- (e5.south west);
