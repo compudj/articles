@@ -305,7 +305,7 @@ next->prev = new;                              /* plain store, AFTER publish */
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Ordering is not what's missing}
+\begin{frame}{Publication atomicity, not ordering}
 \begin{columns}[T, onlytextwidth]
 \column{0.45\textwidth}
   {\centering\input{fig-twostores}\par}
@@ -317,7 +317,7 @@ next->prev = new;                              /* plain store, AFTER publish */
   \item Even properly published, two edges are \textbf{two release stores}.
         Between them the forward chain has dropped E, the backward chain has
         not: \textbf{two different lists}, neither torn.
-  \item E is a ghost until its grace period: the backward view trails by
+  \item E is a ghost until its grace period completes: the backward view trails by
         \textbf{up to a grace period}.
   \end{itemize}
   \vspace{2mm}
@@ -342,9 +342,9 @@ useful, and not a coherent reverse walk. No mixing with
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Two structures, one object}
-  A cache entry $E$ must be \textbf{findable} (hash index) and
-  \textbf{ordered} (recency list).
+\begin{frame}{Composition: two structures, one object}
+  A cache entry $E$ must be \textbf{findable} (hash table) and
+  \textbf{ordered} (LRU list).
   \vspace{2mm}
   \centerfig{fig-skew}
   \vspace{1mm}
@@ -362,7 +362,7 @@ useful, and not a coherent reverse walk. No mixing with
 \end{frame}
 
 \begin{frame}{Today's remedies each pay somewhere}
-\begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
+\begingroup\renewcommand{\arraystretch}{1.22}\arrayrulecolor{muted!60}
 \begin{tabular}{@{}>{\raggedright}p{40mm}>{\raggedright}p{22mm}>{\raggedright\arraybackslash}p{70mm}@{}}
 \toprule
 \textbf{Remedy} & \textbf{Who pays} & \textbf{How} \\
@@ -378,9 +378,9 @@ Steer or validate the reader & \textbf{every reader}
 Decline the operation & the user & no RCU reverse iterator \\
 \bottomrule
 \end{tabular}\par\endgroup
-\vspace{5mm}
-\lead{What is missing is \textbf{atomicity across slots}, and RCU has no way
-to ask for it.}
+\vspace{4mm}
+\lead{What is missing is \textbf{publication atomicity} across slots, and RCU
+has no way to ask for it.}
 \note{%
 \begin{itemize}
 \item Pinned: an address held somewhere the writer cannot reach --- an
@@ -399,17 +399,22 @@ to ask for it.}
 \talksection{The model}
 
 \begin{frame}{A pseudo-transaction}
-\begin{callout}[fontupper=\normalsize]
+\begin{callout}
 A \textbf{frozen} set of \{\textit{slot}, \textit{old} → \textit{new}\}
-records, made visible by \textbf{one commit step}.
+records. A sequence of \textbf{install} stores makes them visible, slot by
+slot, each still resolving \textit{old}; \textbf{one atomic commit step} then
+publishes the transition to \textit{new}, for all of them at once.
 \end{callout}
 \vspace{2mm}
-\begingroup\small\renewcommand{\arraystretch}{1.08}\arrayrulecolor{muted!60}
+\begin{columns}[c, onlytextwidth]
+\column{0.74\textwidth}
+\begingroup\small\renewcommand{\arraystretch}{1.0}\arrayrulecolor{muted!60}
 \begin{tabular}{@{}ll@{}}
 \toprule
 \textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
 \midrule
 journal transaction, closed   & record set, frozen \\
+journal blocks, written       & records installed: slots parked, still \emph{old} \\
 commit record                 & the commit step \\
 before commit: old state      & before commit: every record resolves \emph{old} \\
 after commit: new state       & after commit: every record resolves \emph{new} \\
@@ -418,12 +423,17 @@ readers are not transactional & readers are plain RCU readers \\
 atomicity, not isolation      & atomicity, not opacity \\
 \bottomrule
 \end{tabular}\par\endgroup
-\vspace{3mm}
+\column{0.23\textwidth}
 \lead{``Pseudo-'' is a disambiguation, not an apology.}
+\end{columns}
 \note{%
 \begin{itemize}
 \item Freezing settles \emph{what} takes effect, and comes first; the single
       step settles \emph{when}, and comes last.
+\item Install is not a partial commit: readers can reach the records, but
+      every parked slot still resolves to its old value. Visibility and the
+      old-to-new transition are two different events; only the second is
+      the linearization point.
 \item A journaling filesystem calls this a transaction and has never meant
       isolation by it. This table is what stops the room filing the model
       under ``weak STM'' in the first thirty seconds.
@@ -476,27 +486,29 @@ resolves the slots of one commit \textbf{along a dependency chain} sees}
 \enspace{\small\color{muted}allowed}\qquad\qquad
 {\ttfamily\Large\textcolor{accent}{n}\ \textcolor{old}{o}}%
 \enspace{\small\color{old}never}\par}
-\vspace{4mm}
-\begin{itemize}\small
-\item The chain is an address dependency --- every ordinary walk down a list
-      or a tree --- or an acquire.
-\item Two slots reached independently (a cached pointer, sibling subtrees)
-      have no chain and owe an acquire. It bites under
-      \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on weakly-ordered hardware.
-\item Kernel aside: arm64 with \code{CONFIG\_LTO} already promotes
-      \code{READ\_ONCE()} to acquire, because LTO may turn an address
-      dependency into a control one.
-\end{itemize}
-\vspace{3mm}
-\punch{New-then-old is what forces seqcount-style read-side remedies.
-The model forbids it by construction.}
+\vspace{6mm}
+The chain is an address dependency --- every ordinary walk down a list or a
+tree --- or an acquire.
+
+\vspace{8mm}
+\punch{New-then-old is what drives readers to seqcount retries. Here it
+cannot happen, by construction: no seqcount, no retry.}
 \note{%
 \begin{itemize}
 \item A reader may lag a commit; it never regresses across one.
+\item Not a seqcount, and not a seqcount's guarantee: a seqcount-validated
+      walk gets a consistent view by retrying; here a reader never retries,
+      and what it is spared is exactly new-then-old --- not the straddle.
 \item Strictly more than independent registers, strictly less than a
       snapshot --- and the middle ground is usable, not merely tolerable.
 \item [opt] Split edits: Triplett's rule, commit in reverse of the reader's
       read order (backup slide).
+\item If asked: two slots reached independently (a cached pointer, sibling
+      subtrees) have no chain and owe an acquire; it bites under
+      -DURCU\_DEREFERENCE\_USE\_VOLATILE on weakly-ordered hardware.
+\item If asked, kernel side: arm64 with CONFIG\_LTO already promotes
+      READ\_ONCE() to acquire, because LTO may turn an address dependency
+      into a control one.
 \end{itemize}}
 \end{frame}
 
@@ -787,8 +799,8 @@ ret = urcu_txn_sw_commit(&txn);        /* one flip */
 Hiding it has the same shape.}
 \vspace{2mm}
 \aside{The abstract's composability claim: one object in several
-transaction-aware structures, made visible or hidden atomically. The middle
-state of slide~\ref{fr:skew} no longer exists.}
+transaction-aware structures, made visible or hidden atomically. Slide
+\ref{fr:skew}'s composition problem has no middle state left.}
 \label{fr:twostructs}
 \note{%
 \begin{itemize}
