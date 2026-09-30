@@ -1,0 +1,55 @@
+% P1's fig:readcost reduced to the one reader count the talk quotes: every
+% curve there is flat in the reader count, so a single column loses nothing but
+% the flatness, which the slide says in words. A dot plot rather than bars: the
+% axis is a ratio that does not start at zero, and a bar would imply it does.
+%
+% Read in place from P1's CSVs -- the last row of each is the 192-reader
+% point -- so the printed values cannot drift from the paper's.
+\pgfplotstableread[col sep=comma]{\ponedata/fig-readcost-shuffled.csv}\rcscat
+\pgfplotstableread[col sep=comma]{\ponedata/fig-readcost.csv}\rcwalk
+\lastof{\rcscat}{load}{\sLoad}   \lastof{\rcwalk}{load}{\wLoad}
+\lastof{\rcscat}{resolve}{\sTag} \lastof{\rcwalk}{resolve}{\wTag}
+\lastof{\rcscat}{txn}{\sTxn}     \lastof{\rcwalk}{txn}{\wTxn}
+\lastof{\rcscat}{loadbr}{\sLdT}  \lastof{\rcwalk}{loadbr}{\wLdT}
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=7mm,
+               yticklabels at=edge left},
+  scale only axis, width=4.3cm, height=2.6cm,
+  xmin=0.77, xmax=1.035, ymin=0.45, ymax=4.55,
+  xtick={0.8,0.9,1.0},
+  xticklabel={\pgfmathprintnumber[fixed, precision=1, fixed zerofill]{\tick}},
+  ytick={1,2,3,4},
+  yticklabels={rculist + load + test, \textbf{txn\_sw\_list},
+               {rculist + tag test\\\color{muted}(control)}, rculist + load},
+  yticklabel style={align=right, font=\footnotesize, text=ink},
+  xticklabel style={font=\footnotesize, text=muted},
+  major tick length=0pt,
+  axis line style={draw=none},
+  xmajorgrids, grid style={muted!18},
+  title style={font=\small\bfseries, text=ink, yshift=-1mm},
+  clip=false,
+  point meta=x,
+  nodes near coords={\pgfmathprintnumber[fixed, precision=3,
+                     fixed zerofill]{\pgfplotspointmeta}},
+  every node near coord/.append style={font=\footnotesize, anchor=west, fill=paper, inner sep=1pt,
+                                       xshift=0.6mm},
+]
+\nextgroupplot[title={Scattered nodes (L2 hops)}]
+\draw[muted, densely dashed] (axis cs:1,0.45) -- (axis cs:1,4.55);
+\addplot[only marks, mark=*, mark size=2.2pt, color=onelock,
+         every node near coord/.append style={text=muted}]
+  coordinates {(\sLoad,4) (\sTag,3) (\sLdT,1)};
+\addplot[only marks, mark=*, mark size=3pt, color=accent,
+         every node near coord/.append style={text=accent, font=\footnotesize\bfseries}]
+  coordinates {(\sTxn,2)};
+\nextgroupplot[title={Walk order (L1 hops)}]
+\draw[muted, densely dashed] (axis cs:1,0.45) -- (axis cs:1,4.55);
+\addplot[only marks, mark=*, mark size=2.2pt, color=onelock,
+         every node near coord/.append style={text=muted}]
+  coordinates {(\wLoad,4) (\wTag,3) (\wLdT,1)};
+\addplot[only marks, mark=*, mark size=3pt, color=accent,
+         every node near coord/.append style={text=accent, font=\footnotesize\bfseries}]
+  coordinates {(\wTxn,2)};
+\end{groupplot}
+\end{tikzpicture}

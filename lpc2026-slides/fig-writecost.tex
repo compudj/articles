@@ -1,0 +1,31 @@
+% P1's fig:writecost for the backup slides: one writer with readers running,
+% both lists under an uncontended writer mutex, in the two layouts. The "about
+% 2x" of the cost slide is read off these two panels; they are here for the
+% question "2x at what reader count?". Data read in place from P1.
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=14mm},
+  scale only axis, width=5.2cm, height=2.7cm,
+  xlabel={Readers}, xmin=0, xmax=196, ymin=0, ymax=17,
+  xtick={1,64,128,191}, ytick={0,5,10,15},
+  tick label style={font=\footnotesize, text=muted},
+  label style={font=\footnotesize, text=muted},
+  title style={font=\small\bfseries, text=ink},
+  axis lines=left, axis line style={muted!60}, tick style={muted!60},
+  ymajorgrids, grid style={muted!18},
+  every axis plot/.append style={line width=1.3pt, mark size=1.2pt},
+]
+\nextgroupplot[title={Scattered nodes (L2 hops)}, ylabel={Millions of updates/s}]
+\addplot[color=old, dashed, mark=square*]
+  table[x=readers, y=rcu, col sep=comma] {\ponedata/fig-writecost-scattered.csv};
+\addplot[color=accent, mark=*]
+  table[x=readers, y=txn, col sep=comma] {\ponedata/fig-writecost-scattered.csv};
+\node[anchor=west, font=\footnotesize, text=old]    at (axis cs:12,15.2) {\code{rculist}};
+\node[anchor=west, font=\footnotesize\bfseries, text=accent] at (axis cs:12,8.3) {\code{txn\_sw\_list}};
+\nextgroupplot[title={Walk order (L1 hops)}]
+\addplot[color=old, dashed, mark=square*]
+  table[x=readers, y=rcu, col sep=comma] {\ponedata/fig-writecost.csv};
+\addplot[color=accent, mark=*]
+  table[x=readers, y=txn, col sep=comma] {\ponedata/fig-writecost.csv};
+\end{groupplot}
+\end{tikzpicture}

@@ -1,0 +1,1182 @@
+% LPC 2026, Refereed track -- 6 October 2026, 10:00-10:45, Small Hall, Prague:
+% "RCU Pseudo-Transactions: Bridging the gap between RCU and STM".
+%
+% The deck is P1 (../p1-sw-flip-latch) told to a room of kernel developers: its
+% numbers (engine pin 18809ea8), its framing, and its CSVs, read in place so no
+% chart here can drift from the paper's. HANDOFF.md holds the outline, the
+% decisions behind it and the standing rules; `make` checks the framing words.
+%
+% Scope, decided 2026-09-30: the single-writer API only. The CAS-based
+% multi-writer engine (P2) gets no slide, not even a teaser. The dentry-cache
+% slide stays a placeholder until the dcache benchmarks finish.
+
+\documentclass[aspectratio=169, 10pt, t, xcolor=table]{beamer}
+% `make notes` defines \withnotes: every slide is followed by its notes page.
+\ifdefined\withnotes\setbeameroption{show notes}\fi
+
+% ---------------------------------------------------------------------------
+% Fonts. IBM Plex is the design's face (HANDOFF.md section 4); where it is not
+% installed, Lato + Noto Sans Mono stand in. Both cover every glyph used here,
+% arrows included. A font swap can move a line break, so `make` reports any
+% overfull box.
+% ---------------------------------------------------------------------------
+\usepackage{fontspec}
+\IfFontExistsTF{IBM Plex Sans}{%
+  % The 600 weight's name depends on the build: upstream's OTFs call it
+  % "SemiBold", Debian's fonts-ibm-plex TTFs "SmBld".
+  \IfFontExistsTF{IBM Plex Sans SemiBold}{\def\plexsb{SemiBold}}{\def\plexsb{SmBld}}%
+  \setsansfont{IBM Plex Sans}[BoldFont={IBM Plex Sans \plexsb},
+                              BoldItalicFont={IBM Plex Sans \plexsb\space Italic}]
+  \setmonofont{IBM Plex Mono}[BoldFont={IBM Plex Mono \plexsb}]
+}{%
+  \setsansfont{Lato}[BoldFont={Lato Semibold},
+                     BoldItalicFont={Lato Semibold Italic}]
+  % One numeric scale, not Scale=MatchLowercase: fontspec computes that per
+  % face (0.945 regular, 0.928 bold), which knocks the aligned comments of a
+  % listing out of line wherever a bold identifier precedes them.
+  \setmonofont{Noto Sans Mono}[Scale=0.945,
+                               BoldFont={Noto Sans Mono Bold}]
+}
+% Math letters and digits in the text face: the slides' math is single letters
+% ($E$, $o_1$, $s_k$), and in Computer Modern they read as a second font.
+\usepackage[italic]{mathastext}
+
+\usepackage{xspace}
+\input{../common/macros}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, calc, fit, backgrounds,
+                decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+% Numbers in the deck's text face, not in math-mode Computer Modern: pgf wraps
+% every printed number in $...$ unless told it is already in math mode, and
+% pgfplots' default tick labels add their own $...$ on top.
+\pgfkeys{/pgf/number format/assume math mode=true}
+\pgfplotsset{
+  xticklabel={\pgfmathprintnumber{\tick}},
+  yticklabel={\pgfmathprintnumber{\tick}},
+}
+\usepgfplotslibrary{groupplots}
+\usepackage{pgfplotstable}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\tcbuselibrary{listings, skins}
+
+% P1's plot data, read in place.
+\newcommand{\ponedata}{../p1-sw-flip-latch/data}
+
+% \lastof{table}{column}{\macro}: \macro <- the column's value in the table's
+% last row. Every P1 CSV ends at 192 workers (191 where one core runs the
+% writer), the point the talk quotes.
+\newcommand{\lastof}[3]{%
+  \pgfplotstablegetrowsof{#1}%
+  \pgfmathtruncatemacro{\lastrow}{\pgfplotsretval-1}%
+  \pgfplotstablegetelem{\lastrow}{#2}\of#1\let#3\pgfplotsretval}
+
+% ---------------------------------------------------------------------------
+% Palette (HANDOFF.md section 4; contrasts checked there). Orange is plain RCU
+% and "old", blue is the facility and "new"; the whole deck keeps to that.
+% ---------------------------------------------------------------------------
+\definecolor{paper}{HTML}{F5F3EE}
+\definecolor{paperalt}{HTML}{E9E5DC}
+\definecolor{dark}{HTML}{17191E}
+\definecolor{darkmuted}{HTML}{B8BDC7}
+\definecolor{ink}{HTML}{1A1D23}
+\definecolor{muted}{HTML}{4F5561}
+\definecolor{accent}{HTML}{2456A6}
+\definecolor{old}{HTML}{B04A0C}
+\definecolor{codebg}{HTML}{1F232B}
+\definecolor{codefg}{HTML}{E8E4DA}
+\definecolor{codecomment}{HTML}{9AA3B2}
+\definecolor{codekw}{HTML}{F2A65A}
+\definecolor{codeblue}{HTML}{8DB6F0}
+% writer-scaling series, CVD-checked as a set (and told apart by dash too)
+\definecolor{stripes}{HTML}{6A8BC6}
+\definecolor{onelock}{HTML}{707682}
+
+% ---------------------------------------------------------------------------
+% Beamer look: quiet, code-first. A small section kicker above each title
+% stands in for divider slides, which a 45-minute slot cannot spare.
+% ---------------------------------------------------------------------------
+\setbeamersize{text margin left=9mm, text margin right=9mm}
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{background canvas}{bg=paper}
+\setbeamercolor{normal text}{fg=ink, bg=paper}
+\setbeamercolor{structure}{fg=accent}
+\setbeamercolor{alerted text}{fg=accent}
+\setbeamercolor{frametitle}{fg=ink}
+\setbeamercolor{kicker}{fg=muted}
+\setbeamercolor{footline}{fg=muted}
+\setbeamerfont{frametitle}{size=\LARGE, series=\bfseries}
+\setbeamerfont{kicker}{size=\scriptsize, series=\bfseries}
+\setbeamerfont{footline}{size=\tiny}
+
+% \talksection sets both beamer's section and the kicker. \gdef, and a plain
+% \def for the empty case: the template tests it against \@empty with \ifx,
+% which a \newcommand-defined (\long) macro would never equal.
+\def\kickertext{}
+\newcommand{\talksection}[1]{\section{#1}\gdef\kickertext{#1}}
+
+\makeatletter
+\setbeamertemplate{frametitle}{%
+  \vskip 4mm
+  \ifx\kickertext\@empty\else
+    {\usebeamerfont{kicker}\usebeamercolor[fg]{kicker}%
+     \addfontfeature{LetterSpace=6}\MakeUppercase{\kickertext}\par}%
+    \vskip 1mm
+  \fi
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}%
+   \insertframetitle\par}%
+  \vskip 3mm}
+\makeatother
+
+\setbeamertemplate{footline}{%
+  \usebeamerfont{footline}\usebeamercolor[fg]{footline}%
+  \hbox to \paperwidth{\hskip 9mm RCU Pseudo-Transactions\enspace·\enspace
+    LPC 2026\hfill\insertframenumber\hskip 9mm}%
+  \vskip 3.5mm}
+
+\setbeamertemplate{itemize item}{\textcolor{accent}{–}}
+\setbeamertemplate{itemize subitem}{\textcolor{muted}{–}}
+\setbeamertemplate{enumerate item}{\textcolor{accent}{\insertenumlabel.}}
+\setlength{\leftmargini}{1.1em}
+
+% ---------------------------------------------------------------------------
+% Code panels. The facility's identifiers are blue, C keywords orange, RCU
+% primitives bold: the eye should find the API at a glance.
+% ---------------------------------------------------------------------------
+\lstdefinestyle{slide}{
+  language=C,
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  keywordstyle=\color{codekw},
+  keywordstyle=[2]\color{codeblue},
+  keywordstyle=[3]\bfseries\color{codefg},
+  commentstyle=\color{codecomment},
+  stringstyle=\color{codefg},
+  identifierstyle=\color{codefg},
+  columns=fullflexible, keepspaces=true, showstringspaces=false,
+  tabsize=4,
+  morekeywords={uintptr_t},
+  morekeywords=[2]{urcu_txn_sw_init, urcu_txn_sw_reserve, urcu_txn_sw_load,
+    urcu_txn_sw_record, urcu_txn_sw_record_chain, urcu_txn_sw_commit,
+    urcu_txn_sw_resolve, urcu_txn_sw_is_proxy, urcu_txn_sw_proxy_get,
+    urcu_txn_sw_untag, urcu_txn_sw_txn, urcu_txn_sw_list_pending,
+    urcu_txn_sw_list_node, urcu_txn_sw_list_add_after_prepare,
+    urcu_txn_sw_list_for_each_entry_reverse_rcu, urcu_txn_sw_list_del_rcu,
+    urcu_txn_sw_hlist_add_head_prepare, URCU_TXN_SW_LIST_PROXY_TAG,
+    URCU_TXN_STATUS_OK, URCU_TXN_STATUS_MEMORY_ERROR},
+  morekeywords=[3]{rcu_read_lock, rcu_read_unlock, rcu_dereference,
+    rcu_assign_pointer, call_rcu, WRITE_ONCE, list_next_rcu, uatomic_load,
+    CMM_ACQUIRE},
+}
+\tcbset{codebox/.style={listing only, colback=codebg, colframe=codebg,
+  boxrule=0pt, arc=2pt, left=2.5mm, right=2.5mm, top=1.2mm, bottom=1.2mm,
+  before skip=1mm, after skip=1mm}}
+\newtcblisting{codeblock}[1][]{codebox, listing options={style=slide}, #1}
+% For the few listings whose lines are real kernel or header code and too long
+% to re-wrap without misquoting them.
+\newtcblisting{codeblocksmall}[1][]{codebox,
+  listing options={style=slide, basicstyle=\ttfamily\scriptsize\color{codefg}}, #1}
+
+% ---------------------------------------------------------------------------
+% Text blocks.
+% ---------------------------------------------------------------------------
+\newcommand{\lead}[1]{{\large #1\par}}
+\newcommand{\punch}[1]{{\large\bfseries #1\par}}
+\newcommand{\aside}[1]{{\footnotesize\color{muted}#1\par}}
+\newtcolorbox{callout}[1][]{enhanced, colback=paperalt, frame hidden, arc=2pt,
+  borderline west={1.6pt}{0pt}{accent}, left=3mm, right=3mm, top=1.5mm,
+  bottom=1.5mm, fontupper=\small, before skip=1mm, after skip=1mm, #1}
+
+% Placeholders: dashed orange, impossible to miss on screen, and listed by
+% `make` so they are impossible to miss at build time too.
+\newtcolorbox{placeholderbox}{enhanced, colback=old!5, frame hidden, arc=2pt,
+  borderline={0.9pt}{0pt}{old, dashed}, left=3mm, right=3mm, top=2mm,
+  bottom=2mm, fontupper=\small\color{old}}
+\newcommand{\placeholder}[1]{%
+  \begin{placeholderbox}\textbf{PLACEHOLDER}\enspace #1\end{placeholderbox}}
+\newcommand{\ph}[1]{\tikz[baseline=(p.base)]\node[draw=old, dashed, text=old,
+  rounded corners=1pt, inner sep=1.5pt, font=\footnotesize] (p) {#1};}
+
+% A centred figure. A command rather than a bare {\centering ...} group: beamer
+% reads a brace group right after the frame title as the frame's SUBTITLE, and
+% a figure opening a frame vanished that way (this template shows no subtitle).
+\newcommand{\centerfig}[1]{\par{\centering\input{#1}\par}}
+
+% A dark frame: cover and close.
+\newenvironment{darkslide}{%
+  \setbeamercolor{background canvas}{bg=dark}%
+  \setbeamercolor{normal text}{fg=paper, bg=dark}%
+  \setbeamercolor{frametitle}{fg=paper}%
+  \setbeamercolor{kicker}{fg=darkmuted}%
+  \setbeamercolor{footline}{fg=darkmuted}}{}
+
+\title{RCU Pseudo-Transactions}
+\subtitle{Bridging the gap between RCU and STM}
+\author{Mathieu Desnoyers}
+\institute{EfficiOS Inc.}
+\date{Linux Plumbers Conference 2026}
+
+\begin{document}
+
+% ===========================================================================
+% Cover
+% ===========================================================================
+\begin{darkslide}
+\begin{frame}[plain]
+  \color{paper}%
+  \vspace*{16mm}
+  {\color{codeblue}\rule{16mm}{1.1mm}\par}
+  \vspace{5mm}
+  {\fontsize{26}{31}\selectfont\bfseries RCU Pseudo-Transactions\par}
+  \vspace{2.5mm}
+  {\Large\color{darkmuted}Bridging the gap between RCU and STM\par}
+  \vfill
+  {\large\bfseries Mathieu Desnoyers\enspace
+   {\mdseries\color{darkmuted}·\enspace EfficiOS}\par}
+  \vspace{1.5mm}
+  {\small\color{darkmuted}Linux Plumbers Conference 2026\enspace·\enspace
+   Prague\enspace·\enspace 6 October 2026\par}
+  \vspace*{11mm}
+  \note{%
+  \begin{itemize}
+  \item 45 minutes including questions; about 33 minutes of slides, 1.3 min
+        per slide. Slides marked [opt] in these notes go first if short.
+  \item The title's bridge is positioning, not a claim of STM semantics:
+        say ``between'', never ``is''.
+  \end{itemize}}
+\end{frame}
+\end{darkslide}
+
+% ===========================================================================
+% A. The problem
+% ===========================================================================
+\talksection{The problem}
+
+\begin{frame}{RCU's contract}
+  \lead{Readers pay nothing. In exchange, a writer gets \textbf{exactly one}
+  atomic operation: \textbf{a single pointer store}.}
+  \vspace{7mm}
+  \centerfig{fig-contract}
+  \vspace{7mm}
+  \lead{A pseudo-transaction does not add a fourth phase.\\
+  It \textbf{\color{accent}widens the second one}: N slots, still one store.}
+  \note{%
+  \begin{itemize}
+  \item Build owes readers nothing: no ordering, no barrier; a failed build
+        frees its work at once. Reclaim is merely deferred.
+  \item Publish is the constraint: a store is the only thing commodity
+        hardware makes atomic to a reader that took no lock and paid no barrier.
+  \item The rest of the talk is about the second half of the first sentence.
+  \end{itemize}}
+\end{frame}
+
+\begin{frame}[fragile]{The kernel's list already needs two stores}
+\begin{codeblocksmall}
+static inline void __list_del(struct list_head *prev,
+                              struct list_head *next)
+{
+    next->prev = prev;              /* N->prev: E -> P   plain store  */
+    WRITE_ONCE(prev->next, next);   /* P->next: E -> N   marked store */
+}
+
+/* __list_add_rcu(): */
+new->next = next;                              /* private */
+new->prev = prev;                              /* private */
+rcu_assign_pointer(list_next_rcu(prev), new);  /* publishes new */
+next->prev = new;                              /* plain store, AFTER publish */
+\end{codeblocksmall}
+\vspace{2mm}
+\begin{itemize}
+\item \code{list\_del\_rcu()} poisons \code{prev}: rculist ships forward
+      iterators only --- and so does Userspace RCU's \code{cds\_list\_*\_rcu}.
+\item A considered trade, not an oversight: the poison buys use-after-delete
+      debugging.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item Between the last two lines of \_\_list\_add\_rcu(): prev->next == new
+      while next->prev == prev. No weak-memory argument needed: it is program
+      order, so the window is real on every architecture.
+\item Say the trade out loud, and mean it: it earns goodwill, and it is true.
+      The kernel judged forward-walk debugging worth more than a reverse walk;
+      Userspace RCU mirrored the kernel's interface.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Ordering is not what's missing}
+\begin{columns}[T, onlytextwidth]
+\column{0.45\textwidth}
+  {\centering\input{fig-twostores}\par}
+  \vspace{3mm}
+  \punch{No barrier fixes a window whose width is a grace period.}
+\column{0.52\textwidth}
+  \small
+  \begin{itemize}
+  \item Even properly published, two edges are \textbf{two release stores}.
+        Between them the forward chain has dropped E, the backward chain has
+        not: \textbf{two different lists}, neither torn.
+  \item E is a ghost until its grace period: the backward view trails by
+        \textbf{up to a grace period}.
+  \end{itemize}
+  \vspace{2mm}
+\begin{callout}[fontupper=\footnotesize]
+\textbf{The kernel's narrow exception} (Dec 2024, Brauner; suggested and
+reviewed by McKenney): \code{list\_bidir\_del\_rcu()} +
+\code{list\_bidir\_prev\_rcu()} let a reader step back out of a ghost ---
+useful, and not a coherent reverse walk. No mixing with
+\code{list\_del\_rcu()} on one list; its sole caller takes one hop.
+\end{callout}
+\end{columns}
+\note{%
+\begin{itemize}
+\item The tempting reading: publish prev with rcu\_assign\_pointer(), read it
+      with rcu\_dereference(), done. It is not: two release stores are two
+      publication instants.
+\item What is missing is atomicity across two slots. That is why the fix has
+      to be a mechanism rather than a barrier.
+\item The sole in-tree caller as of next-20260226:
+      \_\_ns\_tree\_adjoined\_rcu() in kernel/nstree.c, one hop, prev \emph{or}
+      next, never comparing the two directions.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Two structures, one object}
+  A cache entry $E$ must be \textbf{findable} (hash index) and
+  \textbf{ordered} (recency list).
+  \vspace{2mm}
+  \centerfig{fig-skew}
+  \vspace{1mm}
+  A writer-side lock does not help: \textbf{the observer is a reader, and
+  takes no lock.}
+  \label{fr:skew}
+\note{%
+  \begin{itemize}
+  \item Publishing into the list first gives the mirror image: ordered, but
+        a lookup reports it absent.
+  \item The window is not a few instructions: the writer can be preempted
+        inside it. Callers grow a validity flag or a lock, and the reason RCU
+        was chosen erodes.
+  \end{itemize}}
+\end{frame}
+
+\begin{frame}{Today's remedies each pay somewhere}
+\begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}>{\raggedright}p{40mm}>{\raggedright}p{22mm}>{\raggedright\arraybackslash}p{70mm}@{}}
+\toprule
+\textbf{Remedy} & \textbf{Who pays} & \textbf{How} \\
+\midrule
+Copy the region & the writer
+  & allocation, footprint and reclaim on every update --- and a pinned node
+    cannot be copied: references you don't own \\
+Drain with a grace period & the writer
+  & waits out every reader in the system \\
+Steer or validate the reader & \textbf{every reader}
+  & a seqcount retry (the dcache's \code{d\_seq} / \code{rename\_lock}),
+    per-element locks: paid on \textbf{every traversal} \\
+Decline the operation & the user & no RCU reverse iterator \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{5mm}
+\lead{What is missing is \textbf{atomicity across slots}, and RCU has no way
+to ask for it.}
+\note{%
+\begin{itemize}
+\item Pinned: an address held somewhere the writer cannot reach --- an
+      application handle, another subsystem's cache. A swap is complete only
+      if every reference is redirected; one reference you don't own is enough
+      to rule copying out.
+\item The seqcount detects after the fact and retries; the per-element lock
+      prevents the interleaving. Both are paid on the read side whether or not
+      a writer ever appears.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% B. The model
+% ===========================================================================
+\talksection{The model}
+
+\begin{frame}{A pseudo-transaction}
+\begin{callout}[fontupper=\normalsize]
+A \textbf{frozen} set of \{\textit{slot}, \textit{old} → \textit{new}\}
+records, made visible by \textbf{one commit step}.
+\end{callout}
+\vspace{2mm}
+\begingroup\small\renewcommand{\arraystretch}{1.08}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
+\midrule
+journal transaction, closed   & record set, frozen \\
+commit record                 & the commit step \\
+before commit: old state      & before commit: every record resolves \emph{old} \\
+after commit: new state       & after commit: every record resolves \emph{new} \\
+never a partial batch         & no slot, and no instant, is ever torn \\
+readers are not transactional & readers are plain RCU readers \\
+atomicity, not isolation      & atomicity, not opacity \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{3mm}
+\lead{``Pseudo-'' is a disambiguation, not an apology.}
+\note{%
+\begin{itemize}
+\item Freezing settles \emph{what} takes effect, and comes first; the single
+      step settles \emph{when}, and comes last.
+\item A journaling filesystem calls this a transaction and has never meant
+      isolation by it. This table is what stops the room filing the model
+      under ``weak STM'' in the first thirty seconds.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{What you get, and what you don't}
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  {\large\bfseries\color{accent}You get\par}
+  \vspace{1mm}
+  \begin{itemize}\small
+  \item \textbf{Write-set atomicity}: every record resolves \emph{old} before
+        the commit, \emph{new} after.
+  \item \textbf{No tearing}: no slot, and no instant, is ever torn.
+  \item \textbf{The commit linearizes at one point} --- a claim about the
+        write, and only the write.
+  \item \textbf{Cross-structure atomicity}. The unit is one
+        pseudo-transaction: two commits are two linearization points.
+  \end{itemize}
+\column{0.48\textwidth}
+  {\large\bfseries\color{old}You don't\par}
+  \vspace{1mm}
+  \setbeamertemplate{itemize item}{\textcolor{old}{–}}
+  \begin{itemize}\small
+  \item \textbf{A reader is not a transaction of any kind}: a sequence of
+        single-slot reads. A traversal may straddle a commit.
+  \item \textbf{No opacity, no multi-read snapshot.}
+  \item \textbf{No read validation}: under exclusion there is nothing to
+        validate against.
+  \end{itemize}
+\end{columns}
+\note{%
+\begin{itemize}
+\item A single-slot read is itself linearizable, at its own load. A traversal
+      of several slots is a sequence of loads, not one operation.
+\item Serializability is claimed nowhere. Linearizable is scoped to the
+      commit, never to a read-then-commit bracket.
+\item An embedder that needs a multi-read snapshot layers its own versioning
+      on top (seqcount, validating transaction).
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Never new-then-old}
+\lead{The selector is written once, 0 → 1, and never back. A reader that
+resolves the slots of one commit \textbf{along a dependency chain} sees}
+\vspace{4mm}
+{\centering
+{\ttfamily\Large\textcolor{old}{o o o}\ \textcolor{accent}{n n n}}%
+\enspace{\small\color{muted}allowed}\qquad\qquad
+{\ttfamily\Large\textcolor{accent}{n}\ \textcolor{old}{o}}%
+\enspace{\small\color{old}never}\par}
+\vspace{4mm}
+\begin{itemize}\small
+\item The chain is an address dependency --- every ordinary walk down a list
+      or a tree --- or an acquire.
+\item Two slots reached independently (a cached pointer, sibling subtrees)
+      have no chain and owe an acquire. It bites under
+      \code{-DURCU\_DEREFERENCE\_USE\_VOLATILE} on weakly-ordered hardware.
+\item Kernel aside: arm64 with \code{CONFIG\_LTO} already promotes
+      \code{READ\_ONCE()} to acquire, because LTO may turn an address
+      dependency into a control one.
+\end{itemize}
+\vspace{3mm}
+\punch{New-then-old is what forces seqcount-style read-side remedies.
+The model forbids it by construction.}
+\note{%
+\begin{itemize}
+\item A reader may lag a commit; it never regresses across one.
+\item Strictly more than independent registers, strictly less than a
+      snapshot --- and the middle ground is usable, not merely tolerable.
+\item [opt] Split edits: Triplett's rule, commit in reverse of the reader's
+      read order (backup slide).
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Between RCU and STM}
+\begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}>{\raggedright}p{31mm}>{\raggedright}p{26mm}>{\columncolor{accent!9}\raggedright}p{40mm}>{\raggedright\arraybackslash}p{30mm}@{}}
+\toprule
+& \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{STM} \\
+\midrule
+Atomic to readers & one slot & N slots, one commit & read and write sets \\
+The reader pays & nothing & one predicted branch; no added load, no
+  per-element state & a barrier on every read \\
+The reader gets & one slot at a time & never new-then-old
+  & isolation, opacity \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{5mm}
+\lead{Isolation is a read-side cost once you mutate in place.
+\textbf{We decline to charge readers for it.}}
+\vspace{3mm}
+\aside{Honest asterisk: RLU and existence give readers strictly more --- and
+charge them more (slide~\ref{fr:comparison}).}
+\note{%
+\begin{itemize}
+\item ``Once you mutate in place'' is load-bearing: copy-on-write gives
+      readers a free snapshot, which is why a reader gets a coherent node for
+      free. Copying just does not scale to the update.
+\item We did not fail to provide isolation; we declined to charge for it.
+      A reader who needs a snapshot needs a different facility.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% C. The mechanism
+% ===========================================================================
+\talksection{The mechanism}
+
+\begin{frame}{The flip-latch: one level of indirection}
+\centerfig{fig-fliplatch}
+\vspace{2mm}
+\lead{Every proxy reads one selector: \textbf{one release store flips the
+set}.}
+\note{%
+\begin{itemize}
+\item A slot pointing at a proxy is \emph{parked}. Installing a proxy and
+      parking a slot are the same event, from two sides.
+\item Two states are all this facility needs: under exclusion a commit
+      cannot fail for contention, and one that fails for memory does so
+      before it parks anything.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Lifecycle: only the commit is visible}
+\begingroup\renewcommand{\arraystretch}{1.35}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Step} & \textbf{The slot holds} & \textbf{A reader resolves}
+  & \textbf{Linearization point?} \\
+\midrule
+(before) & $o$, directly & $o$ & --- \\
+Build    & $o$, directly & $o$ & no: new nodes unreachable \\
+Install  & tagged proxy, \code{sel} = 0 & $o$ & no: resolved value unchanged \\
+\rowcolor{accent!10}
+\textbf{Commit} & tagged proxy, \code{sel} = 1 & $\boldsymbol{n}$
+  & \textbf{yes: one release store} \\
+Settle   & $n$, directly & $n$ & no: resolved value unchanged \\
+(after)  & $n$, directly & $n$ & --- \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{6mm}
+\begin{itemize}
+\item Install and settle both rewrite the slot, and change nothing a reader
+      resolves.
+\item Settle \emph{is} the uninstall. Then \code{call\_rcu()} the block of
+      proxies and group.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item The reader's column reads o, o, o, n, n, n: one transition, however many
+      slots and however long the writer takes.
+\item The wrinkle is the contract in disguise: across the install window a
+      proxy resolves to the old value recorded at install. Under exclusion
+      that is the true old. Without it, a second writer's store is silently
+      overwritten by settle.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}[fragile]{The read side is one branch}
+\begin{codeblocksmall}
+static inline void *urcu_txn_sw_resolve(void *v, uintptr_t tag)
+{
+    if (caa_likely(!urcu_txn_sw_is_proxy(v, tag)))  /* (v & tag) != tag */
+        return v;
+    return urcu_txn_sw_proxy_get(urcu_txn_sw_untag(v, tag));
+}
+
+/* urcu_txn_sw_proxy_get(): */
+    proxy->ptr[uatomic_load(&proxy->group->selector, CMM_ACQUIRE)]
+\end{codeblocksmall}
+\vspace{3mm}
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  {\bfseries\color{accent}Not parked}\enspace
+  {\small\color{muted}almost always\par}
+  \vspace{1mm}
+  {\small A test on a register already loaded, and a predicted branch.
+  \textbf{No load.}\par}
+\column{0.48\textwidth}
+  {\bfseries Parked}\enspace
+  {\small\color{muted}install → settle, that slot only\par}
+  \vspace{1mm}
+  {\small proxy → group → selector → \code{ptr[sel]}: indexed, a data
+  dependency, not a branch.\par}
+\end{columns}
+\vspace{5mm}
+\aside{The untag \emph{subtracts} the tag, so the compiler folds it into the
+next load's displacement.}
+\note{%
+\begin{itemize}
+\item Only the selector is loaded with acquire, and only when parked; the
+      proxy's immutable fields are reached through the dependency.
+\item Subtraction is exact: the test has proven every tag bit set, and the
+      record's own address has them clear.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Tags: the marker rides the pointer}
+\centerfig{fig-tagword}
+\vspace{5mm}
+\begin{itemize}\small
+\item \textbf{Per-record tag.} One commit may span structures with different
+      encodings --- bit 0 here, a reserved nibble there. Cross-structure
+      atomicity forces it.
+\item Records are 16-byte aligned: 4 low bits to choose from. A record stores
+      the tag, not a tagged pointer, so the descriptor can grow by moving.
+\item \textbf{Contract}: no legitimate slot value may carry the tag pattern.
+      Not checkable for free; the exclusion validator also trips on an alias
+      when it parks the slot.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item The tag's meaning belongs to the slot's structure: a reader never reads
+      the tag from the value, it knows statically which structure it walks.
+\item The record keeps its copy for the write side only: the generic commit
+      parks each proxy with the pattern that slot's readers test.
+\item Violating the contract is a wild pointer, not a torn read: the
+      contracts underwrite memory safety, not merely atomicity.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Exclusion is per slot}
+\lead{The facility owns no lock. Exclusion is the embedder's, and it is
+\textbf{per slot}, not per structure.}
+\vspace{4mm}
+\begin{itemize}
+\item \textbf{No install CAS, no conflict detection, no abort}: that is why it
+      is cheap.
+\item Two writers on one slot \textbf{silently corrupt} it.
+      \code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE} aborts the process on a violation,
+      and costs nothing when off.
+\item Fine-grained locks --- per bucket, per node --- are the ordinary way to
+      meet it: \textbf{writers on disjoint slots commit concurrently}.
+\item A commit fails only for want of memory, before anything is parked.
+      \code{urcu\_txn\_sw\_reserve()} up front rules that out.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item The validator claims the handle (catching a transaction handed between
+      threads mid-flight) and the slot (where two racing writers collide).
+      Off by default; the handle does not even carry the owner field then.
+\item ``We already offer fine-grained locking with the single-writer API'':
+      slide~\ref{fr:writerscale} is the evidence.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% D. The API
+% ===========================================================================
+\talksection{The API}
+
+\begin{frame}[fragile]{The API on one slide}
+\begin{codeblock}
+struct urcu_txn_sw_txn txn;                    /* on-stack handle */
+
+urcu_txn_sw_init(&txn);
+urcu_txn_sw_reserve(&txn, 3);                  /* rules out OOM */
+old = urcu_txn_sw_load(&txn, &a->next, TAG);   /* sees own writes */
+urcu_txn_sw_record_chain(&txn, &a->next, old, x, TAG);
+urcu_txn_sw_record(&txn, &b->prev, y, x, TAG); /* blind append */
+if (urcu_txn_sw_commit(&txn) != URCU_TXN_STATUS_OK)
+    /* URCU_TXN_STATUS_MEMORY_ERROR: nothing was published */;
+
+/* reader, under rcu_read_lock(): */
+v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
+\end{codeblock}
+\vspace{1mm}
+\begin{itemize}\small
+\item One record: a plain release store, no proxy. Two or more: park, flip,
+      settle, \code{call\_rcu()} the block.
+\item Out-of-memory is sticky: check only the commit's status. It never
+      returns an abort.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item Names verified at 18809ea8, include/urcu/rcu-txn-sw.h.
+\item record() is a blind append over pairwise-distinct slots;
+      record\_chain() fuses a second edit of a slot onto its record.
+\item The status enum is shared vocabulary; this engine returns OK or
+      MEMORY\_ERROR only.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}[fragile]{The list: the reverse walk comes back}
+\begin{codeblock}
+rcu_read_lock();
+urcu_txn_sw_list_for_each_entry_reverse_rcu(pos, &head, node)
+    ...;
+rcu_read_unlock();
+
+urcu_txn_sw_list_del_rcu(&e->node);    /* writer, under your locks */
+call_rcu(&e->rcu, free_e);
+\end{codeblock}
+\vspace{4mm}
+\lead{At every resolution, \code{a->next == b} $\Rightarrow$
+\code{b->prev == a}.}
+\vspace{3mm}
+\begin{itemize}\small
+\item A removed node keeps its own \code{next} and \code{prev} --- a ghost ---
+      so a reader standing on it escapes either way.
+\item Coherence holds \emph{at} each resolution. Two resolutions that must
+      agree are asking for a snapshot, which is not on offer.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item Forward and backward chains describe the same list at every instant:
+      the reverse walk rculist declines becomes one a reader may take.
+\item A prev hop taken from the node the previous load returned is
+      dependency-chained. Comparing a prev and a next read from nodes the
+      reader did not chain between needs its own acquire.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}[fragile]{What a list edit records: two edges, one flip}
+\begin{codeblocksmall}
+static inline int
+urcu_txn_sw_list_add_after_prepare(struct urcu_txn_sw_txn *txn,
+        struct urcu_txn_sw_list_node *newp,
+        struct urcu_txn_sw_list_node *pos)
+{
+    struct urcu_txn_sw_list_node *next =
+        urcu_txn_sw_list_pending(txn, &pos->next);
+    newp->prev = pos;                   /* build: unreachable */
+    newp->next = next;
+    urcu_txn_sw_record_chain(txn, (void **) &pos->next, next, newp,
+                             URCU_TXN_SW_LIST_PROXY_TAG);
+    urcu_txn_sw_record_chain(txn, (void **) &next->prev, pos, newp,
+                             URCU_TXN_SW_LIST_PROXY_TAG);
+    return 0;
+}
+\end{codeblocksmall}
+\vspace{1mm}
+{\small The \code{\_rcu} wrappers: init + declare\_disjoint + reserve(2) +
+\code{\_prepare} + commit.\par}
+\aside{Abridged from \code{rcu-txn-sw-list.h}: \code{(void)} casts and
+comments dropped, lines re-wrapped.}
+\note{%
+\begin{itemize}
+\item The neighbour is read through the pending view: an earlier edit in the
+      same transaction may already have moved pos->next.
+\item Build is private: newp's own links are set before it is reachable.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}[fragile]{One commit, two structures}
+\begin{codeblock}
+urcu_txn_sw_init(&txn);
+urcu_txn_sw_reserve(&txn, 3);          /* 1 hlist edge + 2 list edges */
+
+/* findable: */
+urcu_txn_sw_hlist_add_head_prepare(&txn, &e->hnode, bucket);
+/* ordered: */
+urcu_txn_sw_list_add_after_prepare(&txn, &e->lru, &lru.node);
+
+ret = urcu_txn_sw_commit(&txn);        /* one flip */
+\end{codeblock}
+\vspace{3mm}
+\lead{$E$ becomes findable \textbf{and} ordered at the same instant.
+Hiding it has the same shape.}
+\vspace{2mm}
+\aside{The abstract's composability claim: one object in several
+transaction-aware structures, made visible or hidden atomically. The middle
+state of slide~\ref{fr:skew} no longer exists.}
+\label{fr:twostructs}
+\note{%
+\begin{itemize}
+\item Reserve before composing: the hlist \_prepare asserts (debug build) that
+      the bracket stays rollbackable.
+\item Two commits would be two linearization points again: the facility makes
+      the composition available, not automatic.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Read-your-own-writes}
+\begin{columns}[T, onlytextwidth]
+\column{0.47\textwidth}
+  \vspace{2mm}
+  \centerfig{fig-ryw}
+  \vspace{5mm}
+  \begingroup\small\arrayrulecolor{muted!60}\renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}lll@{}}
+  \toprule
+  \textbf{slot} & \textbf{old} (committed) & \textbf{new} \\
+  \midrule
+  \code{P.next}  & E1 & {\color{muted}E2 →} \textbf{\color{accent}N}
+                        \ {\scriptsize\color{muted}fused} \\
+  \code{E2.prev} & E1 & P \\
+  \code{N.prev}  & E2 & P \\
+  \bottomrule
+  \end{tabular}\par\endgroup
+\column{0.5\textwidth}
+  \small
+  The second delete must see the first one's \emph{pending} \code{P.next}.
+  \begin{itemize}
+  \item \code{urcu\_txn\_sw\_load()} returns this transaction's pending value.
+  \item \code{record\_chain()} fuses onto the record: keeps the committed old,
+        advances the new.
+  \item Find: a linear scan of a private array; a Bloom filter armed lazily
+        for long write sets.
+  \end{itemize}
+  \vspace{1mm}
+  Without it, the second delete records \code{E1.next} on a node about to
+  vanish.
+\end{columns}
+\vspace{4mm}
+\aside{Three obligations: search through the transaction's load, or before the
+first record; every anchor still live; \code{declare\_disjoint()} is a promise
+(\code{-DURCU\_TXN\_SW\_DEBUG\_DISJOINT} traps a broken one). Prior art: RYW is
+standard in deferred-update STM, and not claimed.}
+\note{%
+\begin{itemize}
+\item Nothing here is a race: one writer, editing in program order, would
+      tear its own commit.
+\item The load records nothing: no read set, validated against nothing.
+      Under exclusion there is nothing to validate against.
+\item A reader is not in the scheme at all: the writer chooses per load what
+      an STM applies wholesale, and the reader is what the choice buys.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{The hlist: one transacted edge}
+\lead{Readers walk an hlist forward only, so an operation has \textbf{one}
+reader-visible edge.}
+\vspace{4mm}
+\begin{itemize}
+\item \code{pprev} is writer-only and plain-stored: no reader loads it, and no
+      peer races it.
+\item A lone insert or delete costs about an \code{rcu\_assign\_pointer()}: no
+      proxy, no group, no \code{call\_rcu()}.
+\item It still composes, through \code{\_prepare}: the single edge folds into a
+      larger flip (slide~\ref{fr:twostructs}).
+\item Single-pointer head: a bucket costs 8 bytes, and no operation
+      special-cases the head.
+\end{itemize}
+\note{%
+\begin{itemize}
+\item [opt] Cut first if short on time.
+\item pprev is written eagerly, in the prepare step. Deferring it and reading
+      it raw would be the hlist form of the adjacent-delete trap.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% E. Cost
+% ===========================================================================
+\talksection{Cost}
+
+\begin{frame}{Reader: zero loads, one branch}
+\begingroup\small Per node: \code{rculist} 8 instructions (2 branches, 2
+loads); \code{txn\_sw\_list} 10: \textbf{+1 test, +1 branch, 0 loads}.\par
+\endgroup
+{\small\color{muted}Read ceiling / \code{rculist} (dashed) at 192 readers, no
+writer. Every curve is flat in the reader count.\par}
+\vspace{1mm}
+\centerfig{fig-readcost}
+\vspace{2mm}
+\begin{itemize}\small
+\item \textbf{Scattered nodes}, as allocated over time: the branch is
+      \textbf{free}, 1.002--1.003 of \code{rculist}.
+\item \textbf{Walk order, L1-resident}: it shows, 12.7\% (control 10.7\%).
+\end{itemize}
+\note{%
+\begin{itemize}
+\item Scattered: matches the +tag test control within 0.06\%. L3- and
+      DRAM-sized scattered lists: no arm distinguishable from rculist within
+      run-to-run noise (17\% at L3, 9\% at DRAM).
+\item Always quote with the layout. The 12.7\% is a property of a list the
+      prefetcher keeps in L1, walked in allocation order.
+\item Read ceiling vs rculist, no writer, 10\,000 nodes walked forward twice
+      by every arm; median of five 3 s runs after 4 s warm-up. Every curve is
+      flat in the reader count; scaling 97.4--98.4\% of ideal.
+\item Controls: +tag test has the facility's exact instruction stream. The
+      2\% between it and txn in walk order is not mechanism. Few-\% gaps
+      between the load controls are code-level noise.
+\item Setup: 2× EPYC 9654, 192 cores, liburcu QSBR, per-CPU call\_rcu
+      workers, jemalloc per-CPU arenas.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Against schemes that give readers more}
+\begingroup\small\renewcommand{\arraystretch}{1.4}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}llcclc@{}}
+\toprule
+& \textbf{Per-element} & \textbf{Extra} & \textbf{Extra}
+  & \textbf{Reader} & \textbf{Reader pays vs txn} \\[-1.5mm]
+& \textbf{state} & \textbf{loads} & \textbf{branches}
+  & \textbf{guarantee} & {\scriptsize\color{muted}scattered / walk order} \\
+\midrule
+Existence & \code{eh\_egi} field & 1 & 1 & per-element & 3\% / 15\% \\
+RLU & object header & 1 & 1 & snapshot & 2--6\% / 22--44\% \\
+MV-RLU & header + versions & $\ge 2$ & $\ge 3$ & snapshot & 1.40× / 2.91× \\
+\midrule
+\rowcolor{accent!10}
+\textbf{This work} & \textbf{none} & \textbf{0} & 1 & never new-then-old & --- \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{7mm}
+\lead{They charge readers more \textbf{and} deliver more: a price, not a
+defect.}
+\vspace{3mm}
+\aside{Existence in its best layout (a 32-byte element); MV-RLU in its
+global-clock configuration, ratios at 192 readers. Write throughput is not
+ranked across this boundary.}
+\label{fr:comparison}
+\note{%
+\begin{itemize}
+\item Every design branches, this one included: the branch is not where the
+      comparison is decided. The others must first load what they test; ours
+      tests a value the reader already holds. The 1 is not bold on purpose.
+\item RLU's pure reader never touches the header: its extra load is a
+      per-thread flag. Do not claim ``RLU loads the header on every read''.
+\item RLU walk order: 22--25\% up to 32 readers, then bends above 64 (85\% of
+      ideal at 192), unexplained.
+\item The unconditional cost of the others is space: a header or field on
+      every element, for as long as the structure lives.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Writer: about 2×, and it is not the flip}
+\begin{columns}[T, onlytextwidth]
+\column{0.27\textwidth}
+  {\fontsize{34}{36}\selectfont\bfseries\color{accent}≈2×\par}
+  \vspace{1mm}
+  {\footnotesize\color{muted}one writer, readers running\par}
+\column{0.7\textwidth}
+  \vspace{1mm}
+  \begin{itemize}\small
+  \item Scattered nodes: 1.9--2.1× at every reader count.
+  \item Walk order: 1.92× at 1 reader, 1.37× at 8, then 1.4--1.7×.
+  \item No reader at all: 2.5--2.6×.
+  \end{itemize}
+\end{columns}
+\vspace{2mm}
+{\small\bfseries Where the gap goes\enspace
+ {\mdseries\color{muted}one writer, no reader, no mutex: the widest ratio,
+ 3.0}\par}
+\vspace{5mm}
+\centerfig{fig-profile}
+\vspace{2mm}
+\aside{Each update defers one extra block, the proxies: \code{call\_rcu} is
+entered 3× as often as plain RCU's.}
+\note{%
+\begin{itemize}
+\item A parked group block must outlive a grace period: a reader that loaded
+      a proxy may still be resolving through it. Plain RCU defers only the
+      node.
+\item A single-edge commit needs no proxy and frees in place.
+\item Remedies: an rseq-supplied CPU id and an rseq enqueue in call\_rcu (plain
+      RCU gains too, the txn writer more); URCU\_TXN\_SLAB\_BATCH returns
+      descriptors in batches under one call\_rcu (opt-in, off in these
+      numbers).
+\item We report with readers because that is the regime the facility is for:
+      a structure with no readers has no use for reader-visible coherence.
+\item Walk order: plain RCU's writer falls 12.1 → 3.7 Mops/s between 4 and 8
+      readers, txn 6.9 → 2.7: grace periods lengthen for both.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Writers scale with your locks}
+\begingroup\small Writers on disjoint slots: plan unlocked → lock in ascending address
+order → validate → commit.\par
+\endgroup
+\vspace{1mm}
+\input{fig-writerscale}
+\vspace{1mm}
+{\small Lock bit in each node: \textbf{8.0 → 377}, 47× from 1 to 192 writers,
+and 355× the list behind one lock. rculist cannot use an in-node lock: its
+\code{prev} is unordered.\par}
+\label{fr:writerscale}
+\note{%
+\begin{itemize}
+\item rculist leads 1.11--1.36× from 16 to 128 writers; level from 160 on
+      (0.91--1.01): 377 vs 379 at 192. Under the same stripes it leads by
+      1.10--1.51.
+\item To use an in-node lock, rculist would first have to find the
+      predecessor by a forward walk; this facility's writer reads it from the
+      victim's own prev, as a reader may.
+\item Caveats to say: each writer owns its slots, so no retries; no lookup
+      cost in the figure; memory placement matters on this box --- up to 96
+      writers memory on socket 0, beyond interleaved; 128--160 bistable
+      (bars), 191 → 192 jump accepted.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% F. Kernel and close
+% ===========================================================================
+\talksection{Kernel and close}
+
+\begin{frame}{Dentry cache}
+\vspace{6mm}
+\placeholder{Decide in or out once the dcache benchmarks finish. Do not fill
+from old figures. Candidate framing and sources: HANDOFF.md, slide 26.}
+\note{%
+\begin{itemize}
+\item If it goes in: at most two slides, framed as ``where this lands in the
+      kernel'', with the fresh numbers. The single-writer core must stand on
+      its own before it.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{What a kernel port needs}
+\placeholder{Port status --- Mathieu to confirm and fill.}
+\vspace{1.5mm}
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  {\bfseries Needs\par}
+  \vspace{1mm}
+  \begin{itemize}\small
+  \item A spare low bit in the slot: list pointers are aligned.
+  \item A commit fails only on OOM, before anything is parked. Reserve
+        before the first irreversible step and it cannot fail --- under a
+        spinlock, say.
+  \item One \code{call\_rcu()} per multi-edge commit (batchable).
+  \item The exclusion validator as a debug option.
+  \end{itemize}
+\column{0.48\textwidth}
+  {\bfseries Where it would land\par}
+  \vspace{1mm}
+  \begin{itemize}\small
+  \item A coherent reverse walk for rculist: the iterator it declines
+        today.
+  \item Cross-structure publish: hash + LRU.
+  \item Pinned objects whose back edges must move in place.
+  \end{itemize}
+\end{columns}
+\note{%
+\begin{itemize}
+\item P1 is a userspace paper and says nothing about a kernel port; every item
+      here maps a P1 statement onto the kernel. The failure and reserve line
+      is P1 sec.\ 4.5 (``before the first irreversible side effect''); ``under
+      a spinlock'' is the kernel reading of it, not P1's.
+\item Do not name list\_bidir's caller as a customer: P1 sec.\ 2.4 says it
+      takes one hop and never needs coherence.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{What it is not}
+\begin{itemize}
+\item \textbf{Not STM.} No snapshot, no opacity: a reader is not a transaction
+      of any kind.
+\item \textbf{Exclusion is yours}, per slot, with your locks. Two writers on
+      one slot corrupt it.
+\item \textbf{The tag contract}: no legitimate slot value may carry the tag
+      pattern. The contracts underwrite memory safety, not just atomicity.
+\item \textbf{Commit width grows with edges}: a tall tower commits many
+      records where existence flips one group.
+\item \textbf{The writer pays about 2×.}
+\end{itemize}
+\note{%
+\begin{itemize}
+\item These are properties of the model or contracts on the embedder, not
+      defects: the weakening is targeted, not residual.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Summary}
+\begin{itemize}
+\item RCU gives a writer one atomic store. A pseudo-transaction widens it to
+      \textbf{N slots, still one store}: the flip-latch.
+\item Readers: \textbf{no added load, no per-element state}; one predicted
+      branch, free on scattered nodes.
+\item Writers: about 2×, mostly deferred reclaim, not the flip. They scale
+      with your fine-grained locks.
+\item Never new-then-old, and no more: \textbf{not STM}.
+\end{itemize}
+\vspace{1mm}
+\begin{callout}
+\textbf{Paper}\enspace \ph{arXiv link --- TBD}\\[1mm]
+\textbf{Code}\enspace \code{github.com/compudj/userspace-rcu-dev} @
+\code{18809ea8}, in \code{include/urcu/}:\\
+\code{rcu-txn-sw.h}, \code{rcu-txn-sw-list.h}, \code{rcu-txn-sw-hlist.h},
+\code{rcu-txn-status.h}
+\end{callout}
+\vspace{1mm}
+{\Large\bfseries Questions?\par}
+\end{frame}
+
+% ===========================================================================
+% Backup
+% ===========================================================================
+\appendix
+\talksection{Backup}
+
+\begin{frame}{Anticipated questions}
+\footnotesize
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  \textbf{Why not a seqcount?}\\
+  A read-side retry on every traversal, detecting after the fact. Here a
+  reader never retries --- and gets no snapshot either.
+  \vspace{0.8mm}
+
+  \textbf{Why not copy?}\\
+  The cost scales with the region, and a pinned node cannot be copied.
+  \vspace{0.8mm}
+
+  \textbf{Isn't this existence?}\\
+  Existence adds a per-element field (+1 load, +1 branch) and gives a
+  stronger per-element guarantee. We add no per-element state: 3\% / 15\%.
+  \vspace{0.8mm}
+
+  \textbf{ABA?}\\
+  Resolution goes through the descriptor, not the slot value: slot-value
+  A-B-A is inert.
+\column{0.48\textwidth}
+  \textbf{HTM?}\\
+  Commodity HTM may abort, so it needs a fallback that meets the same problem.
+  s390 constrained transactions: at most 32 instructions in 256 bytes.
+  \vspace{0.8mm}
+
+
+  \textbf{Does the tag test need a barrier?}\\
+  No. The proxy's immutable fields are reached through the dependency; only
+  the selector is loaded with acquire, and only when parked.
+  \vspace{0.8mm}
+
+  \textbf{What if two writers race?}\\
+  Silent corruption, by contract. \code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE}
+  catches it.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Split edits: publish in reverse read order}
+\lead{When one edit must span several commits, commit in the \textbf{reverse}
+of the reader's read order.}
+\vspace{4mm}
+\begin{itemize}
+\item Reader resolves $s_1, \ldots, s_k$ in that order; the writer publishes
+      $s_k$ first, $s_1$ last. Once a reader sees one slot new, every later
+      slot is new too: a prefix of old, a suffix of new.
+\item Example: re-parent $E$ from $P$ to $Q$. Commit \code{E->parent} first,
+      then the child links. A reader that descends into $E$ under $Q$ then
+      finds \code{E->parent == Q}.
+\item Needs one fixed read order and distinct slots. A list read in both
+      directions has none to reverse: it needs the atomic commit.
+\end{itemize}
+\vspace{3mm}
+\aside{First stated, to our knowledge, by Triplett. An embedder's discipline:
+the facility cannot know a structure's traversal order.}
+\end{frame}
+
+\begin{frame}{One writer, with readers}
+\centerfig{fig-writecost}
+\vspace{4mm}
+{\small Both writers collapse between four readers and eight. Scattered: the
+ratio stays 1.91--2.12 throughout. Walk order: the cheaper writer loses more,
+1.92 → 1.37 at eight readers, then 1.4--1.7 up to 191.\par}
+\note{Uncontended writer mutex on both; both reclaim through call\_rcu(), same
+RCU flavor, so the separation isolates the pseudo-transaction layer. Median of
+five 3 s runs after 4 s warm-up.}
+\end{frame}
+
+\end{document}

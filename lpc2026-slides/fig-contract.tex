@@ -1,0 +1,22 @@
+% RCU's three phases (P1 sec:buildpublish). Only the middle one is visible to a
+% reader, and it is one store; the talk's punchline is that a pseudo-transaction
+% widens that phase rather than adding a fourth, so it is the one drawn heavy.
+\begin{tikzpicture}[
+  phase/.style = {draw=muted!55, fill=paperalt, rounded corners=3pt,
+                  minimum width=38mm, minimum height=17mm, align=center},
+  pub/.style   = {phase, draw=accent, line width=1.4pt, fill=accent!7},
+  arr/.style   = {-{Latex[length=2.4mm]}, line width=0.9pt, muted},
+]
+\node[phase] (b) at (0,0)
+  {\textbf{Build}\\[1mm]{\footnotesize\color{muted}private, unconstrained}};
+\node[pub]   (p) at (4.9,0)
+  {\textbf{\color{accent}Publish}\\[1mm]%
+   % a tabular: a font switch in a TikZ node does not survive its \\
+   \footnotesize\begin{tabular}{@{}c@{}}one store:\\the linearization point\end{tabular}};
+\node[phase] (r) at (9.8,0)
+  {\textbf{Reclaim}\\[1mm]{\footnotesize\color{muted}after a grace period}};
+\draw[arr] (b) -- (p);
+\draw[arr] (p) -- (r);
+\node[font=\footnotesize, text=accent, anchor=north] at ([yshift=-1.2mm]p.south)
+  {the only instant a reader sees};
+\end{tikzpicture}

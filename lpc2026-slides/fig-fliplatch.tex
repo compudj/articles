@@ -1,0 +1,72 @@
+% P1's fig-fliplatch, re-laid for a 16:9 slide: same left-to-right reading
+% (slots, proxies, the one selector, the two sets it chooses between), rows
+% pulled closer so it fits under a title, the "one word decides" caption moved
+% to the slide text, and the deck's palette -- blue for the facility's own
+% objects and the new set, orange for the old set.
+%
+% As in P1: every proxy reads the SAME selector word, so the single store that
+% flips it switches the whole set. If that is obvious, the mechanism is.
+\begin{tikzpicture}[
+  slot/.style   = {draw=ink, minimum width=15mm, minimum height=6.5mm,
+                   fill=paperalt, font=\ttfamily},
+  proxy/.style  = {draw=accent, minimum width=27mm, minimum height=9mm,
+                   fill=paper, line width=0.8pt},
+  target/.style = {rounded corners=2pt, minimum width=11mm, minimum height=5.2mm},
+  old/.style    = {target, draw=old, fill=old!12},
+  new/.style    = {target, draw=accent, fill=accent!14},
+  sel/.style    = {draw=accent, line width=1.4pt, minimum width=19mm,
+                   minimum height=9mm, fill=accent, text=paper, font=\ttfamily\bfseries},
+  arr/.style    = {-{Latex[length=2mm]}, thin, ink},
+  dep/.style    = {-{Latex[length=2mm]}, thin, densely dotted, muted},
+  caption/.style    = {font=\footnotesize\itshape, text=muted, align=center},
+]
+
+% ---- slots: the words the reader loads -------------------------------------
+\node[slot] (s1) at (0, 1.3)  {s$_1$};
+\node[slot] (s2) at (0, 0)    {s$_2$};
+\node[slot] (s3) at (0, -1.3) {s$_3$};
+\node[caption, above=1.5mm of s1] {slots (tagged)};
+
+% ---- proxies ------------------------------------------------------------------
+\node[proxy] (p1) at (3.5, 1.3)  {$\{o_1,\ n_1\}$};
+\node[proxy] (p2) at (3.5, 0)    {$\{o_2,\ n_2\}$};
+\node[proxy] (p3) at (3.5, -1.3) {$\{o_3,\ n_3\}$};
+\node[caption, above=1.5mm of p1] {proxies};
+\draw[arr] (s1) -- (p1);
+\draw[arr] (s2) -- (p2);
+\draw[arr] (s3) -- (p3);
+
+% ---- the shared selector: the whole point ------------------------------------
+\node[sel] (sel) at (7.6, 0) {sel};
+\node[caption, above=1.5mm of sel] {flip group\\(one word)};
+\draw[dep] (p1.east) -- (sel.north west);
+\draw[dep] (p2.east) -- (sel.west);
+\draw[dep] (p3.east) -- (sel.south west);
+
+% ---- the whole old set, or the whole new set ---------------------------------
+\node[old] (o1) at (10.9,  2.0)  {$o_1$};
+\node[old] (o2) at (10.9,  1.35) {$o_2$};
+\node[old] (o3) at (10.9,  0.7)  {$o_3$};
+\node[draw=old, densely dashed, rounded corners=2pt, inner sep=1.8mm,
+      fit=(o1)(o2)(o3)] (oldset) {};
+\node[new] (n1) at (10.9, -0.7)  {$n_1$};
+\node[new] (n2) at (10.9, -1.35) {$n_2$};
+\node[new] (n3) at (10.9, -2.0)  {$n_3$};
+\node[draw=accent, densely dashed, rounded corners=2pt, inner sep=1.8mm,
+      fit=(n1)(n2)(n3)] (newset) {};
+
+% The selector value labels the GROUP, not the arrow (P1's fix: on the path a
+% label is crossed by its own line).
+\draw[-{Latex[length=2mm]}, thin, old]   (sel.east) -- (oldset.west);
+\draw[-{Latex[length=2.4mm]}, thick, accent] (sel.east) -- (newset.west);
+\node[font=\footnotesize\ttfamily, text=old, anchor=west]
+  at ([xshift=1mm]oldset.east) {sel = 0};
+\node[font=\footnotesize\ttfamily, text=accent, anchor=west]
+  at ([xshift=1mm]newset.east) {sel = 1};
+
+% ---- the flip -----------------------------------------------------------------
+\draw[-{Latex[length=2.4mm]}, line width=1.4pt, accent]
+  ([yshift=-1.5mm]sel.south) -- ++(0,-0.75)
+  node[below, align=center, font=\footnotesize\bfseries, text=ink]
+  {the commit:\\one release store, 0 → 1};
+\end{tikzpicture}

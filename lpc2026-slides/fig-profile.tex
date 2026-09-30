@@ -1,0 +1,35 @@
+% Where the single writer's extra cost goes: P1 sec:measured, "Where the
+% writer's cost goes" -- shares of the txn-minus-rculist gap, one writer, no
+% reader, no writer mutex (the widest ratio, 3.0), writer thread only. The
+% shares are P1's text (from the benchmark tree's p1_writer_profile.csv, not
+% shipped in P1's data/), so they are typed here; they sum to 98 and the rest
+% is left unlabelled rather than invented.
+%
+% Ordered so the reclaim shares sit together under one brace: the point of the
+% slide is that the flip itself is the smallest piece.
+\begin{tikzpicture}[x=1.36mm, y=1cm,
+  seg/.style = {draw=paper, line width=0.8pt},
+  pct/.style = {font=\small\bfseries, text=paper},
+  nam/.style = {font=\footnotesize, text=ink, anchor=north, align=center},
+]
+\fill[seg, fill=muted]   (0,0)  rectangle (46,0.9);
+\fill[seg, fill=onelock] (46,0) rectangle (66,0.9);
+\fill[seg, fill=stripes] (66,0) rectangle (87,0.9);
+\fill[seg, fill=accent]  (87,0) rectangle (98,0.9);
+\draw[muted!60] (0,0) rectangle (100,0.9);
+
+\node[pct] at (23,0.45)   {46\%};
+\node[pct] at (56,0.45)   {20\%};
+\node[pct, text=ink] at (76.5,0.45) {21\%};  % paper on this blue is < 4.5:1
+\node[pct] at (92.5,0.45) {11\%};
+
+\node[nam] at (23,-0.1)   {\code{call\_rcu} plumbing\\{\scriptsize\color{muted}sched\_getcpu, queue lookup, enqueue, wake-up}};
+\node[nam] at (56,-0.1)   {descriptor slab};
+\node[nam] at (76.5,-0.1) {staging\\{\scriptsize\color{muted}record + install}};
+\node[nam] at (92.5,-0.1) {\textbf{commit}\\{\scriptsize\color{muted}the flip}};
+
+\draw[decorate, decoration={brace, amplitude=2mm}, muted, line width=0.7pt]
+  (0.3,1.05) -- (65.7,1.05)
+  node[midway, above=2.5mm, font=\footnotesize, text=ink]
+  {the descriptor's reclaim: 66\%};
+\end{tikzpicture}

@@ -1,0 +1,20 @@
+% P1 sec:swcomposition's adjacent deletes, P -> E1 -> E2 -> N in one
+% pseudo-transaction. The list sits above the write set it produces; the fused
+% P.next row is the point -- the second delete had to SEE the first one's
+% pending edit to record onto it.
+\begin{tikzpicture}[
+  lnode/.style = {draw=ink, fill=paperalt, rounded corners=2pt,
+                  minimum width=10mm, minimum height=6.5mm, font=\ttfamily},
+  victim/.style= {lnode, draw=old, fill=old!10, densely dashed},
+  bi/.style    = {{Latex[length=1.6mm]}-{Latex[length=1.6mm]}, thin, ink},
+]
+\node[lnode]  (P)  at (0,0)   {P};
+\node[victim] (E1) at (1.8,0) {E1};
+\node[victim] (E2) at (3.6,0) {E2};
+\node[lnode]  (N)  at (5.4,0) {N};
+\draw[bi] (P) -- (E1);
+\draw[bi] (E1) -- (E2);
+\draw[bi] (E2) -- (N);
+\node[font=\footnotesize, text=old, anchor=north] at ($(E1.south)!0.5!(E2.south)+(0,-0.1)$)
+  {delete both, one commit};
+\end{tikzpicture}

@@ -1,0 +1,36 @@
+% Row (a) of P1's fig-tagword: the low-bit tag this facility uses, drawn as the
+% 64-bit word a slot holds -- a plain value above, a parked slot below, the
+% reader's test and the proxy's recovery beside them. The high-bit and
+% reserved-range alternatives are P1 sec:vartag's; the talk leaves them there.
+\begin{tikzpicture}[
+  fld/.style   = {draw=ink, minimum height=7mm, inner sep=0pt, font=\footnotesize},
+  addr/.style  = {fld, fill=paperalt},
+  paddr/.style = {fld, fill=accent!8, draw=accent},
+  tagf/.style  = {fld, fill=accent!28, draw=accent, line width=1.1pt,
+                  font=\footnotesize\ttfamily\bfseries},
+  lowf/.style  = {fld, fill=paperalt, text=muted},
+  bit/.style   = {font=\scriptsize\ttfamily, text=muted},
+  lbl/.style   = {font=\footnotesize\itshape, anchor=east, text=muted},
+  op/.style    = {font=\footnotesize, anchor=west, align=left},
+]
+\def\W{8.2}\def\L{1.5}  % word width, 4-bit field width (cm)
+
+\node[lbl] at (-0.15, 0) {plain value};
+\node[addr, minimum width={(\W-\L)*1cm}, anchor=west] (a1) at (0, 0)
+  {a node address, or any value};
+\node[lowf, minimum width={\L cm}, anchor=west] at (a1.east) {no tag};
+
+\node[lbl] at (-0.15, -1.0) {parked slot};
+\node[paddr, minimum width={(\W-\L)*1cm}, anchor=west] (a2) at (0, -1.0)
+  {record address, 16-byte aligned};
+\node[tagf, minimum width={\L cm}, anchor=west] (a2t) at (a2.east) {tag};
+
+\node[bit, anchor=north west] at ($(a2.south west)+(0,-0.03)$) {63};
+\node[bit, anchor=north east] at ($(a2.south east)+(0,-0.03)$) {4};
+\node[bit, anchor=north west] at ($(a2t.south west)+(0,-0.03)$) {3};
+\node[bit, anchor=north east] at ($(a2t.south east)+(0,-0.03)$) {0};
+
+\node[op, anchor=north west] at (0, -1.8)
+  {test: \code{(v \& tag) == tag}, on a value already loaded\\
+   record: \code{v - tag}, folded into the next load};
+\end{tikzpicture}

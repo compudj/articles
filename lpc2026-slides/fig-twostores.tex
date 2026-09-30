@@ -1,0 +1,26 @@
+% Removing E from P <-> E <-> N with BOTH edges properly published (P1
+% sec:onestore, "Ordering is not what is missing"), drawn at the instant
+% between the two release stores: the forward chain has dropped E, the backward
+% chain still has it. The ghost's own pointers are what lets a reader standing
+% on E escape -- and what keeps the backward view trailing for a grace period.
+\begin{tikzpicture}[
+  lnode/.style = {draw=ink, fill=paperalt, rounded corners=2pt,
+                  minimum width=11mm, minimum height=7.5mm, font=\ttfamily},
+  ghost/.style = {lnode, dashed, draw=muted, fill=paper, text=muted},
+  edge/.style  = {-{Latex[length=2.2mm]}, line width=0.9pt},
+  own/.style   = {-{Latex[length=1.8mm]}, densely dashed, muted, line width=0.6pt},
+  lab/.style   = {font=\footnotesize\ttfamily},
+]
+\node[lnode] (P) at (0,0)   {P};
+\node[ghost] (E) at (2.5,0) {E};
+\node[lnode] (N) at (5.0,0) {N};
+% the ghost keeps its own next and prev
+\draw[own] ([yshift=1mm]E.east) -- ([yshift=1mm]N.west);
+\draw[own] ([yshift=-1mm]E.west) -- ([yshift=-1mm]P.east);
+% first store: done
+\draw[edge, ink] (P.north) to[out=40, in=140]
+  node[above, lab] {P->next == N} (N.north);
+% second store: not yet
+\draw[edge, old, line width=1.3pt] (N.south) to[out=-140, in=-40]
+  node[below, lab, text=old] {N->prev == E} (E.south);
+\end{tikzpicture}

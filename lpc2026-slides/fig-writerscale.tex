@@ -1,0 +1,61 @@
+% P1's fig:writerscale, restyled for projection: direct labels at the line ends
+% instead of a legend, the endpoints the talk quotes printed there, and the
+% handoff's CVD-checked series colours (HANDOFF.md section 4), each also told
+% apart by its dash pattern. Data read in place from P1.
+%
+% The bars are P1's min-max over five runs and stay: the spread at 128-160
+% writers is real (memory placement across sockets), and hiding it would make
+% those medians look tighter than they are.
+\pgfplotstableread[col sep=comma]{\ponedata/fig-writerscale.csv}\wstab
+\lastof{\wstab}{bit}{\wsBit}       \lastof{\wstab}{stripe}{\wsStripe}
+\lastof{\wstab}{rcu}{\wsRcu}       \lastof{\wstab}{mutex}{\wsMutex}
+\def\wsnum#1{\pgfmathprintnumber[fixed, precision=0]{#1}}
+\begin{tikzpicture}
+\begin{axis}[
+  scale only axis, width=9.4cm, height=3.4cm,
+  xlabel={Writers (disjoint slots, no readers)},
+  ylabel={Millions of updates/s},
+  xmin=0, xmax=196, ymin=0, ymax=420,
+  xtick={1,32,64,96,128,160,192}, ytick={0,100,200,300,400},
+  tick label style={font=\footnotesize, text=muted},
+  label style={font=\footnotesize, text=muted},
+  axis lines=left, axis line style={muted!60}, tick style={muted!60},
+  ymajorgrids, grid style={muted!18},
+  clip=false,
+  every axis plot/.append style={line width=1.3pt, mark size=1.2pt},
+  error bars/error bar style={line width=0.5pt, solid},
+  error bars/error mark options={rotate=90, mark size=1.2pt, line width=0.5pt},
+]
+\draw[muted!70, densely dotted] (axis cs:96,0) -- (axis cs:96,420)
+  node[anchor=north west, font=\scriptsize, text=muted] {second socket →};
+
+\addplot[color=onelock, dotted, mark=triangle*,
+         error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=mutex, y error plus=mutex_ep, y error minus=mutex_em,
+        col sep=comma] {\ponedata/fig-writerscale.csv};
+\addplot[color=old, solid, mark=square*,
+         error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=rcu, y error plus=rcu_ep, y error minus=rcu_em,
+        col sep=comma] {\ponedata/fig-writerscale.csv};
+\addplot[color=stripes, dashed, mark=o,
+         error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=stripe, y error plus=stripe_ep, y error minus=stripe_em,
+        col sep=comma] {\ponedata/fig-writerscale.csv};
+\addplot[color=accent, solid, mark=*, line width=1.8pt,
+         error bars/.cd, y dir=both, y explicit]
+  table[x=writers, y=bit, y error plus=bit_ep, y error minus=bit_em,
+        col sep=comma] {\ponedata/fig-writerscale.csv};
+
+% Direct labels, each printing its series' median at 192 writers (the CSV's
+% last row). rculist and the bit lock end 2 apart (379 vs 377), so their labels
+% are pulled apart vertically.
+\node[anchor=west, font=\footnotesize, text=old]
+  at (axis cs:197,408) {\code{rculist}, stripes: \wsnum{\wsRcu}};
+\node[anchor=west, font=\footnotesize\bfseries, text=accent]
+  at (axis cs:197,362) {\code{txn\_sw}, lock bit: \wsnum{\wsBit}};
+\node[anchor=west, font=\footnotesize, text=stripes]
+  at (axis cs:197,302) {\code{txn\_sw}, stripes: \wsnum{\wsStripe}};
+\node[anchor=west, font=\footnotesize, text=onelock]
+  at (axis cs:197,14) {one lock: ≈\wsnum{\wsMutex}};
+\end{axis}
+\end{tikzpicture}

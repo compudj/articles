@@ -1,0 +1,67 @@
+% P1's fig-skew, re-laid for a 16:9 slide: the same two rows and columns, the
+% vertical spacing compressed so it fits under a title with a line above and
+% below it, and the deck's palette -- orange for the plain-RCU problem state,
+% blue for the entry once reachable.
+%
+% As in P1, the picture must make one thing obvious: two publications leave a
+% MIDDLE state in which a reader finds E by key and finds it in no position,
+% and one commit has no middle state at all.
+\begin{tikzpicture}[
+  box/.style   = {draw=muted, minimum width=17mm, minimum height=5.5mm,
+                  fill=paperalt, anchor=west, font=\small\ttfamily},
+  ent/.style   = {draw=accent, rounded corners=2pt, minimum width=7mm,
+                  minimum height=5.5mm, fill=accent!16},
+  gone/.style  = {draw=muted, rounded corners=2pt, minimum width=7mm,
+                  minimum height=5.5mm, fill=paper, text=muted, densely dashed},
+  arr/.style   = {-{Latex[length=1.8mm]}, thin, ink},
+  stub/.style  = {thin, muted},
+  hdr/.style   = {font=\small\bfseries, anchor=west},
+  note/.style  = {font=\footnotesize, text=muted, align=center},
+  skew/.style  = {fill=old!10, draw=old!55, rounded corners=3pt},
+  y=0.92cm,
+]
+
+% ===== row 1: two publishes ==================================================
+\fill[skew] (4.35,-0.1) rectangle (8.55,1.85);
+\node[hdr] at (-0.15,2.2) {Two publishes (plain RCU)};
+
+\node[note] at (1.55,1.55) {before};
+\node[box] (i1) at (0,1.05) {index};
+\node[box] (r1) at (0,0.3)  {recency};
+\node[gone] (e1) at (3.05,0.675) {$E$};
+
+\node[note, text=old] at (6.45,1.55) {between};
+\node[box] (i2) at (4.6,1.05) {index};
+\node[box] (r2) at (4.6,0.3)  {recency};
+\node[ent]  (e2) at (7.65,0.675) {$E$};
+\draw[arr] (i2.east) -- (e2.north west);
+\draw[stub] (r2.east) -- ++(0.45,0) node[right, inner sep=1pt, text=old] {$\times$};
+
+\node[note] at (10.75,1.55) {after};
+\node[box] (i3) at (9.2,1.05) {index};
+\node[box] (r3) at (9.2,0.3)  {recency};
+\node[ent]  (e3) at (12.25,0.675) {$E$};
+\draw[arr] (i3.east) -- (e3.north west);
+\draw[arr] (r3.east) -- (e3.south west);
+
+\node[note, text=old] at (6.45,-0.42)
+  {a reader finds $E$ by key, and $E$ is in no position};
+
+% ===== row 2: one commit =====================================================
+% Same columns as row 1, so its before/after labels are not repeated.
+\node[hdr] at (-0.15,-1.0) {One commit (pseudo-transaction)};
+
+\node[box] (i4) at (0,-1.5)  {index};
+\node[box] (r4) at (0,-2.25) {recency};
+\node[gone] (e4) at (3.05,-1.875) {$E$};
+
+\node[box] (i5) at (9.2,-1.5)  {index};
+\node[box] (r5) at (9.2,-2.25) {recency};
+\node[ent]  (e5) at (12.25,-1.875) {$E$};
+\draw[arr] (i5.east) -- (e5.north west);
+\draw[arr] (r5.east) -- (e5.south west);
+
+\draw[-{Latex[length=2.4mm]}, line width=1.2pt, accent] (4.35,-1.875) -- (8.55,-1.875)
+  node[midway, above, font=\footnotesize] {one commit};
+\node[note, text=accent] at (6.45,-2.3) {no middle state};
+\end{tikzpicture}
