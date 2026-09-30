@@ -1164,7 +1164,8 @@ from old figures. Candidate framing and sources: HANDOFF.md, slide 26.}
   \textbf{Isn't this existence?}\\
   Existence adds a per-element field (+1 load, +1 branch) and gives a
   stronger per-element guarantee. Pseudo-transactions add no per-element
-  state: 3\% / 15\%.
+  state; existence's readers pay 3\% of read throughput on scattered nodes,
+  15\% in walk order.
   \vspace{0.8mm}
 
   \textbf{ABA?}\\
