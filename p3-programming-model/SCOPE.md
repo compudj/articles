@@ -178,6 +178,20 @@ reverse-walk** P1's intro opens on: the forward edge is *write*-validated, the b
 - **Composable Memory Transactions** — Harris–Marlow–Peyton Jones–Herlihy, PPoPP 2005 (P3-4 baseline; *different* axis).
 - **TL2** — Dice–Shalev–Shavit, DISC 2006 (write-buffering RYW — P3-4).
 - **Citrus** — Arbel–Attiya, PODC 2014 (RCU reader baseline: *no* read validation — positions what P3 adds over plain RCU).
+- **Fraser, *Practical Lock-Freedom*, 2004, §3.3.2 (FSTM)** — *in bib; read in full 2026-10-03.*
+  Three things P3 must concede before it claims anything on the read side:
+  (i) a read that meets an owned header **resolves through the owner's descriptor rather than
+  helping** ("does not need to involve recursive helping"; the read phase "will search within
+  the owner's descriptor rather than helping the owner to complete"). So P3-2's "the reader
+  never helps" is **not new as such** — HFP's `MCASRead` helps, but Fraser says it need not and
+  his FSTM read does not. What may still be ours is the bounded-wait form and its static
+  checkability.
+  (ii) Both forms of read validation that P3-3 contrasts are there: read-only objects
+  **acquired** exactly like written ones (our guard-as-record: a visible read), then moved to a
+  **commit-time read phase**, because acquiring them makes readers conflict and "ping-pongs"
+  the header's cache line.
+  (iii) The read phase costs a fourth status, **read-checking**, and **aborts ordered by
+  descriptor address**, to stay atomic and livelock-free. P2 `sec:guard` already cites (ii)–(iii).
 - Optional: ASTM (Marathe–Scherer–Scott, DISC 2005); lazy list (Heller et al., OPODIS 2005). Early release = DSTM (*already in bib*), invoke by name.
 - **Verify-before-cite:** view-transactions venue/year; all page numbers via DBLP.
 
