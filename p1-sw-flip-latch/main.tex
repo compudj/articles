@@ -1506,6 +1506,15 @@ be transacted --- it simply has to nominate a different pattern, one that no
 value of its own can carry, perhaps a reserved low nibble rather than a single
 bit.
 
+Practical \mcas met this problem and took the other road. Fraser's
+implementation reserves the two least-significant bits of every location that
+may hold a descriptor reference, and when his own structures needed marks in
+those bits too --- a thread link in a search tree, a deletion mark in a skip
+list --- the patterns had to be shared out centrally, in one table for the whole
+heap \citep{fraser2004lockfreedom}. That is the fixed tag. It works while one
+author owns every structure that will ever be transacted, and what it costs is
+the table.
+
 That alone would argue for a per-embedder tag, which a compile-time constant
 could supply. What forces the tag \emph{per record} is cross-structure
 atomicity. One \pseudotxn may span structures with different encodings: the
@@ -2926,7 +2935,9 @@ costs a heavier check on the read path --- typically two inequality comparisons
 to bracket the value against the reserved range, where the tag is a single
 mask-and-compare --- plus an allocator constrained to that range, and a carve-out
 from the data domain that the embedder must guarantee is never a legitimate
-value.
+value. Fraser weighs the same alternative for \mcas descriptors --- allocate
+them from a small set of contiguous pools and recognize one by its address ---
+and takes reserved bits instead \citep{fraser2004lockfreedom}.
 
 Anchoring the range at zero recovers most of that read-path cost. If a handle is
 an \emph{index} into the reserved pool rather than an address within it, the
@@ -3529,10 +3540,14 @@ so it is worth separating carefully.
 
 Harris, Fraser and Pratt's practical \mcas \citep{harris2002mcas} makes $k$
 words change together under concurrent writers: a descriptor names the records,
-threads that meet it \emph{help} drive it, and RDCSS resolves the ordering
-hazard between installing a descriptor and reading it. Fraser's thesis and the
+threads that meet it \emph{help} drive it, and RDCSS conditions each install on
+the operation still being undecided, so that a late helper cannot install it a
+second time. Fraser's thesis and the
 journal generalization develop it into a lock-free toolkit
-\citep{fraser2004lockfreedom, fraser2007locks}; wait-free constructions follow
+\citep{fraser2004lockfreedom, fraser2007locks}, and the thesis is where its
+implementation is set out: descriptors recognized by reserved low bits and
+counted by reference, the nodes around them reclaimed by epochs. Wait-free
+constructions follow
 \citep{sundell2011waitfreemcas, feldman2015waitfreemcas}; descriptor reuse
 \citep{arbelraviv2017descriptors} refines the cost.
 
@@ -3563,7 +3578,13 @@ once to readers who are not writers --- rather than atomic multi-slot
 
 What it does inherit from that line is the shape: a descriptor of records plus a
 status word whose transition decides the outcome, and resolution routed through
-the status rather than through the slot's plain value. That shape is Harris's,
+the status rather than through the slot's plain value. The writer's steps are
+inherited with it. Install, commit and settle are that algorithm's acquire,
+decision and release phases \citep{fraser2004lockfreedom} with every
+compare-and-swap replaced by a store, and a slot that is not owned holds its
+value directly there too. Recognizing a descriptor by reserved low bits of the
+word is that implementation's as well; \cref{sec:pertag} is where this
+facility's tag parts from it. That shape is Harris's and Fraser's,
 and we claim none of it. The companion paper, which does contend, engages this
 work properly.
 
@@ -3643,8 +3664,22 @@ permanent) --- together with the
 consequence that follows: because the marker is per-slot rather than per-object,
 a \pseudotxn can span slots whose encodings differ, which forces the per-record
 tag (\cref{sec:pertag}) and which we are likewise not aware of in prior work.
+
+Against \mcas alone the three properties are not a distinction, and the
+paragraph above is not to be read as one. A practical \mcas descriptor is
+transient, is resolved through rather than waited on, and costs an element
+nothing but reserved bits \citep{harris2002mcas, fraser2004lockfreedom}. The
+three distinguish this facility among mechanisms that publish to \rcu readers.
+What separates it from the \mcas line is \cref{sec:relmcas}'s: it publishes with
+plain stores under exclusion, its readers never write and never help, and its
+tag travels with the record where theirs is fixed for the heap.
 % -----------------------------------------------------------------------
 % NOTE (drafting; retained deliberately -- see README framing rule).
+% ADDED 2026-10-03 with the Fraser re-read. The combination claimed above is
+% new against the RCU atomic-move prior art (the patents, existence, RLU). It
+% is NOT new against MCAS, whose descriptor has all three properties, and a
+% reviewer from that line would say so at once. The paragraph just above says
+% it for us. Do not cut it to tidy the claim.
 % "We have not found" and "we are not aware of" are the right register --
 % they are honest, and they are what a careful reader will believe. "Novel"
 % and "the first" are neither, and the prior-art sweep behind this section
