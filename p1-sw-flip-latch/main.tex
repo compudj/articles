@@ -3019,6 +3019,19 @@ precisely what makes that path cheap. Deferral also keeps proxies installed for
 longer, so more descriptors are reader-reachable at once, on the same
 rate-times-window budget as \cref{sec:vartag}.
 
+Deferral is published practice where writers contend. The \kcas of
+\citet{guerraoui2020mcas} never unlocks on its critical path: a decided
+descriptor is installed over by the next operation on that word, or detached
+during reclamation by a compare-and-swap conditional on the word still naming
+it---the two arrangements just described, there for concurrent writers. What it
+buys them is $k$ compare-and-swaps an operation. What it costs is what limits it
+here: they report lower read performance from the indirection through
+descriptors left in place, and for workloads in which updates are rare the full
+version has a \emph{reader} detach the
+descriptor~\citep[Appendix~A.6]{guerraoui2020mcasfull}. Under exclusion the
+settle is a plain store, so the saving is smaller and the cost is the same,
+which is why this facility settles eagerly.
+
 Omitting settle entirely is the endpoint, and it is \emph{correct}: the proxies
 resolve correctly forever.
 It is also unbounded: every read of that slot pays an indirection permanently,
@@ -3521,12 +3534,29 @@ hazard between installing a descriptor and reading it. Fraser's thesis and the
 journal generalization develop it into a lock-free toolkit
 \citep{fraser2004lockfreedom, fraser2007locks}; wait-free constructions follow
 \citep{sundell2011waitfreemcas, feldman2015waitfreemcas}; descriptor reuse
-\citep{arbelraviv2017descriptors} and lower-overhead \kcas
-\citep{guerraoui2020mcas} refine the cost.
+\citep{arbelraviv2017descriptors} refines the cost.
+
+The member of that line nearest this facility is the \kcas of
+\citet{guerraoui2020mcas}, and it comes closer than the rest. It drops RDCSS and
+installs by a single compare-and-swap per word; it leaves a decided operation's
+descriptor in the words it changed rather than unlocking them; a thread that
+meets such a descriptor resolves through its status without writing; and
+descriptors are reclaimed by thread-local epochs, which the authors liken to
+\rcu. That is $k+1$ compare-and-swaps for a $k$-word operation, and they prove
+that a lock-free, disjoint-access-parallel implementation cannot
+compare-and-swap fewer than $k$ locations.
 
 The \fliplatch is not one of these. It performs \emph{no compare-and-swap at
 all}: under exclusion there is nothing to compare against, no contender to lose
-a race to, and no helping to arrange. It solves the narrower problem of atomic
+a race to, and no helping to arrange. That is no exception to the bound above,
+which is a statement about lock-free implementations: exclusion leaves the class
+the bound quantifies over, and what leaving it buys is that install, commit and
+settle are all plain stores. The \fliplatch differs from Guerraoui et al.\ in a
+second way, which does not depend on exclusion: it settles eagerly where they
+defer. Their deferral saves $k$ compare-and-swaps, and where the unlock is a
+plain store there is nothing of that kind to save; what deferral costs is the
+indirection a reader takes through a descriptor left in the slot
+(\cref{sec:varsettle}). It solves the narrower problem of atomic
 multi-slot \emph{publication} --- making a prepared set of values visible at
 once to readers who are not writers --- rather than atomic multi-slot
 \emph{update} among competing writers.
@@ -3596,10 +3626,14 @@ uses --- stealing the low bits that alignment guarantees --- was old enough by
 1993 to be surveyed as folklore that implementers had been absorbing piecemeal
 or re-inventing \citep{gudeman1993typeinfo}. Nearer to hand, existence
 structures tag bit~0 of their own membership field. The \emph{descriptor-and-status shape} is Harris's
-\citep{harris2002mcas}.
+\citep{harris2002mcas}; resolving a decided descriptor through its status
+without writing, and reclaiming descriptors by reader quiescence, are both in
+\citet{guerraoui2020mcas}.
 
 What we have not found in that prior art is the combination: a marker that is
-\textbf{transient} (so the structure's steady state is unchanged),
+\textbf{transient} (so the structure's steady state is unchanged, where a \kcas
+that defers its unlock leaves a descriptor in the word until
+reclamation~\citep{guerraoui2020mcas}),
 \textbf{non-blocking for readers} (they resolve through it to old-or-new rather
 than waiting on it, unlike \citet{mckenney2008filerename926}), and
 \textbf{free of per-element state} (it adds no field or header to any element:
