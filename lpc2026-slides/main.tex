@@ -407,8 +407,8 @@ has no way to ask for it.}
 \begin{itemize}
 \item Pinned: an address held somewhere the writer cannot reach --- an
       application handle, another subsystem's cache. A swap is complete only
-      if every reference is redirected; one reference you don't own is enough
-      to rule copying out.
+      if every reference is redirected; one reference the writer does not own
+      is enough to rule copying out.
 \item The seqcount detects after the fact and retries; the per-element lock
       prevents the interleaving. Both are paid on the read side whether or not
       a writer ever appears.
@@ -462,10 +462,10 @@ publishes the transition to \textit{new}, for all of them at once.
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{What you get, and what you don't}
+\begin{frame}{What it provides, and what it does not}
 \begin{columns}[T, onlytextwidth]
 \column{0.48\textwidth}
-  {\large\bfseries\color{accent}You get\par}
+  {\large\bfseries\color{accent}Provided\par}
   \vspace{1mm}
   \begin{itemize}\small
   \item \textbf{Write-set atomicity}: every record resolves \emph{old} before
@@ -477,7 +477,7 @@ publishes the transition to \textit{new}, for all of them at once.
         pseudo-transaction: two commits are two linearization points.
   \end{itemize}
 \column{0.48\textwidth}
-  {\large\bfseries\color{old}You don't\par}
+  {\large\bfseries\color{old}Not provided\par}
   \vspace{1mm}
   \setbeamertemplate{itemize item}{\textcolor{old}{–}}
   \begin{itemize}\small
@@ -548,7 +548,7 @@ The reader gets & one slot at a time & never new-then-old
 \bottomrule
 \end{tabular}\par\endgroup
 \vspace{4mm}
-\lead{Isolation is a read-side cost once you mutate in place.
+\lead{Isolation is a read-side cost once updates mutate in place.
 \textbf{RCU pseudo-transactions decline to charge readers for it.}}
 \vspace{2mm}
 \aside{Honest asterisk: RLU gives readers a snapshot, existence a per-element
@@ -556,7 +556,7 @@ membership test --- strictly more, and charged to readers
 (slide~\ref{fr:comparison}).}
 \note{%
 \begin{itemize}
-\item ``Once you mutate in place'' is load-bearing: copy-on-write gives
+\item ``Once updates mutate in place'' is load-bearing: copy-on-write gives
       readers a free snapshot, which is why a reader gets a coherent node for
       free. Copying just does not scale to the update.
 \item We did not fail to provide isolation; we declined to charge for it.
@@ -752,7 +752,7 @@ urcu_txn_sw_list_for_each_entry_reverse_rcu(pos, &head, node)
     ...;
 rcu_read_unlock();
 
-urcu_txn_sw_list_del_rcu(&e->node);    /* writer, under your locks */
+urcu_txn_sw_list_del_rcu(&e->node);    /* writer, under the embedder's locks */
 call_rcu(&e->rcu, free_e);
 \end{codeblock}
 \vspace{4mm}
@@ -1033,7 +1033,7 @@ entered 3× as often as plain RCU's.}
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Writers scale with your locks}
+\begin{frame}{Writers scale with fine-grained locks}
 \begingroup\small Writers on disjoint slots: plan unlocked → lock in ascending address
 order → validate → commit.\par
 \endgroup
@@ -1153,8 +1153,8 @@ forward walk.\par}
 \begin{itemize}
 \item \textbf{Not STM.} No snapshot, no opacity: a reader is not a transaction
       of any kind.
-\item \textbf{Exclusion is yours}, per slot, with your locks. Two writers on
-      one slot corrupt it.
+\item \textbf{Exclusion is the embedder's}, per slot, with its own locks.
+      Two writers on one slot corrupt it.
 \item \textbf{The tag contract}: no legitimate slot value may carry the tag
       pattern. The contracts underwrite memory safety, not just atomicity.
 \item \textbf{Commit width grows with edges}: a tall tower commits many
@@ -1175,7 +1175,7 @@ forward walk.\par}
 \item Readers: \textbf{no added load, no per-element state}; one predicted
       branch, free on scattered nodes.
 \item Writers: about 2×, mostly deferred reclaim, not the flip. They scale
-      with your fine-grained locks.
+      with the embedder's fine-grained locks.
 \item Never new-then-old, and no more: \textbf{not STM}.
 \end{itemize}
 \vspace{1mm}

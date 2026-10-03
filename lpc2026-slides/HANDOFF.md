@@ -143,7 +143,7 @@ both doesn't help — *the observer is a reader, which takes no lock*. (P1
 
 **6. Today's remedies each pay somewhere.** Table:
 copy the region → pay in allocation/footprint/reclaim per update (and pinned
-nodes can't be copied: references you don't own); drain with a grace period →
+nodes can't be copied: references the writer does not own); drain with a grace period →
 writer waits; steer/validate the reader (seqcount retry like the dcache's
 `d_seq`/`rename_lock`, per-element locks) → paid on *every* traversal; decline
 (no reverse iterator).
@@ -158,10 +158,11 @@ slot and no instant is torn; readers not transactional ↔ plain RCU readers;
 atomicity, not isolation ↔ atomicity, not opacity. *"Pseudo-" is a
 disambiguation, not an apology.*
 
-**8. What you get / what you don't.** Get: write-set atomicity; no tearing;
-the commit linearizes at one point (scoped to the WRITE); cross-structure
-atomicity — unit = one pseudo-txn (two commits = two linearization points).
-Don't get: **a reader is not a transaction of any kind**; no opacity, no
+**8. What it provides, and what it does not.** Provided: write-set atomicity;
+no tearing; the commit linearizes at one point (scoped to the WRITE);
+cross-structure atomicity — unit = one pseudo-txn (two commits = two
+linearization points).
+Not provided: **a reader is not a transaction of any kind**; no opacity, no
 multi-read snapshot; no read validation in SW (under exclusion nothing to
 validate against).
 
@@ -178,7 +179,7 @@ for split edits.
 **10. Between RCU and STM** (the title's bridge). Three columns: RCU — one slot
 atomic, readers free | pseudo-txn — N slots atomic to readers, readers
 uninstrumented, write set only | STM — read+write sets, isolation/opacity, read
-barrier on every read. *Isolation is a read-side cost once you mutate in place;
+barrier on every read. *Isolation is a read-side cost once updates mutate in place;
 we decline to charge readers for it.* Honest asterisk: RLU/existence give
 readers strictly more, and charge more.
 
@@ -344,7 +345,7 @@ often as plain RCU. Remedies: rseq-supplied CPU id / rseq enqueue in call_rcu
 (helps plain RCU too), `URCU_TXN_SLAB_BATCH` (opt-in, off in these numbers),
 single-edge commits need no proxy.
 
-**25. Writers scale with your locks.** Line chart (P1 fig:writerscale): writers
+**25. Writers scale with fine-grained locks.** Line chart (P1 fig:writerscale): writers
 on disjoint slots, plan unlocked → lock in ascending address order → validate →
 commit; no readers. Lock bit in each node: **8.0 → 377 Mops/s at 192 writers
 (47×)**; stripes 302; rculist under the same stripes 379; one global lock falls
@@ -394,8 +395,8 @@ exclusion validator as a debug option. Where it would land: rculist reverse
 walks (list_bidir users), cross-structure publish (hash + LRU), pinned objects
 whose back edges must move in place.
 
-**28. What it is not.** Not STM (no snapshot, no opacity); exclusion is yours
-(per slot, locks); tag contract; commit width grows with edges (a tall tower
+**28. What it is not.** Not STM (no snapshot, no opacity); exclusion is the
+embedder's (per slot, locks); tag contract; commit width grows with edges (a tall tower
 commits many records where existence flips one group); writer ~2×.
 
 **29. Summary + availability.** Paper: `[arXiv link — TBD]`. Code:
