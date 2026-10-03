@@ -582,8 +582,11 @@ set}.}
       before it parks anything.
 \item Lineage, to say if asked and not to claim: a descriptor of records plus
       a status word that decides the outcome is practical MCAS (Harris,
-      Fraser, Pratt, DISC 2002). P1 sec.\ 11 claims none of that shape. What
-      exclusion buys is that no step here is a compare-and-swap.
+      Fraser, Pratt, DISC 2002; Fraser's thesis, 2004). Install, commit and
+      settle are its acquire, decision and release phases, and it too marks a
+      slot by reserved low bits. P1 sec.\ 11 claims none of that. What
+      exclusion buys is that no step here is a compare-and-swap, and readers
+      never help.
 \end{itemize}}
 \end{frame}
 
