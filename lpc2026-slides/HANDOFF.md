@@ -420,6 +420,30 @@ Questions.
 - *Two writers race?* Silent corruption by contract; the validator catches it.
 - *ABA?* Resolution goes through the descriptor, not the slot value; slot-value
   A-B-A is inert (P1 §8.1).
+- *Isn't this MCAS?* (added 2026-10-03) The descriptor-and-status shape is:
+  Harris, Fraser, Pratt, DISC 2002, and P1 §11 claims none of it. The nearest
+  prior art is **Guerraoui, Kogan, Marathe, Zablotchi, "Efficient Multi-word
+  Compare and Swap", DISC 2020 (arXiv 2008.02527)**: lock-free, helping,
+  plain-CAS install with no RDCSS, `k+1` CAS, unlock **deferred** to
+  reclamation by epochs they call similar to RCU, readers that do not write
+  unless they meet an in-flight operation, and a proof that a lock-free
+  disjoint-access-parallel k-CAS must CAS at least `k` locations.
+  - Against the talk's SW engine: **zero CAS** (exclusion is outside that
+    bound's hypotheses) and **eager settle** (their deferral saves `k` CASes
+    and costs readers an indirection after every commit; a plain-store settle
+    has little to save). P1 §11.1, §9.4.
+  - The abstract says "novel". Do **not** defend the descriptor mechanism as
+    new. What P1 §11.3 says it has not found is a marker that is transient,
+    that RCU readers resolve through without waiting or writing, and that adds
+    no per-element state.
+  - The MW engine stays out of the talk (§2 item 4). If asked: it is the
+    engine their paper is closest to — both install by plain CAS with no
+    RDCSS — and it differs by settling at once and deciding with a store. It
+    is not lock-free; theirs is. P2 was re-scoped on this the same day
+    (`p2-sole-driver-mcas/SCOPE.md`, section dated 2026-10-03).
+  - Where it is in the deck: backup slide 30 (the Q&A and its note), and one
+    speaker note each on slide 11 (the flip-latch: lineage) and slide 12
+    (lifecycle: "why settle at all?"). No main-line slide changed.
 
 ## 6. Engine API facts (verified at 18809ea8, `include/urcu/`)
 

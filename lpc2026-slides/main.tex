@@ -580,6 +580,10 @@ set}.}
 \item Two states are all this facility needs: under exclusion a commit
       cannot fail for contention, and one that fails for memory does so
       before it parks anything.
+\item Lineage, to say if asked and not to claim: a descriptor of records plus
+      a status word that decides the outcome is practical MCAS (Harris,
+      Fraser, Pratt, DISC 2002). P1 sec.\ 11 claims none of that shape. What
+      exclusion buys is that no step here is a compare-and-swap.
 \end{itemize}}
 \end{frame}
 
@@ -615,6 +619,12 @@ Settle   & $n$, directly & $n$ & no: resolved value unchanged \\
       proxy resolves to the old value recorded at install. Under exclusion
       that is the true old. Without it, a second writer's store is silently
       overwritten by settle.
+\item ``Why settle at all?'' Guerraoui, Kogan, Marathe, Zablotchi (DISC 2020)
+      do not, on their critical path: the descriptor stays in the slot until a
+      later operation or reclamation, which saves them $k$ CASes and costs
+      their readers an indirection after every commit. Here settle is a plain
+      store, so there is little to save, and settling at once is what keeps
+      the steady state free of proxies.
 \end{itemize}}
 \end{frame}
 
@@ -1234,7 +1244,35 @@ forward walk.\par}
   \textbf{What if two writers race?}\\
   Silent corruption, by contract. \code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE}
   catches it.
+  \vspace{0.8mm}
+
+  \textbf{Isn't this MCAS?}\\
+  The descriptor-and-status shape is: Harris et al.\ (2002). Nearest,
+  Guerraoui et al.\ (2020): $k{+}1$ CAS, unlock deferred to reclamation.
+  Here every step is a plain store, and settle is eager.
 \end{columns}
+\note{%
+\begin{itemize}
+\item MCAS, in full. Guerraoui, Kogan, Marathe, Zablotchi, ``Efficient
+      Multi-word Compare and Swap'' (DISC 2020, arXiv 2008.02527): lock-free,
+      helping, plain-CAS install with no RDCSS, $k+1$ CAS, unlock deferred to
+      reclamation by epochs they call similar to RCU, readers that do not
+      write unless they meet an in-flight operation, and a proof that a
+      lock-free disjoint-access-parallel $k$-CAS must CAS at least $k$
+      locations.
+\item Against this talk's engine: zero CAS, bought by exclusion, which is
+      outside that bound's hypotheses; and eager settle. P1 sec.\ 11.1 and
+      9.4.
+\item The abstract says ``novel''. Not the descriptor mechanism. What P1
+      sec.\ 11.3 says it has not found: a marker that is transient, that RCU
+      readers resolve through without waiting or writing, and that adds no
+      per-element state, with the per-record tag that follows.
+\item The multi-writer engine is not in this talk. If asked: the same
+      descriptor with a CAS install and no helping. It is the engine their
+      paper is closest to: both install by plain CAS with no RDCSS. It differs
+      by settling at once and deciding with a store, and it is not lock-free;
+      theirs is.
+\end{itemize}}
 \end{frame}
 
 \begin{frame}{Split edits: publish in reverse read order}
