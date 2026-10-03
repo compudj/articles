@@ -944,3 +944,61 @@ helpers decides by CAS. Mathieu's call, with counsel.
 **State of the text.** The 2026-10-03 re-scope above is correct for the engine
 that exists. Do not submit, and do not polish the bounded-blocking argument
 further, until this is decided.
+
+### 2026-10-03 — FRASER'S THESIS READ IN FULL (UCAM-CL-TR-579): cited for the shape, owed for much more
+
+Mathieu: "we have it in our bibliography, but we fail to cite it in the papers."
+It *was* cited — three times here, three in P1 — but only as a co-citation for
+the descriptor-and-status "shape". Read in full (116 pp), it is the primary
+source for several things this paper leaned on later papers for, or said without
+a source. `common/urcu-txn.bib` now carries a by-section summary above the entry.
+
+**What it changes in P2:**
+
+- **The claim, once more, and more exactly.** The eager settle is *not ours
+  either*: it is the release phase of the original algorithm (thesis §3.2.1: a
+  location not owned "stores its logical value directly, allowing direct access
+  with no further computation or memory accesses"). So the three designs are:
+  HFP/Fraser = conditional install **+ eager release**; Guerraoui = **bare
+  install** + deferred release; sole-driver = **bare install + eager release**,
+  which neither has, bought by giving up helping. `sec:norddcss` and
+  `sec:relclaims` now say exactly that. *Do not let "eager settle" be written
+  as a novelty on its own.*
+- **Primary source for "the conditional install exists because of helping".**
+  Thesis §3.2.1, on CCAS: it "prevents a phase-one update from occurring 'too
+  late'", when "a helping process could incorrectly reacquire a location after
+  the MCAS operation has already succeeded". 2004 — sixteen years before the
+  Guerraoui sentence this paper called its linchpin. Quoted in `sec:norddcss`.
+- **`sec:soledriver`:** a read that need not help is Fraser's observation
+  ("does not need to involve recursive helping"), though his MCAS read helps.
+- **`sec:settle`:** practical MCAS as first built *reference-counts* its
+  descriptors and reclaims only nodes by epochs (§5.2.2–5.2.3). That is the
+  baseline "refcount-free" is measured against, and it was uncited.
+- **`sec:deadlock`:** the address order is his (it bounds recursive helping).
+- **`sec:varhelping`:** "excessive helping can generate harmful memory
+  contention" (§2.1.3) — the diagnosis is his, not recent.
+- **`sec:varabort`:** aborts ordered by descriptor address (FSTM, §3.3.2).
+- **`sec:tombstoneclaim`:** his MCAS skip list unlinks a node, rewrites its own
+  forward pointers and nulls its value in ONE MCAS — logical deletion in the
+  commit that unlinks. This was in the RELATED WORK LEDGER as a base cite and
+  never reached the text.
+- **`sec:guard`:** new paragraph. The guard-as-record is FSTM's first form of
+  read validation; Fraser names its cost and moves to a commit-time read phase,
+  at the price of a fourth status and ordered aborts. P3's SCOPE has the note.
+- **§9.1** lists the five places the paper leans on the thesis.
+
+**What it changes in P1:** `sec:pertag` cites his fixed two-bit tag and the one
+table that shares the patterns out — the documented instance of the design the
+section argues against; `sec:vartag` cites his descriptor-pool alternative;
+`sec:relmcas` says install/commit/settle *are* his acquire/decision/release
+phases with the CASes replaced by stores; and **`sec:relclaims` gains a
+paragraph conceding that the three-property combination is not a distinction
+against MCAS** (an MCAS descriptor is transient, resolved through, and costs an
+element only reserved bits). It distinguishes P1 among RCU-publication
+mechanisms. Against MCAS the distinction is plain stores under exclusion,
+readers that never write or help, and the per-record tag. *Mathieu to confirm
+that concession; it is in his claims paragraph.*
+
+**For the design note** (`rcu-mcas-deferred-settle.md`): address order, ranked
+abort, type-stable descriptor memory and "not strictly lock-free" reclamation
+all have their source here.

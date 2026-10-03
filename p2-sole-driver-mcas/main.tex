@@ -351,7 +351,11 @@ foreign transaction. This closes an objection a careful reader will otherwise
 raise---``but surely your read path helps''---and it is worth stating outright
 because it is what makes the next subsection's argument airtight: there is no
 foreign \emph{installer} of a transaction's records, and no foreign \emph{driver}
-of any kind, reads included.
+of any kind, reads included. That a read need not help is not new. Fraser
+observes that reading an acquired location ``does not need to involve recursive
+helping,'' because the logical value can be determined from the descriptor,
+although his \mcas read helps all the same~\citep{fraser2004lockfreedom}. What
+the discipline adds is that here it never does.
 
 A bounded wait is a bias, not a guarantee. It buys the common case, in which the
 owner settles promptly; it does not close the window against an owner that has
@@ -371,7 +375,12 @@ would then succeed against a slot whose meaning had changed underneath it. The
 standard defence is RDCSS---a restricted double-compare single-swap that
 conditions the install on a second word, typically the descriptor's own
 status---and it is exactly what Harris, Fraser and Pratt introduced to make
-practical \mcas safe~\citep{harris2002mcas}.
+practical \mcas safe~\citep{harris2002mcas}. Fraser's thesis has the same guard
+in a simpler form, a compare-and-swap conditional on the status still being
+undecided, and gives its purpose in a sentence: it ``prevents a phase-one update
+from occurring `too late'\,'', when ``a helping process could incorrectly
+reacquire a location after the MCAS operation has already
+succeeded''~\citep{fraser2004lockfreedom}.
 
 It is worth being concrete about that hazard, because what follows is a claim
 that it \emph{cannot arise}, not that it is improbable. And the recurrence that
@@ -469,7 +478,8 @@ disjoint-access-parallel operation that only one thread may drive is the
 classical observation of Israeli and Rappoport~\citep{israeli1994disjoint}; the
 contribution here is the recognition that a \pseudotxn's install inherits exactly
 that safety once helping is removed. That RDCSS exists on account of helping is
-said by those who kept the helpers. Guerraoui et al.\ describe it as locking a
+said by those who kept the helpers: first by its authors, in the passage quoted
+above, and again since. Guerraoui et al.\ describe it as locking a
 word ``provided that the current operation was not completed by a helping
 thread''~\citep{guerraoui2020mcas}; PathCAS adopts the double-word install
 specifically because it ``avoids ABA problems that could otherwise be introduced
@@ -480,9 +490,18 @@ other direction.
 
 Doing without RDCSS is not what is new here, and it is credited where it is due:
 it is the central result of Guerraoui et al., reached by the second cut and
-without giving up either helping or lock-freedom. What we are not aware of is
+without giving up either helping or lock-freedom. Nor is settling at once new.
+It is the release phase of the original algorithm, whose design notes that a
+location not currently owned stores its logical value directly, ``allowing
+direct access with no further computation or memory
+accesses''~\citep{fraser2004lockfreedom}. What neither design has is both:
+Harris et al.\ settle at once and pay a conditional install for it, and
+Guerraoui et al.\ install bare and pay by deferring the settle. What we are not
+aware of is
 the hazard closed from the other side---that removing the helper removes
-it---drawn as a design choice with its consequences attached. The two closures
+it---drawn as a design choice with its consequences attached, the first of
+which is that the bare install and the immediate settle come together. The
+closures
 are not interchangeable, because each fixes what the rest of the design may do
 (\cref{tab:closures}). Deferral keeps the helpers, so the decision must be a
 compare-and-swap, since helpers race to make it, and a slot must go on naming a
@@ -589,8 +608,11 @@ That property is the whole of the reclamation argument, and it is important to
 claim exactly it and no more. Reclaiming descriptors after a grace period is not
 new---it is the standard \rcu treatment of any reader-reachable object, and it
 has been named and benchmarked as an \mcas reclamation baseline over this very
-library~\citep{arbelraviv2017descriptors}. Nor is doing it without a reference
-count new: Guerraoui et al.\ reclaim their descriptors by thread-local epochs
+library~\citep{arbelraviv2017descriptors}. Practical \mcas as first implemented
+did otherwise: Fraser counts references on descriptors, since any helper may
+hold one, and reclaims by epochs only the nodes around
+them~\citep{fraser2004lockfreedom}. Doing without the count is not new either:
+Guerraoui et al.\ reclaim their descriptors by thread-local epochs
 alone~\citep{guerraoui2020mcas}---in two stages, because a deferred unlock needs
 one round of quiescence before a descriptor may be detached from the slots that
 still name it and a second before it may be freed. What the sole-driver regime
@@ -746,7 +768,10 @@ slot address. A committer waiting on slot $s$ therefore holds only slots below
 $s$; the owner of $s$, installing in the same ascending order, is already past
 $s$, so any slot \emph{it} waits on lies above $s$. Along any chain of waits the
 contended addresses strictly increase, and a cycle would require them to come
-back down. There is no cycle to close, so there is no deadlock.
+back down. There is no cycle to close, so there is no deadlock. The order is the
+one practical \mcas acquires in, where it bounds recursive
+helping~\citep{fraser2004lockfreedom}; here there is no helping to bound, and it
+orders the waits instead.
 
 The sort is paid only when it is needed. A first, optimistic attempt installs
 flat, in caller order, and never waits: the moment it meets a foreign record it
@@ -1057,7 +1082,10 @@ $4k+1$ compare-and-swaps for an uncontended $k$-slot commit, against the sole
 driver's $k$. Only then come the effects those atomics have---the
 per-record state machine as a hot cache line contended by every co-installer, and
 helper work that largely duplicated effort the owner would complete anyway. That diagnosis is not
-only ours: recent work on \kcas reports the same failure, that under high
+only ours, and it is not recent. Fraser's thesis already calls helping ``a major
+source of complexity'' and warns that ``excessive helping can generate harmful
+memory contention''~\citep{fraser2004lockfreedom}. Recent work on \kcas reports
+the same failure, that under high
 contention the helping which guarantees lock-freedom ``may cause excessive cache
 invalidations and significant performance degradation''---and responds by
 throttling the helpers rather than removing
@@ -1166,7 +1194,11 @@ Moir and Scherer---aborts any conflicting transaction on
 sight~\citep{herlihy2003dstm}, and the priority and
 timestamp policies that tame its livelock are Scherer and
 Scott's~\citep{scherer2005contention}, whose root is the wound-wait rule of
-classical database concurrency control~\citep{rosenkrantz1978woundwait}. This
+classical database concurrency control~\citep{rosenkrantz1978woundwait}. A rank
+that keeps mutual aborts from livelocking inside a lock-free design is in
+Fraser's transactional memory, which orders transactions by descriptor address
+and lets one abort only another that follows it in that
+order~\citep{fraser2004lockfreedom}. This
 facility had it, in the form of \emph{stealing}: a higher-ranked transaction evicted
 a foreign one and took its slots. Stealing and helping were one subsystem---to
 drive a foreign transaction is to help it, to evict one is to steal from it---so
@@ -1571,8 +1603,13 @@ Mittal~\citep{natarajan2014bst}, and freezing a record set so later updates to i
 fail is the \code{SCX} ``finalize'' of Brown, Ellen and
 Ruppert~\citep{brown2013scx}. Setting the tombstone as one word of the same
 multi-slot commit that unlinks the node---so that logical deletion and physical
-unlinking share a single linearization point---is what a \kcas over a tree already
-does with such a flag.
+unlinking share a single linearization point---is what a structure built on
+\mcas already does. Fraser's \mcas skip list removes a node with one \mcas that
+re-points its predecessors, rewrites the removed node's own forward pointers,
+and nulls its value field, so that an operation reaching the node afterwards
+finds it defunct and an insert anchored on it
+fails~\citep{fraser2004lockfreedom}. That is the shape of \cref{sec:hazard}'s
+fix.
 
 One property is worth calling out, as a design rationale rather than a claim: the
 tombstone is consulted by updaters alone and never by readers. That is worth
@@ -1685,6 +1722,16 @@ shared record that happens to leave its slot unchanged; the exclusive install ha
 no check to fail and could not carry one. That is not a limitation: a slot the
 embedder holds a lock over needs no guard, because the lock already excludes the
 writer the guard would have caught.
+
+Installing the guard as a record is the plain form of read validation, and its
+cost is known. Fraser's transactional memory began the same way, acquiring the
+objects a transaction only reads exactly as it acquires those it writes, and
+moved them to a separate read phase because acquiring them makes two readers of
+one object conflict and bounces its cache line between them. Keeping the commit
+atomic then took a fourth status value and an ordered
+abort~\citep{fraser2004lockfreedom}. One guard, on one slot of an insert, does
+not earn that machinery; whether a facility with many read-validated slots does
+is the next paper's question.
 
 \input{fig-listinsert}
 
@@ -1870,7 +1917,15 @@ operations couple through unwritten slots.
 
 The facility's descriptor-and-status shape
 is that of practical \mcas~\citep{harris2002mcas, fraser2004lockfreedom,
-fraser2007locks}. Its nearest neighbour is the \kcas of
+fraser2007locks}, and more than the shape is taken from it. Fraser's thesis is
+where that algorithm is worked out as an implementation, and this paper leans on
+it in five places: the conditional install and the reason for it, and the
+release phase that the eager settle is (\cref{sec:norddcss}); a read that need
+not help (\cref{sec:soledriver}); descriptors counted by reference beside nodes
+reclaimed by epochs (\cref{sec:settle}); installation in address order
+(\cref{sec:deadlock}); and \mcas-built structures that mark a removed node in
+the commit that unlinks it (\cref{sec:tombstoneclaim}). Its nearest neighbour
+among later designs is the \kcas of
 \citet{guerraoui2020mcas}, which it resembles more closely than it resembles
 Harris et al.'s. Both install by plain value compare-and-swap with no RDCSS;
 both let a thread resolve a decided descriptor through its status without
@@ -1975,14 +2030,17 @@ records---so with no helper it cannot arise. Doing without RDCSS is not the
 claim. That is \citet{guerraoui2020mcas}, who keep the helpers and make the
 bare install safe by deferring the unlock to reclamation; single-driver
 ownership~\citep{israeli1994disjoint} and the tie between RDCSS and
-helping~\citep{guerraoui2020mcas, brown2022pathcas} are old as well. What we are
+helping~\citep{fraser2004lockfreedom, guerraoui2020mcas, brown2022pathcas} are
+old as well. So is settling at once: it is the original algorithm's release
+phase~\citep{harris2002mcas, fraser2004lockfreedom}, paid for there by the
+conditional install. What we are
 not aware of is the hazard closed from this side, by removing the second
-driver, together with what that closure leaves in place and deferral gives up:
-a settle performed at once, by plain stores, so that no descriptor outlives its
-commit in a slot; a decision that is a plain store; and a descriptor that is
-unreachable when the commit returns. It is a negative result twice over---RDCSS
-unnecessary, deferral unnecessary---and its price is stated with it: the
-facility is not lock-free, and theirs is.
+driver, which gives what neither of those designs has: the bare install
+\emph{and} the immediate settle, so that no descriptor outlives its commit in a
+slot, with both the settle and the decision reduced to plain stores and the
+descriptor unreachable when the commit returns. It is a negative result twice
+over---RDCSS unnecessary, deferral unnecessary---and its price is stated with
+it: the facility is not lock-free, and both of theirs are.
 
 \textbf{The second is the conjunction, in the manner of the companion paper.} Each
 remaining ingredient of the facility is separately old: the descriptor-and-status
