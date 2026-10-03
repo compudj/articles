@@ -40,9 +40,10 @@ machine's Claude memory, so the standing rules are restated at the end.
    *slot*; P1's writer-scaling figure is the evidence.
 4. **The MW CAS-based engine (P2, sole-driver MCAS) is NOT presented.** No
    slide, not even a teaser.
-5. **Dentry cache: maybe, decided later.** It is the one addition under
-   consideration. **Ongoing benchmarks are updating the dcache figures —
-   do not populate that section until they are done.** Placeholder only.
+5. **Dentry cache: in (2026-10-03).** The benchmarks finished (sweep of
+   2026-10-02) and Mathieu cleared the figures for the talk. One slide (26)
+   and one backup slide, on the bucket lock + SW txn engine only: the MW txn
+   arms of the same benchmark fall under decision 4 and are not shown.
 6. **Charts are static** (projected + PDF upload): no hover/tooltips; print the
    numbers that matter on the chart.
 
@@ -355,13 +356,35 @@ matters on this box (bistable across sockets; 191→192 jump accepted).
 
 ### F. Kernel and close (~3 min)
 
-**26. `[PLACEHOLDER — dentry cache]`** Decide after the dcache benchmarks finish.
-Do not fill from old figures. Candidate framing: "the dcache's `d_seq` /
-`rename_lock` is exactly the read-side remedy slide 6 lists; bucket lock + SW
-txn keeps the kernel's bit-lock writer budget." Source material:
-`candidates/dcache.md` (partly stale on the engine choice: converged design =
-bucket lock + SW txn, fold-lock default) and the benchmark tree's
-`experiments/dcache/` + `figures/dcache_*.png` once regenerated.
+**26. Dentry cache: bucket locks around SW commits.** Left: a userspace
+model, two engines — the kernel's scheme (`d_seq` hand over hand,
+`rename_lock`, `i_rwsem`) and bucket lock + SW txn (bit locks on the bucket
+and child-list heads; a rename is one commit across both indexes; no `d_seq`,
+no `rename_lock`, no lock in `readdir`). Right: `fig-dcache.tex`, 11 of the
+22 rows of the benchmark tree's `figures/dcache_bucketlock_summary.png`
+(engine ÷ baseline, log axis, a dot per measured point): on par (lookups at
+10k–30k renames/s and at rest, allocating create/delete), faster (lookups at
+100k–300k renames/s 1.20–1.83×, reverse walk 1.41–7.16×, readdir 1.11–3.67×,
+create/delete in place 1.14–1.23×), slower (hits on objects being renamed
+0.84–0.93×, at rest 0.90–0.95×), writers flat out (leaf 20.8–21.5×, directory
+4.1–4.5×). Both "slower" rows are kept; the rows cut are on par or faster.
+Say "model" and "userspace" each time; the slide says userspace ratios are
+not kernel evidence. Backup slide 33 has the baseline's fidelity, the
+comparison rules, why it loses where it does, what the writers' lead
+includes (`i_rwsem`, the cross-directory rename mutex) and what is not
+modelled. Provenance in §7.
+Which API, if asked (checked 2026-10-03 in `dcache_bucketlock.c` and the
+engine tree): the model's index commits go through `rcu-txn.h`'s
+single-writer path — `urcu_txn_store_sw()` + `urcu_txn_commit_sw()`, i.e.
+`urcu_txn_desc_commit_sw()`: park by plain store, one release store of the
+descriptor's status word, settle, retire after a grace period; no CAS, no
+contention abort. Same park/flip/settle shape as slide 12, but it is NOT
+`rcu-txn-sw.h`'s `urcu_txn_sw_commit()`, and its readers resolve with
+`urcu_txn_resolve_record()` (record → descriptor status → old or new), not
+through a proxy's group selector. The slide says "SW txn" and "one commit",
+which hold; do not say the model uses the API of slides 16–19. Backup slide
+33 states it ("How the model commits"), at Mathieu's request (2026-10-03):
+the one place the deck names `rcu-txn.h`, and only its single-writer path.
 
 **27. What a kernel port needs** `[Mathieu to confirm/fill: port status]`.
 Grounded items: a spare low bit in the slot (list pointers are aligned); commit
@@ -425,7 +448,8 @@ Questions.
   forms, `for_each[_entry]_rcu`.
 
 **Two stale header comments found while reading (engine doc fixes, low
-priority, verify before editing):**
+priority; both still there at 18809ea8, checked 2026-10-03:
+`rcu-txn-sw.h:275`, `rcu-txn-sw-hlist.h:332`):**
 1. `rcu-txn-sw.h`, the "Multi-edge flip transaction" block says "nothing
    observes buffered writes (there are no transactional loads at all)". The
    stale half is "nothing observes buffered writes": `urcu_txn_sw_load()`
@@ -457,9 +481,22 @@ warm-up. Data: `p1-sw-flip-latch/data/fig-*.csv`; text: P1 §7.
 - These are publication-grade (measured on the quiet machine at the pin). Do
   not replace them with new runs without Mathieu's say-so (rules below).
 
+**Slide 26 and backup 33 (dentry cache)** are not P1's: benchmark tree
+`efficios-trie-benchmark` at `3a79ed3`, sweep `c03704139064-c21f5a38`
+(2026-10-02, liburcu `c21f5a38`), same machine.
+`make dcache-data` (`dcache-summary.py`) runs that tree's own
+`scripts/plot_dcache_bucketlock_summary.py` up to its drawing code and writes
+`data/dcache-summary{.csv,-points.csv,-macros.tex}`, which are committed (the
+laptop has no benchmark tree). The chart, `\dcrange{key}` in the text and the
+sweep id in the notes all read those files: no ratio is typed. The script
+owns which rows appear and in what order; `fig-dcache.tex` owns their wording.
+That tree's `scripts/check_dcache_figures.sh` reports every figure STALE on a
+checkout without `urcu-txn-build/` (it cannot name the liburcu commit and
+prints `-unknown`); the source hash it prints still matches the sweep's.
+
 ## 8. Open items
 
-1. Dentry-cache section: wait for the running benchmarks, then decide in/out.
+1. ~~Dentry-cache section~~ — **in, 2026-10-03** (§2 item 5, slide 26).
 2. Kernel-port status for slide 27 (placeholder).
 3. P1 public link (arXiv?) for slide 29 (placeholder).
 4. ~~Format~~ — **decided 2026-09-30: Beamer** (§10). The claude.ai artifact
@@ -497,7 +534,8 @@ and §7 live there).
 - Slides 1–29 follow §5 one-for-one and keep its numbering (the placeholders
   point at it). Backup, after `\appendix`: 30 anticipated questions, 31
   Triplett's reverse-publish rule (the `[opt]` of slide 9), 32 P1's
-  one-writer-with-readers curves.
+  one-writer-with-readers curves, 33 the dentry-cache model and where it
+  loses (added last, so nothing was renumbered).
 - Charts read `../p1-sw-flip-latch/data/*.csv` in place, and the printed
   endpoint values come from the CSVs' last rows, so a re-take of P1's data
   flows into the slides with no hand edits.
@@ -518,4 +556,8 @@ and §7 live there).
   reverse walk for rculist", because P1 §2.4 says list_bidir's sole caller
   takes one hop and never needs coherence. Worth Mathieu's look.
   The code on slides 13 and 16–19 is §5's text (verified at 18809ea8 on the
-  other machine), re-wrapped to fit; no engine tree on the laptop to re-check.
+  other machine), re-wrapped to fit. Re-checked 2026-10-03 against the engine
+  tree, `~/doc/userspace-rcu`, branch `urcu-txn-dev` at 18809ea8 (also the tip
+  of `github-dev/urcu-txn-dev`): every listing matches the headers, as do the
+  signatures and the commit's `nr <= 1` path, the 16-byte record alignment and
+  the debug knobs. The dcache sweep's liburcu, `c21f5a38`, is in neither.

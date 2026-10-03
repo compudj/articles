@@ -3,6 +3,7 @@
 #   make         build main.pdf, then run the checks below
 #   make notes   build main-notes.pdf: every slide followed by its notes page
 #   make clean   remove build artifacts, keep the PDFs
+#   make dcache-data   rewrite data/ from the benchmark tree (BENCH=...)
 #
 # XeLaTeX, not pdflatex: the fonts come from fontconfig -- IBM Plex when it is
 # installed (Debian: fonts-ibm-plex), Lato + Noto Sans Mono otherwise -- and
@@ -20,10 +21,10 @@ LATEX := $(NICE) xelatex -interaction=nonstopmode -halt-on-error
 # place. make cannot see through either, and a stale PDF that reports success
 # is worse than a failed build, so list them.
 DEPS  := $(DECK).tex $(wildcard fig-*.tex) $(wildcard $(P1)/data/*.csv) \
-         ../common/macros.tex
+         $(wildcard data/*) ../common/macros.tex
 
 .PHONY: all notes check check-terms check-placeholders check-overfull \
-        check-frame-open \
+        check-frame-open dcache-data \
         clean distclean
 .DEFAULT_GOAL := all
 
@@ -40,6 +41,14 @@ notes: $(DECK)-notes.pdf
 $(DECK)-notes.pdf: $(DEPS)
 	$(LATEX) -jobname=$(DECK)-notes '\def\withnotes{}\input{$(DECK)}'
 	$(LATEX) -jobname=$(DECK)-notes '\def\withnotes{}\input{$(DECK)}'
+
+# The dentry-cache slide's numbers, taken from the benchmark tree's sweep CSVs
+# by that tree's own summary plot script. data/ is committed and never rebuilt
+# implicitly: the benchmark tree is another repository, absent on the laptop.
+# Reads CSVs only; runs no benchmark.
+BENCH ?= $(HOME)/git/efficios-trie-benchmark
+dcache-data:
+	$(NICE) python3 dcache-summary.py $(BENCH)
 
 check: check-terms check-placeholders check-overfull check-frame-open
 

@@ -1,0 +1,128 @@
+% The dentry-cache slide's chart: a slide-sized cut of the benchmark tree's
+% one-page summary (efficios-trie-benchmark figures/dcache_bucketlock_summary.png).
+% One row per benchmark: the bucket lock + SW txn engine's throughput ÷ the
+% kernel-faithful seqlock baseline's, a dot per measured point of that
+% benchmark's sweep, a bar over their range, the range printed beside it. Log
+% axis, so 2× and 0.5× sit the same distance from parity.
+%
+% Which rows, in what order and at what height: dcache-summary.py, which takes
+% the ratios from the benchmark tree's own plot script and writes data/. This
+% file owns the wording only, keyed by the CSV's `key` column; a row with no
+% wording here stops the build.
+%
+% Blue is the facility, orange the plain scheme, as everywhere in the deck:
+% blue rows are the ones the engine wins, orange the ones the kernel's scheme
+% wins, grey the ones within 5%.
+\pgfplotstableread[col sep=comma]{data/dcache-summary.csv}\dctab
+\pgfplotstablegetrowsof{\dctab}
+\pgfmathtruncatemacro{\dcLast}{\pgfplotsretval-1}
+\pgfplotstablegetelem{0}{y}\of\dctab        \let\dcTop\pgfplotsretval
+\pgfplotstablegetelem{\dcLast}{y}\of\dctab  \let\dcBot\pgfplotsretval
+
+\def\dclabel#1#2{\expandafter\def\csname dcL/#1\endcsname{#2}}
+\dclabel{hdr-par}{On par}
+\dclabel{lookup-low}{Lookups, 10k--30k renames/s}
+\dclabel{lookup-rest}{Lookups at rest}
+\dclabel{churn-alloc}{Create/delete, allocating}
+\dclabel{hdr-faster}{Faster}
+\dclabel{lookup-high}{Lookups, 100k--300k renames/s}
+\dclabel{dpath}{Reverse walk under renames}
+\dclabel{readdir}{\code{readdir} under renames}
+\dclabel{churn-inplace}{Create/delete in place}
+\dclabel{hdr-slower}{Slower}
+\dclabel{hit}{Hits on objects being renamed}
+\dclabel{hit-rest}{The same hits, at rest}
+\dclabel{hdr-capacity}{Writers flat out}
+\dclabel{cap-leaf}{Leaf rename, exchange}
+\dclabel{cap-dir}{Directory rename, move, exchange}
+% What a group's header adds, printed in the empty plot area of its line.
+\dclabel{note-par}{median within 5\%}
+\dclabel{note-faster}{}
+\dclabel{note-slower}{}
+\dclabel{note-capacity}{rename rate, not reader cost}
+
+\def\dcXmin{0.7}
+\def\dcnum#1{\pgfmathprintnumber[fixed, fixed zerofill, precision=2]{#1}}
+\def\dcneed#1{\ifcsname dcL/#1\endcsname\else
+  \errmessage{fig-dcache: data/dcache-summary.csv has a row `#1' with no
+              wording here}\fi}
+% \dcrow{y}{key}{group}{lo}{hi}. The range is printed right of the bar, or left
+% of it where the bar ends too near the axis' right edge to leave it room.
+\def\dcrow#1#2#3#4#5{\dcneed{#2}%
+  \draw[dc #3, line width=3.4pt, line cap=round]
+    (axis cs:#4,#1) -- (axis cs:#5,#1);
+  \node[anchor=east, font=\scriptsize, text=ink, inner sep=0pt, xshift=-1.5mm]
+    at (axis cs:\dcXmin,#1) {\csname dcL/#2\endcsname};
+  \pgfmathtruncatemacro{\dcFar}{#5 > 8}%
+  \ifnum\dcFar=1
+    \node[anchor=east, font=\scriptsize, text=ink, inner sep=0pt, xshift=-2.2mm]
+      at (axis cs:#4,#1) {\dcnum{#4}--\dcnum{#5}×};
+  \else
+    \node[anchor=west, font=\scriptsize, text=ink, inner sep=0pt, xshift=2.2mm]
+      at (axis cs:#5,#1) {\dcnum{#4}--\dcnum{#5}×};
+  \fi}
+% \dchdr{y}{key}{group}
+\def\dchdr#1#2#3{\dcneed{#2}%
+  \node[anchor=east, font=\scriptsize\bfseries, dc text #3, inner sep=0pt,
+        xshift=-1.5mm] at (axis cs:\dcXmin,#1) {\csname dcL/#2\endcsname};
+  \node[anchor=west, font=\scriptsize, text=muted, inner sep=0pt, xshift=1.5mm]
+    at (axis cs:1.05,#1) {\csname dcL/note-#3\endcsname};}
+
+\begin{tikzpicture}[
+  % the bars are tints, the dots on them the full colour
+  dc par/.style      = {draw=onelock!38!paper},
+  dc faster/.style   = {draw=accent!32!paper},
+  dc slower/.style   = {draw=old!32!paper},
+  dc capacity/.style = {draw=accent!32!paper},
+  dc text par/.style      = {text=muted},
+  dc text faster/.style   = {text=accent},
+  dc text slower/.style   = {text=old},
+  dc text capacity/.style = {text=accent},
+  dcdots/.style = {only marks, mark=*, mark size=1.15pt,
+                   mark options={draw=paper, line width=0.25pt, fill=#1}},
+]
+\begin{axis}[
+  scale only axis, width=5.2cm, y=3.3mm,
+  xmode=log, log basis x=2,
+  xmin=\dcXmin, xmax=32, ymin=\dcBot-0.8, ymax=\dcTop+0.6,
+  xtick={1,2,4,8,16}, xticklabels={1×,2×,4×,8×,16×},
+  minor tick style={draw=none},
+  axis x line=bottom, axis y line=none,
+  axis line style={muted!60, -}, tick style={muted!60},
+  tick label style={font=\scriptsize, text=muted},
+  xmajorgrids, grid style={muted!18},
+  clip=false,
+  % the points file holds one column per group, nan elsewhere
+  unbounded coords=discard, filter discard warning=false,
+]
+% within 5% of the baseline, and parity
+\fill[muted!14!paper] ({axis cs:0.95,\dcBot}|-{rel axis cs:0,0})
+  rectangle ({axis cs:1.05,\dcBot}|-{rel axis cs:0,1});
+\draw[muted, densely dashed, line width=0.5pt]
+  ({axis cs:1,\dcBot}|-{rel axis cs:0,0}) -- ({axis cs:1,\dcBot}|-{rel axis cs:0,1});
+
+\pgfplotsforeachungrouped \dcI in {0,...,\dcLast} {
+  \pgfplotstablegetelem{\dcI}{y}\of\dctab      \let\dcY\pgfplotsretval
+  \pgfplotstablegetelem{\dcI}{hdr}\of\dctab    \let\dcHdr\pgfplotsretval
+  \pgfplotstablegetelem{\dcI}{key}\of\dctab    \let\dcKey\pgfplotsretval
+  \pgfplotstablegetelem{\dcI}{group}\of\dctab  \let\dcGroup\pgfplotsretval
+  \pgfplotstablegetelem{\dcI}{lo}\of\dctab     \let\dcLo\pgfplotsretval
+  \pgfplotstablegetelem{\dcI}{hi}\of\dctab     \let\dcHi\pgfplotsretval
+  \ifnum\dcHdr=1
+    \edef\dcDo{\noexpand\dchdr{\dcY}{\dcKey}{\dcGroup}}%
+  \else
+    \edef\dcDo{\noexpand\dcrow{\dcY}{\dcKey}{\dcGroup}{\dcLo}{\dcHi}}%
+  \fi
+  \dcDo
+}
+
+\addplot[dcdots=onelock] table[x=par, y=y, col sep=comma]
+  {data/dcache-summary-points.csv};
+\addplot[dcdots=accent] table[x=faster, y=y, col sep=comma]
+  {data/dcache-summary-points.csv};
+\addplot[dcdots=old] table[x=slower, y=y, col sep=comma]
+  {data/dcache-summary-points.csv};
+\addplot[dcdots=accent] table[x=capacity, y=y, col sep=comma]
+  {data/dcache-summary-points.csv};
+\end{axis}
+\end{tikzpicture}

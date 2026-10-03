@@ -1,0 +1,39 @@
+% Written by lpc2026-slides/dcache-summary.py; do not edit.
+% efficios-trie-benchmark 3a79ed3, sweep c03704139064-c21f5a38:
+% bucket lock + SW txn / seqlock baseline, as that tree's
+% scripts/plot_dcache_bucketlock_summary.py computes it.
+\def\dcacheSweep{c03704139064-c21f5a38}
+\def\dcacheBench{3a79ed3}
+\expandafter\def\csname dcv/lookup-low/lo\endcsname{1.03}
+\expandafter\def\csname dcv/lookup-low/med\endcsname{1.04}
+\expandafter\def\csname dcv/lookup-low/hi\endcsname{1.05}
+\expandafter\def\csname dcv/lookup-rest/lo\endcsname{0.98}
+\expandafter\def\csname dcv/lookup-rest/med\endcsname{1.01}
+\expandafter\def\csname dcv/lookup-rest/hi\endcsname{1.05}
+\expandafter\def\csname dcv/churn-alloc/lo\endcsname{0.99}
+\expandafter\def\csname dcv/churn-alloc/med\endcsname{1.00}
+\expandafter\def\csname dcv/churn-alloc/hi\endcsname{1.04}
+\expandafter\def\csname dcv/lookup-high/lo\endcsname{1.20}
+\expandafter\def\csname dcv/lookup-high/med\endcsname{1.51}
+\expandafter\def\csname dcv/lookup-high/hi\endcsname{1.83}
+\expandafter\def\csname dcv/dpath/lo\endcsname{1.41}
+\expandafter\def\csname dcv/dpath/med\endcsname{1.52}
+\expandafter\def\csname dcv/dpath/hi\endcsname{7.16}
+\expandafter\def\csname dcv/readdir/lo\endcsname{1.11}
+\expandafter\def\csname dcv/readdir/med\endcsname{1.58}
+\expandafter\def\csname dcv/readdir/hi\endcsname{3.67}
+\expandafter\def\csname dcv/churn-inplace/lo\endcsname{1.14}
+\expandafter\def\csname dcv/churn-inplace/med\endcsname{1.17}
+\expandafter\def\csname dcv/churn-inplace/hi\endcsname{1.23}
+\expandafter\def\csname dcv/hit/lo\endcsname{0.84}
+\expandafter\def\csname dcv/hit/med\endcsname{0.87}
+\expandafter\def\csname dcv/hit/hi\endcsname{0.93}
+\expandafter\def\csname dcv/hit-rest/lo\endcsname{0.90}
+\expandafter\def\csname dcv/hit-rest/med\endcsname{0.91}
+\expandafter\def\csname dcv/hit-rest/hi\endcsname{0.95}
+\expandafter\def\csname dcv/cap-leaf/lo\endcsname{20.77}
+\expandafter\def\csname dcv/cap-leaf/med\endcsname{20.97}
+\expandafter\def\csname dcv/cap-leaf/hi\endcsname{21.48}
+\expandafter\def\csname dcv/cap-dir/lo\endcsname{4.06}
+\expandafter\def\csname dcv/cap-dir/med\endcsname{4.19}
+\expandafter\def\csname dcv/cap-dir/hi\endcsname{4.48}

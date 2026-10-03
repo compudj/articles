@@ -7,8 +7,11 @@
 % decisions behind it and the standing rules; `make` checks the framing words.
 %
 % Scope, decided 2026-09-30: the single-writer API only. The CAS-based
-% multi-writer engine (P2) gets no slide, not even a teaser. The dentry-cache
-% slide stays a placeholder until the dcache benchmarks finish.
+% multi-writer engine (P2) gets no slide, not even a teaser.
+%
+% The dentry cache, decided 2026-10-03 once its benchmarks finished: one slide
+% and one backup slide, on the bucket lock + SW txn engine only, with the
+% numbers of the benchmark tree's 2026-10-02 sweep (data/, dcache-summary.py).
 
 \documentclass[aspectratio=169, 10pt, t, xcolor=table]{beamer}
 % `make notes` defines \withnotes: every slide is followed by its notes page.
@@ -65,6 +68,15 @@
 
 % P1's plot data, read in place.
 \newcommand{\ponedata}{../p1-sw-flip-latch/data}
+
+% The dentry-cache slide's ratios (dcache-summary.py writes them from the
+% benchmark tree): \dcrange{key} is a row's range as the chart prints it,
+% \dcval{key}{lo|med|hi} one end of it, \dcacheSweep the sweep's provenance id.
+\input{data/dcache-summary-macros}
+\newcommand{\dcval}[2]{\ifcsname dcv/#1/#2\endcsname
+  \csname dcv/#1/#2\endcsname\else
+  \errmessage{no dcache ratio `#1/#2' in data/dcache-summary-macros.tex}\fi}
+\newcommand{\dcrange}[1]{\dcval{#1}{lo}--\dcval{#1}{hi}×}
 
 % \lastof{table}{column}{\macro}: \macro <- the column's value in the table's
 % last row. Every P1 CSV ends at 192 workers (191 where one core runs the
@@ -1053,15 +1065,51 @@ forward walk.\par}
 % ===========================================================================
 \talksection{Kernel and close}
 
-\begin{frame}{Dentry cache}
-\vspace{6mm}
-\placeholder{Decide in or out once the dcache benchmarks finish. Do not fill
-from old figures. Candidate framing and sources: HANDOFF.md, slide 26.}
+\begin{frame}{Dentry cache: bucket locks around SW commits}
+\begin{columns}[T, onlytextwidth]
+\column{0.34\textwidth}
+  \begingroup\small
+  A \textbf{userspace model}, two engines.\par
+  \vspace{2mm}
+  \textbf{\color{old}The kernel's scheme.}
+  \code{d\_seq} hand over hand, \code{rename\_lock}, \code{i\_rwsem}.\par
+  \vspace{2mm}
+  \textbf{\color{accent}Bucket lock + SW txn.}
+  Bit locks on the bucket and child-list heads. A rename is \textbf{one
+  commit} across both indexes. No \code{d\_seq}, no \code{rename\_lock}, no
+  lock in \code{readdir}.\par
+  \endgroup
+  \vspace{2.5mm}
+  \aside{Reader rows: both engines at the same paced rename load.
+  A userspace model is not kernel evidence.}
+\column{0.65\textwidth}
+  \centerfig{fig-dcache}
+\end{columns}
+\label{fr:dcache}
 \note{%
 \begin{itemize}
-\item If it goes in: at most two slides, framed as ``where this lands in the
-      kernel'', with the fresh numbers. The single-writer core must stand on
-      its own before it.
+\item The shape is slide \ref{fr:twostructs}'s: a rename leaves the old hash bucket and child
+      list and enters the new ones in one flip, under fine-grained locks
+      (slide 15).
+\item If asked which API: the model commits through \code{rcu-txn.h}'s
+      single-writer path, \code{urcu\_txn\_store\_sw()} and
+      \code{urcu\_txn\_commit\_sw()}: park by plain store, one release store
+      of a status word, settle; no CAS, no contention abort. It is not
+      \code{rcu-txn-sw.h}'s \code{urcu\_txn\_sw\_commit()}, and its readers
+      resolve through the record's descriptor, not a proxy's group.
+\item 11 of the benchmark summary's 22 rows. The rows cut are all on par or
+      faster; both of its slower rows are here. Sweep
+      \texttt{\dcacheSweep}, benchmark tree \texttt{\dcacheBench}; a dot is
+      one measured point.
+\item A reader row counts a point only where both engines' writers kept the
+      pace: the reverse walk's \dcval{dpath}{hi}× is at 32 readers, and from
+      48 on the baseline's renamers starve.
+\item Why it loses, and what the writers' lead includes: backup slide
+      \ref{fr:dcachemodel}.
+\item The whole-path consistency the model's lookups get is the embedder's
+      re-check of a deletion mark, not the facility's: slide 8 stands.
+\item Say ``model'' and ``userspace'' each time: that \code{rename\_lock} and
+      \code{d\_seq} can go is the claim most likely to be challenged.
 \end{itemize}}
 \end{frame}
 
@@ -1217,6 +1265,74 @@ ratio stays 1.91--2.12 throughout. Walk order: the cheaper writer loses more,
 \note{Uncontended writer mutex on both; both reclaim through call\_rcu(), same
 RCU flavor, so the separation isolates the pseudo-transaction layer. Median of
 five 3 s runs after 4 s warm-up.}
+\end{frame}
+
+\begin{frame}{Dentry cache: the model, and where it loses}
+\footnotesize
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  \textbf{The baseline is the kernel's}
+  \begin{itemize}
+  \item Lookup: the RCU walk. \code{d\_seq} hand over hand;
+        \code{rename\_lock} sampled at \code{path\_init()}, consulted on a
+        miss.
+  \item Reverse walk: a port of \code{dentry\_path\_raw()}.
+  \item Locks: the kernel's \code{rw\_semaphore} as \code{i\_rwsem}, bit
+        locks that spin as \code{bit\_spin\_lock()} does, a queued spinlock
+        on the LRU shards.
+  \end{itemize}
+  \vspace{1mm}
+  \textbf{The comparison}
+  \begin{itemize}
+  \item Readers are compared under paced writers, at the points both
+        engines' writers sustain.
+  \end{itemize}
+  \vspace{1mm}
+  \textbf{Not modelled}
+  \begin{itemize}
+  \item Mounts, hard links, \code{lockref}, security hooks.
+  \end{itemize}
+\column{0.48\textwidth}
+  \textbf{How the model commits}
+  \begin{itemize}
+  \item \code{rcu-txn.h}'s single-writer commit: park, one flip, settle.
+        No CAS, no contention abort.
+  \item Not \code{rcu-txn-sw.h}: readers resolve through the commit's
+        descriptor, not a proxy's group.
+  \end{itemize}
+  \vspace{1mm}
+  \textbf{Where it loses}
+  \begin{itemize}
+  \item Hits on objects being renamed: \dcrange{hit}. A rename publishes a
+        shell; until a \code{call\_rcu} callback folds it back, about 5 ms, a
+        hit reads three cache lines instead of one.
+  \item At rest: \dcrange{hit-rest}, per-hop pointer decoding.
+  \end{itemize}
+  \vspace{1mm}
+  \textbf{What the writers' lead includes}
+  \begin{itemize}
+  \item The baseline takes \code{i\_rwsem} and the cross-directory rename
+        mutex, the model neither. A port gains only what the VFS stops
+        taking.
+  \end{itemize}
+\end{columns}
+\label{fr:dcachemodel}
+\note{%
+\begin{itemize}
+\item Sweep \texttt{\dcacheSweep} (2026-10-02), benchmark tree
+      \texttt{\dcacheBench}: \code{experiments/dcache/README.md}, Results.
+\item On the far socket the baseline's readdir and reverse walk lose
+      30--40\%, the model 2--5\%: its readers write no shared line.
+\item Every run ends on a namespace-conservation check; a run that fails it
+      is not plotted. 200 ms of the real workload before each timed window.
+\item A point counts for a reader row only if both engines' writers kept the
+      offered pace. The namespace sits on the benchmark's own NUMA node, the
+      baseline's favourable case. The model needs neither lock because its \code{readdir}
+      takes none: no writer has a reader to exclude.
+\item \code{urcu\_txn\_store\_sw()} records, \code{urcu\_txn\_commit\_sw()}
+      commits; a reader resolves with \code{urcu\_txn\_resolve\_record()}:
+      the descriptor's status word picks old or new.
+\end{itemize}}
 \end{frame}
 
 \end{document}
