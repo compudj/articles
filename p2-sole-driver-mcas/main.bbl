@@ -1,4 +1,4 @@
-\begin{thebibliography}{37}
+\begin{thebibliography}{38}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -128,16 +128,24 @@ Thomas Gleixner.
   (2025-12-15); userspace interface \code{RSEQ\_CS\_FLAG\_SLICE\_EXT\_*} in
   \code{include/uapi/linux/rseq.h}.
 
-\bibitem[Guerraoui et~al.(2020)Guerraoui, Kogan, Marathe, and
+\bibitem[Guerraoui et~al.(2020{\natexlab{a}})Guerraoui, Kogan, Marathe, and
   Zablotchi]{guerraoui2020mcas}
 Rachid Guerraoui, Alex Kogan, Virendra~J. Marathe, and Igor Zablotchi.
 \newblock Efficient multi-word compare and swap.
 \newblock In Hagit Attiya, editor, \emph{34th International Symposium on
   Distributed Computing, {DISC} 2020, Virtual Conference, October 12-16, 2020},
   volume 179 of \emph{LIPIcs}, pages 4:1--4:19. Schloss Dagstuhl -
-  Leibniz-Zentrum f{\"{u}}r Informatik, 2020.
+  Leibniz-Zentrum f{\"{u}}r Informatik, 2020{\natexlab{a}}.
 \newblock \doi{10.4230/LIPIcs.DISC.2020.4}.
 \newblock URL \url{https://doi.org/10.4230/LIPIcs.DISC.2020.4}.
+
+\bibitem[Guerraoui et~al.(2020{\natexlab{b}})Guerraoui, Kogan, Marathe, and
+  Zablotchi]{guerraoui2020mcasfull}
+Rachid Guerraoui, Alex Kogan, Virendra~J. Marathe, and Igor Zablotchi.
+\newblock Efficient multi-word compare and swap.
+\newblock arXiv preprint, August 2020{\natexlab{b}}.
+\newblock URL \url{https://arxiv.org/abs/2008.02527}.
+\newblock arXiv:2008.02527; full version of the {DISC} 2020 paper.
 
 \bibitem[Harris(2001)]{harris2001lists}
 Timothy~L. Harris.

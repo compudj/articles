@@ -49,7 +49,9 @@ helping design was built, then replaced:
 - **Tri-state status + descriptor-naming CAS.** UNDECIDED → SUCCEEDED (commit) /
   FAILED (abort); every slot transition is a descriptor-naming CAS; resolution
   goes through the status word, so a slot's plain value is never load-bearing.
-- **No RDCSS — the CENTERPIECE engine claim (strongest novelty).** Plain value-CAS
+- **⛔ SUPERSEDED 2026-10-03 — "no RDCSS" is NOT ours; see the section of that date
+  at the end of this file. The bullet below is kept for the record only.**
+  ~~No RDCSS — the CENTERPIECE engine claim (strongest novelty).~~ Plain value-CAS
   install is A-B-A-safe *by construction* under one driver — the classic re-plant A-B-A
   needs a foreign driver of your records, which the regime excludes. Linchpin: Guerraoui
   et al. (DISC 2020) tie RDCSS's whole purpose to *helping* ("provided the operation was
@@ -390,7 +392,7 @@ risks (§5, §6), elevate §2 to centerpiece.**
 | # | Claim | Verdict | Framing |
 |---|---|---|---|
 | 1 | sole-driver / no-helping / bounded-blocking as a design point | partially anticipated (the *philosophy* is known) | **cite** "blocking-can-beat-lock-free" (David–Guerraoui–Trigonakis; Flat Combining); **claim** the specific engine, not the tradeoff insight |
-| 2 | **no-RDCSS via single-driver** | **distinct mechanism / novel articulation — CENTERPIECE** | claim as applied ownership logic; linchpin = Guerraoui 2020; apparently unpublished |
+| 2 | **no-RDCSS via single-driver** | ⛔ **VERDICT WRONG — RE-SCOPED 2026-10-03.** RDCSS-free value-CAS install is Guerraoui 2020's own result (helping kept, unlock deferred). ~~distinct mechanism / novel articulation — CENTERPIECE~~ | claim only the *sole-driver closure* and what it keeps that deferral gives up (eager settle, store-decide, one GP); ~~linchpin = Guerraoui 2020; apparently unpublished~~ |
 | 3 | rejected-alternatives disclosure | accurate but under-attributed | attribution fixes below; abort-others + age-resolution are ONE lineage |
 | 4 | adaptive coarseness (aging→fair MCS, cost-scaled budget) | partially anticipated — novel *recombination* | cite each component; claim only the integration |
 | 5 | RCU descriptor reclamation | **well-known — HIGH overclaim risk** | DON'T claim RCU-reclaim; claim only the refcount-free reachability point |
@@ -731,3 +733,214 @@ existence/RLU/MV-RLU stays deferred.
 alignment caveat — cacheline-aligning nodes lowered the low-writer baseline while
 leaving the peak, so the scaling ratio is slightly flattered; that is disclosed
 in the benchmark commit but NOT yet in the paper.
+
+---
+
+## 2026-10-03 — GUERRAOUI ET AL. READ IN FULL: "no RDCSS" is not ours; first claim RE-SCOPED
+
+**What happened.** `guerraoui2020mcas` (Guerraoui, Kogan, Marathe, Zablotchi,
+*Efficient Multi-word Compare and Swap*, DISC 2020; full version arXiv
+2008.02527, 28 pp) has been in the bib since scoping, and this paper used it for
+**one sentence of its introduction** — RDCSS locks a word "provided that the
+current operation was not completed by a helping thread" — as the "linchpin"
+tying RDCSS to helping. Mathieu flagged it on 2026-10-03 as prior art that
+*directly* relates to P2. Read in full, it is the nearest prior art this paper
+has, and **its own algorithm is RDCSS-free**. Ledger item 2's verdict
+("distinct mechanism / novel articulation — CENTERPIECE … apparently
+unpublished") was wrong. The patent sweep of 2026-07-28 did look at an Oracle
+MCAS family, but only for the mixed-install question.
+
+**What their algorithm is.**
+
+- **Plain value-CAS install, no RDCSS, helping KEPT, lock-free.** `k+1` CASes
+  per uncontended `k`-CAS: `k` to acquire, one to finalize the status.
+- **Deferred unlock.** A finalized descriptor is left in its words. A later MCAS
+  on a word installs *its* descriptor over the old one (CAS on raw content); a
+  plain value is written back only by **detach**, a CAS performed during
+  reclamation.
+- **Epoch reclamation, "similar to RCU"**, no refcount, two stages:
+  `finalizedDescList` → (epoch scan) → detach by CAS → `detachedDescList` →
+  (epoch scan) → free. The *detach* being behind an epoch is what closes the
+  install ABA — "ABA prevention for free".
+- **Readers do not write** unless they meet an ACTIVE operation, which they
+  then **help** (`readInternal` calls `MCAS(parent)`).
+- **Lower bound** (Thm 4): a lock-free, disjoint-access-parallel k-CAS must, in
+  some execution, CAS at least `k` locations.
+- **Appendix A.1 is our §3.3 trace**: Harris et al. with CAS in place of RDCSS.
+- **The cost they name themselves:** "lower read performance (because of the
+  extra level of indirection reads have to traverse when encountering a
+  descriptor left in place after a completed MCAS)". List size 500, 80% reads:
+  PMwCAS (eager unlock) ahead 1.2× on average; 100% reads: on par or slightly
+  behind (A.7). Sizes 5 / 50: theirs ahead 2.6× / 2.2×. For read-dominated
+  workloads A.6 has a **reader** scan epochs and detach by CAS, with small
+  probability.
+
+**Side by side** (this is `tab:closures` in the paper):
+
+| | RDCSS (HFP 2002) | Deferred unlock (Guerraoui 2020) | Sole driver (P2) |
+|---|---|---|---|
+| cuts the §3.3 trace at | step 5 | steps 3–4 | step 2 |
+| helping | yes | yes | none |
+| progress | lock-free | lock-free | bounded-blocking |
+| install | RDCSS | one CAS | one CAS |
+| decision | CAS | CAS | **release store** |
+| unlock / settle | eager, CAS | **deferred** to a later op or to reclamation | **eager, release store** |
+| CAS per uncontended k-slot commit | 3k+1 | k+1 | **k** |
+| slot after commit | plain | **descriptor** | plain |
+| read meeting an in-flight op | helps | helps | resolves to old |
+| descriptor reclaim | (GC assumed) | 2 epochs + detach pass, no refcount | 1 grace period, no refcount |
+
+Our helping-era engine, by §5.2's own count, was **4k+1** (plant + FREE→BUSY +
+FREE→DONE + settle-CAS per record, + status CAS).
+
+**The claim as it now stands.** NOT "a sole-driver MCAS needs no RDCSS". It is:
+*the install-time A-B-A can be closed by removing the second driver, and closing
+it that way — unlike deferring the unlock — leaves the settle eager (no
+descriptor outlives its commit in a slot), the decision a plain store, and the
+descriptor unreachable when the commit returns.* A negative result twice over
+(RDCSS unnecessary, deferral unnecessary); priced honestly: **not lock-free,
+theirs is.** Register unchanged: "we are not aware of". The argument for
+choosing it is the series' read-side thesis, which is exactly what Guerraoui's
+own evaluation concedes at the read-heavy, low-contention end.
+
+**What is superseded in THIS file — do not restate any of it:**
+
+- Thesis, causal chain: "helping … *forced* a per-record … spinlatch … helping
+  never bought true lock-freedom". True of the engine **we built**; false of
+  helping as such. The latch was *our* closure. Guerraoui's is another, and it
+  is lock-free.
+- "No RDCSS — the CENTERPIECE engine claim" bullet, and ENGINE-CLAIMS LEDGER
+  item 2 (both marked in place).
+- Coarseness thesis #1 ("so lock-freedom was never actually on the table
+  there") — keep only with "there" meaning *our helping engine*; #3 ("Why not
+  DCAS/RDCSS … Sole-driver removes the need entirely") — so does deferral.
+- Variations table row "Pure lock-freedom — unreachable once co-install forced
+  the per-record install latch". It is reachable (Guerraoui); it was out of
+  reach of *our* helping engine.
+- ENGINE-CLAIMS LEDGER item 5: "refcount-free reclamation POINT" — refcount-free
+  alone does not distinguish us (theirs has none either). What is ours: **one**
+  grace period, **no detach pass**, the free point reached at commit return.
+
+**What the +22% does and does not show.** It retired OUR helping path: a 4k+1,
+latch-blocking design. It says nothing about a k+1, lock-free, latch-free helping
+design, which we did not build. The paper now says so in §5.2, §5.6, the table
+caption, the abstract and the conclusion. **Do not let an editing pass re-widen
+"helping lost" into a claim about helping in general.**
+
+**What changed in `main.tex`** (34 pp, was 30; abstract 1906/1920):
+
+- Abstract: "most of all—no RDCSS" gone; deferral named as the other RDCSS-free
+  route; "lock-freedom was never on the table" → "the lock-free one we did not
+  build charges the reader".
+- §1: new paragraph "What that trail does not show"; Contributions re-worded.
+- §3.3 `sec:norddcss`: trace credited to their Appendix A.1; **three cuts** of
+  the trace (RDCSS / deferred unlock / sole driver); "linchpin" paragraph
+  replaced by "credited where it is due"; new **`tab:closures`**; the lower
+  bound and why `k` (shared) and `0` (exclusive) are outside it.
+- §3.4 `sec:settle`: their refcount-free two-stage epoch reclamation cited;
+  ours narrowed to one grace period, no detach pass.
+- §4.5 `sec:trade`: the ledger against the latched engine vs the narrower one
+  against deferred unlock.
+- §5.2 `sec:varhelping` (retitled "the latch we closed it with"): 4k+1; the
+  scope-of-the-measurement paragraph.
+- **New §5.6 `sec:vardefer`**, "Keeping the helpers, and deferring the settle".
+- §5.7 `sec:varversion` opening; §5.8 `sec:varlockfree` rewritten.
+- `tab:variations`: new row, re-worded Helping and Pure-lock-freedom rows, new
+  caption; float changed `[t]` → `[tp]` (the extra row had pushed it to the last
+  page of the paper).
+- §8 Limitations, §9.1, §9.6 `sec:relclaims`, §10 Conclusion.
+- `common/urcu-txn.bib`: new `guerraoui2020mcasfull` (arXiv full version), cited
+  for Appendices A.1 / A.6 / A.7; the proceedings entry for everything else.
+
+**P1** (`p1-sw-flip-latch/main.tex`): §11.1 gets a paragraph on their k-CAS —
+the bound, why zero CAS under exclusion is outside it, eager vs deferred
+settle; §9.4 `sec:varsettle` cites their deferred unlock as the published form
+of the lazy settle it already describes (install-over, and conditional
+detach); §11.3 cites them for status-resolution-without-writing and quiescence
+reclamation, and for what "transient" excludes. **Slides:** one backup Q&A and
+three speaker notes; no main-line slide changed (the MW engine is not in the
+talk).
+
+**Two observations about THEIR paper, recorded here and NOT in ours** (Mathieu
+asked whether their scheme can suffer a structural ABA, i.e. whether a word ever
+returns to a plain value):
+
+1. In the algorithm they **prove** (Listing 3, App. A.2) it never does: the only
+   write to a target word is the acquire CAS, and Lemma 10 says a location once
+   acquired is never un-acquired. Structural ABA is impossible there outright —
+   the CAS compares raw *content*, and a logical B→X→B is `plain B → &wd(T1) →
+   &wd(T2)`. But §6 opens "presented so far under the assumption that no memory
+   is ever reclaimed": **the proof does not cover detach**, which is the one
+   transition back to plain. Its safety is the informal "for free" argument.
+2. `readInternal` helps by calling `MCAS(parent)`, which runs its own
+   `epochStart()/epochEnd()`. Under A.4's parity scheme (odd = inside) a helper
+   in a nested call reads as **even**, i.e. quiescent, exactly while it is the
+   stalled second driver. Read literally that reopens the ABA through detach. A
+   real implementation surely uses a re-entrant guard; **their code has not been
+   checked.** Do not put either point in the paper without checking it.
+
+**OPEN — Mathieu's calls:**
+
+1. **Claim structure.** The first claim is kept as an independent claim,
+   re-scoped. The alternative is to fold it into the conjunction and let the
+   paper have one claim. The text is written so that either reads true.
+2. **Title and thesis.** Unchanged. "Sole-Driver MCAS" still names what is ours.
+3. **The missing measurement:** an AOPT-style arm (helping + `call_rcu`-deferred
+   detach) against sole-driver, with readers. Belongs to P4, against their
+   code. Until then the choice rests on design grounds and on *their* numbers.
+4. **Patents.** Re-read the Oracle family the sweep lists (US 10,824,424 /
+   11,216,274 — presumably this algorithm; not confirmed) against the
+   deferred-unlock design, before anything like §5.6's "set on this facility's
+   substrate" paragraph is ever built.
+5. **The engine header** (`rcu-txn-mcas.h`) says "A bare value-CAS is correct
+   because the owner is the SOLE driver". True, and it owes Guerraoui et al. a
+   line too. Not edited (the engine tree is read-only from here).
+6. `README.md` line 27 still summarizes P2 as "(no-RDCSS)". Left alone.
+
+### 2026-10-03, later the same day — ⛔ BLOCKING BEFORE SUBMISSION, and the goal is open again
+
+**Mathieu: investigate the deferred-settle engine before publishing P2.** Two
+things follow, and neither is resolved.
+
+**1. The design note is committed, the prototype is deliberately not started.**
+`efficios-trie-benchmark/design/rcu-mcas-deferred-settle.md` (commit `4326725`).
+It is the missing arm of OPEN item 3 above, worked out at design level: helping
+or abort-others, install-over a decided proxy so writers do not stall for the
+grace period, detach by CAS from a `call_rcu` callback, decision by CAS, two
+grace periods per descriptor.
+
+**2. The goal question (Mathieu).** An engine close to the published algorithm
+would be truly lock-free at the cost of overhead — a progress-guarantee vs
+throughput trade. And the series' throughput target is already met by P1's
+plain stores under the embedder's locks. So **lock-freedom may be a more
+appealing goal for P2 than bounded-blocking.** If so, the paper's subject
+changes: a lock-free multi-writer facility, with sole-driver as the measured,
+throughput-leaning variation — the reverse of today's text.
+
+**What the design note found that this paper does not yet say:**
+
+- **A deferred detach is the first write to a transacted slot made OUTSIDE the
+  read-side critical section its transaction ran in.** Today plant, settle and a
+  loser's settle-back are all inside it, which is why one grace period covers
+  free *and* reuse (`sec:reclaim`). With deferral, a node can be unlinked and
+  freed before an earlier descriptor's detach callback runs, and the detach then
+  CASes freed memory. This may be the strongest argument the eager settle has,
+  and it is stronger than the reader indirection. **Unverified against their
+  implementation** — do not write it into the paper as a defect of theirs.
+- "Eager settle when nobody helped" is unsound as stated; a per-record rule
+  (un-helped AND planted over a plain value) may hold. Unproven.
+- A truly lock-free claim needs: address-ordered helpable transactions, ranked
+  abort, no domain-wide lane, and the standing caveat that reclamation stays
+  blocking.
+
+**What re-targeting would cost the paper.** The closer P2 gets to the published
+algorithm, the less of it is ours: what would remain is readers that never help,
+the RCU integration, an answer to the detach-lifetime problem, the mixed record
+kinds, and the hybrid if it holds. And OPEN item 4 moves from the margin to the
+centre: the earlier sweep's one distinguishing element for sole-driver was that
+it decides by plain store where the Oracle claim recites a CAS — an engine with
+helpers decides by CAS. Mathieu's call, with counsel.
+
+**State of the text.** The 2026-10-03 re-scope above is correct for the engine
+that exists. Do not submit, and do not polish the bounded-blocking argument
+further, until this is decided.
