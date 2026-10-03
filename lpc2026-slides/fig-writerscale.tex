@@ -47,14 +47,15 @@
         col sep=comma] {\ponedata/fig-writerscale.csv};
 
 % Direct labels, each printing its series' median at 192 writers (the CSV's
-% last row). rculist and the bit lock end 2 apart (379 vs 377), so their labels
-% are pulled apart vertically.
+% last row). rculist and the bit lock end 17 apart (403 vs 386 at engine
+% 2793224e), closer than a label is tall, so their labels are pulled apart
+% vertically.
 \node[anchor=west, font=\footnotesize, text=old]
-  at (axis cs:197,408) {\code{rculist}, stripes: \wsnum{\wsRcu}};
+  at (axis cs:197,412) {\code{rculist}, stripes: \wsnum{\wsRcu}};
 \node[anchor=west, font=\footnotesize\bfseries, text=accent]
-  at (axis cs:197,362) {\code{txn\_sw}, lock bit: \wsnum{\wsBit}};
+  at (axis cs:197,370) {\code{txn\_sw}, lock bit: \wsnum{\wsBit}};
 \node[anchor=west, font=\footnotesize, text=stripes]
-  at (axis cs:197,302) {\code{txn\_sw}, stripes: \wsnum{\wsStripe}};
+  at (axis cs:197,326) {\code{txn\_sw}, stripes: \wsnum{\wsStripe}};
 \node[anchor=west, font=\footnotesize, text=onelock]
   at (axis cs:197,14) {one lock: ≈\wsnum{\wsMutex}};
 \end{axis}

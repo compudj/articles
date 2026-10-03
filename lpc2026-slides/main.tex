@@ -2,7 +2,7 @@
 % "RCU Pseudo-Transactions: Bridging the gap between RCU and STM".
 %
 % The deck is P1 (../p1-sw-flip-latch) told to a room of kernel developers: its
-% numbers (engine pin 18809ea8), its framing, and its CSVs, read in place so no
+% numbers (engine pin 2793224e), its framing, and its CSVs, read in place so no
 % chart here can drift from the paper's. HANDOFF.md holds the outline, the
 % decisions behind it and the standing rules; `make` checks the framing words.
 %
@@ -747,7 +747,7 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
 \end{itemize}
 \note{%
 \begin{itemize}
-\item Names verified at 18809ea8, include/urcu/rcu-txn-sw.h.
+\item Names verified at 2793224e, include/urcu/rcu-txn-sw.h.
 \item record() is a blind append over pairwise-distinct slots;
       record\_chain() fuses a second edit of a slot onto its record, else
       appends. The find is a linear scan of the private record array, with a
@@ -940,7 +940,7 @@ Per node: & \code{rculist}     & 8  & instructions: 2 branches, 2 loads & \\
 \begin{itemize}\small
 \item \textbf{Scattered nodes}, as allocated over time: the branch is
       \textbf{free}, 1.002--1.003 of \code{rculist}.
-\item \textbf{Walk order, L1-resident}: it shows, 12.7\% (control 10.7\%).
+\item \textbf{Walk order, L1-resident}: it shows, 10.7\% (the control: the same).
 \end{itemize}
 % The setup of every cost slide (P1 sec. 7), stated once, on the first;
 % the rest of it is in the note.
@@ -949,19 +949,21 @@ Per node: & \code{rculist}     & 8  & instructions: 2 branches, 2 loads & \\
 \note{%
 \begin{itemize}
 \item The ratio is of throughput (node visits/s, no writer: P1's ``read
-      ceiling''), each arm against rculist in the same run. 0.872 means
-      12.7\% slower. Every curve is flat in the reader count.
-\item Scattered: matches the +tag test control within 0.06\%. L3- and
+      ceiling''), each arm against rculist in the same run. 0.893 means
+      10.7\% slower. Every curve is flat in the reader count.
+\item Scattered: matches the +tag test control within 0.05\%. L3- and
       DRAM-sized scattered lists: no arm distinguishable from rculist within
-      run-to-run noise (17\% at L3, 9\% at DRAM).
-\item Always quote with the layout. The 12.7\% is a property of a list the
+      run-to-run noise (13\% at L3, 5\% at DRAM).
+\item Always quote with the layout. The 10.7\% is a property of a list the
       prefetcher keeps in L1, walked in allocation order.
 \item Read ceiling vs rculist, no writer, 10\,000 nodes walked forward twice
       by every arm; median of five 3 s runs after 4 s warm-up. Every curve is
-      flat in the reader count; scaling 97.4--98.4\% of ideal.
-\item Controls: +tag test has the facility's exact instruction stream. The
-      2\% between it and txn in walk order is not mechanism. Few-\% gaps
-      between the load controls are code-level noise.
+      flat in the reader count; scaling 97.1--98.4\% of ideal.
+\item Controls: +tag test has the facility's exact instruction stream, and
+      reads the same in both layouts (10.4--11.2\% against 10.6--10.8\% in
+      walk order). An earlier take had the two 2\% apart there: code layout,
+      not mechanism. Few-\% gaps between the load controls are code-level
+      noise.
 \item Setup: 2× EPYC 9654, 192 cores, liburcu QSBR, per-CPU call\_rcu
       workers, jemalloc per-CPU arenas.
 \end{itemize}}
@@ -976,9 +978,9 @@ Per node: & \code{rculist}     & 8  & instructions: 2 branches, 2 loads & \\
 & \textbf{state} & \textbf{loads} & \textbf{branches}
   & \textbf{guarantee} & {\scriptsize\color{muted}scattered / walk order} \\
 \midrule
-Existence & \code{eh\_egi} field & 1 & 1 & per-element & 3\% / 15\% \\
-RLU & object header & 1 & 1 & snapshot & 2--6\% / 22--44\% \\
-MV-RLU & header + versions & $\ge 2$ & $\ge 3$ & snapshot & 1.40× / 2.91× \\
+Existence & \code{eh\_egi} field & 1 & 1 & per-element & 2--3\% / 15--17\% \\
+RLU & object header & 1 & 1 & snapshot & 1--3\% / 23--44\% \\
+MV-RLU & header + versions & $\ge 2$ & $\ge 3$ & snapshot & 1.43× / 3.01× \\
 \midrule
 \rowcolor{accent!10}
 \textbf{This work} & \textbf{none} & \textbf{0} & 1 & never new-then-old & --- \\
@@ -999,50 +1001,70 @@ ranked across this boundary.}
       tests a value the reader already holds. The 1 is not bold on purpose.
 \item RLU's pure reader never touches the header: its extra load is a
       per-thread flag. Do not claim ``RLU loads the header on every read''.
-\item RLU walk order: 22--25\% up to 32 readers, then bends above 64 (85\% of
+\item RLU walk order: 23--27\% up to 32 readers, then bends above 64 (85\% of
       ideal at 192), unexplained.
+\item Scattered figures are from two readers up. At one reader existence and
+      RLU read low in four runs of five this take (7\% and 9\% gaps there);
+      not explained, not quoted.
 \item The unconditional cost of the others is space: a header or field on
       every element, for as long as the structure lives.
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Writer: about 2×, and it is not the flip}
+\begin{frame}{Writer: 1.3--1.8×, and it is not the flip}
 \begin{columns}[T, onlytextwidth]
 \column{0.27\textwidth}
-  {\fontsize{34}{36}\selectfont\bfseries\color{accent}≈2×\par}
+  {\fontsize{25}{28}\selectfont\bfseries\color{accent}1.3--1.8×\par}
   \vspace{1mm}
   {\footnotesize\color{muted}one writer, readers running\par}
 \column{0.7\textwidth}
   \vspace{1mm}
   \begin{itemize}\small
-  \item Scattered nodes: 1.9--2.1× at every reader count.
-  \item Walk order: 1.92× at 1 reader, 1.37× at 8, then 1.4--1.7×.
-  \item No reader at all: 2.5--2.6×.
+  \item Scattered nodes: 1.55--1.58× up to 4 readers, 1.6--1.8× beyond.
+  \item Walk order: 1.34--1.39× up to 4 readers, 1.26--1.52× beyond.
+  \item No reader: no ratio. Plain RCU outruns its own reclaim there.
   \end{itemize}
 \end{columns}
 \vspace{2mm}
-{\small\bfseries Where the gap goes\enspace
- {\mdseries\color{muted}one writer, no reader, no mutex: the widest ratio,
- 3.0}\par}
-\vspace{5mm}
+{\small\bfseries Where the cycles go\enspace
+ {\mdseries\color{muted}one writer, one reader, no mutex: the writer's thread,
+ per update}\par}
+\vspace{1mm}
 \centerfig{fig-profile}
-\vspace{2mm}
-\aside{Each update defers one extra block, the txn descriptor: \code{call\_rcu} is
-entered 3× as often as plain RCU's.}
+\vspace{1mm}
+\aside{Each update takes a fresh txn descriptor (it must outlive a grace
+period). The commit: 19 cycles of 243.}
 \note{%
 \begin{itemize}
 \item A parked group block must outlive a grace period: a reader that loaded
       a proxy may still be resolving through it. Plain RCU defers only the
       node.
 \item A single-edge commit needs no proxy and frees in place.
-\item Remedies: an rseq-supplied CPU id and an rseq enqueue in call\_rcu (plain
-      RCU gains too, the txn writer more); URCU\_TXN\_SLAB\_BATCH returns
-      descriptors in batches under one call\_rcu (opt-in, off in these
-      numbers).
+\item These are at engine 2793224e (3 Oct). Earlier copies of P1 and of this
+      slide said about 2×, at 18809ea8. Since then: descriptors are retired in
+      batches, one call\_rcu per batch; the record append is inlined; a list
+      op's descriptor is 224 bytes, not 416; the slab's pop and push lost a
+      redundant full barrier each.
+\item The slab's 95 cycles: more than half sit on four locked instructions
+      (its pop lock taken and released, a compare-and-swap per pop and per
+      push), the rest on a block that comes back out of cache a grace period
+      later. The experimental rseq slab (--enable-slab-rseq) has none of the
+      four: 1.5× scattered and 1.3× walk order up to 4 readers, no different
+      from 8 readers up.
+\item Batching is worth 9--23\% to the writer. With one call\_rcu per
+      descriptor (URCU\_TXN\_SLAB\_NO\_BATCH) the ratio is 1.9--2.0×
+      scattered, 1.4--1.7× walk order.
+\item No reader: plain RCU's writer defers nodes faster than the call\_rcu
+      worker on its own hardware thread frees them. The worker runs half the
+      CPU without sleeping and the process grows by more than 100 MB/s, so the
+      rate is not one it can sustain. With 1 to 8 readers both lists hold
+      memory flat. Earlier slides quoted 2.5--2.6× there: do not.
+\item Both writers collapse between 4 and 8 readers as grace periods lengthen:
+      scattered, plain RCU 14.3 → 4.7 Mops/s, txn 9.3 → 2.6.
+\item Node allocation reads lower for the transacted writer (21 against 50).
+      Not explained; do not claim it.
 \item We report with readers because that is the regime the facility is for:
       a structure with no readers has no use for reader-visible coherence.
-\item Walk order: plain RCU's writer falls 12.1 → 3.7 Mops/s between 4 and 8
-      readers, txn 6.9 → 2.7: grace periods lengthen for both.
 \end{itemize}}
 \end{frame}
 
@@ -1053,23 +1075,23 @@ order → validate → commit.\par
 \vspace{1mm}
 \input{fig-writerscale}
 \vspace{1mm}
-{\small Lock bit in each node: \textbf{8.0 → 377}, 47× from 1 to 192 writers,
-and 355× the list behind one lock. rculist cannot use an in-node lock: its
+{\small Lock bit in each node: \textbf{10.3 → 386}, 38× from 1 to 192 writers,
+and 339× the list behind one lock. rculist cannot use an in-node lock: its
 \code{prev} cannot be accessed coherently, so finding the predecessor takes a
 forward walk.\par}
 \label{fr:writerscale}
 \note{%
 \begin{itemize}
-\item rculist leads 1.11--1.36× from 16 to 128 writers; level from 160 on
-      (0.91--1.01): 377 vs 379 at 192. Under the same stripes it leads by
-      1.10--1.51.
+\item rculist leads 1.57× alone, 1.41× at 2 writers and 1.03--1.28× from 4
+      to 96; level from 128 on (0.94--1.04): 386 vs 403 at 192. Under the same stripes:
+      1.6× alone, 0.89--1.35 from 16 writers up.
 \item To use an in-node lock, rculist would first have to find the
       predecessor by a forward walk; this facility's writer reads it from the
       victim's own prev, as a reader may.
 \item Caveats to say: each writer owns its slots, so no retries; no lookup
       cost in the figure; memory placement matters on this box --- up to 96
       writers memory on socket 0, beyond interleaved; 128--160 bistable
-      (bars), 191 → 192 jump accepted.
+      (bars, up to 21\%), 191 → 192 jump (5--19\%) accepted.
 \end{itemize}}
 \end{frame}
 
@@ -1172,7 +1194,7 @@ forward walk.\par}
       pattern. The contracts underwrite memory safety, not just atomicity.
 \item \textbf{Commit width grows with edges}: a tall tower commits many
       records where existence flips one group.
-\item \textbf{The writer pays about 2×.}
+\item \textbf{The writer pays 1.3--1.8×.}
 \end{itemize}
 \note{%
 \begin{itemize}
@@ -1187,7 +1209,7 @@ forward walk.\par}
       \textbf{N slots, still one store}: the flip-latch.
 \item Readers: \textbf{no added load, no per-element state}; one predicted
       branch, free on scattered nodes.
-\item Writers: about 2×, mostly deferred reclaim, not the flip. They scale
+\item Writers: 1.3--1.8×, mostly the txn descriptor's slab, not the flip. They scale
       with the embedder's fine-grained locks.
 \item Never new-then-old, and no more: \textbf{not STM}.
 \end{itemize}
@@ -1195,7 +1217,7 @@ forward walk.\par}
 \begin{callout}
 \textbf{Paper}\enspace \ph{arXiv link --- TBD}\\[1mm]
 \textbf{Code}\enspace \code{github.com/compudj/userspace-rcu-dev} @
-\code{18809ea8}, in \code{include/urcu/}:\\
+\code{2793224e}, in \code{include/urcu/}:\\
 \code{rcu-txn-sw.h}, \code{rcu-txn-sw-list.h}, \code{rcu-txn-sw-hlist.h},
 \code{rcu-txn-status.h}
 \end{callout}

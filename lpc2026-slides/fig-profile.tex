@@ -1,44 +1,65 @@
-% Where the single writer's extra cost goes: P1 sec:measured, "Where the
-% writer's cost goes" -- shares of the txn-minus-rculist gap, one writer, no
-% reader, no writer mutex (the widest ratio, 3.0), writer thread only. The
-% shares are P1's text (from the benchmark tree's p1_writer_profile.csv, not
-% shipped in P1's data/), so they are typed here; they sum to 98 and the rest
-% is left unlabelled rather than invented.
+% Where the single writer's cycles go: P1 sec:measured, "Where the writer's
+% cost goes" -- cycles per update on the writer's own thread, one writer, ONE
+% READER, nodes in walk order, no writer mutex (the ratio there is 1.5), engine
+% 2793224e.  The numbers are P1's text (from the benchmark tree's
+% scripts/p1_writer_profile_ret.csv, not shipped in P1's data/), so they are
+% typed here.
 %
-% Ordered so the reclaim shares sit together under one brace: the point of the
-% slide is that the flip itself is the smallest piece.
+% Two bars on ONE cycle scale, the shared categories first and in the same
+% order, so what the transacted writer adds sticks out on the right: the commit
+% and the descriptor slab are 19 + 95 = 114 cycles, which is also the whole
+% difference (243 - 129), because the three shared categories net to zero
+% (+23 write function, +6 call_rcu, -29 node allocation).  P1 does not claim
+% the -29: it says node allocation "reads lower" and that the reason is not
+% established.  So the slide shows the two bars and draws no brace over a
+% "gap share".
 %
-% What each share holds follows the categorization script
-% (efficios-trie-benchmark scripts/p1_writer_profile_categorize.py), which
-% splits by symbol self time: "commit" is urcu_txn_sw_commit_flavor, into
-% which install, flip and settle are inlined (nothing out of line: the
-% txn writer's "other" is 0.47% against rculist's 0.55%); "staging" is the
-% write function plus urcu_txn_sw_record* / _find* / _list_*. P1 sec. 7's
-% wording ("staging -- recording two edges and installing their proxies")
-% puts install on the wrong side of that split.
-\begin{tikzpicture}[x=1.36mm, y=1cm,
+% Sampled at retirement (plain cycles), not with the precise event: on this
+% machine the precise event tags an op as it enters the pipeline and charges a
+% stall to whatever runs next, which smeared the slab's cost over the write
+% function in the earlier version of this figure.
+%
+% What each category holds follows the categorization script
+% (efficios-trie-benchmark scripts/p1_writer_profile_categorize.py), by symbol
+% self time: "commit" is urcu_txn_sw_commit_flavor, into which install, flip and
+% settle are inlined; "write function" is the harness's write function and
+% loop plus the engine's list calls, with the append now inlined into them.
+%
+% Until 2026-10-03 this figure was a single bar of "shares of the gap" at one
+% writer and NO reader (46% call_rcu, 20% slab, 21% staging, 11% commit, engine
+% 18809ea8).  That configuration is gone from P1: plain RCU's reclaim does not
+% keep up there, so the gap divided by a rate it cannot sustain.
+\begin{tikzpicture}[x=0.555mm, y=1cm,
   seg/.style = {draw=paper, line width=0.8pt},
-  pct/.style = {font=\small\bfseries, text=paper},
+  num/.style = {font=\small\bfseries, text=paper},
   nam/.style = {font=\footnotesize, text=ink, anchor=north, align=center},
+  row/.style = {font=\footnotesize, text=ink, anchor=south west},
 ]
-\fill[seg, fill=muted]   (0,0)  rectangle (46,0.9);
-\fill[seg, fill=onelock] (46,0) rectangle (66,0.9);
-\fill[seg, fill=stripes] (66,0) rectangle (87,0.9);
-\fill[seg, fill=accent]  (87,0) rectangle (98,0.9);
-\draw[muted!60] (0,0) rectangle (100,0.9);
+% ---- rculist: 129 cycles
+\node[row] at (0,1.86) {\code{rculist}\enspace{\color{muted}129 cycles per update}};
+\fill[seg, fill=stripes]  (0,1.24)  rectangle (47,1.84);
+\fill[seg, fill=muted]    (47,1.24) rectangle (79,1.84);
+\fill[seg, fill=onelock]  (79,1.24) rectangle (129,1.84);
+\node[num, text=ink] at (23.5,1.54) {47};   % paper on this blue is < 4.5:1
+\node[num] at (63,1.54)   {32};
+\node[num] at (104,1.54)  {50};
 
-\node[pct] at (23,0.45)   {46\%};
-\node[pct] at (56,0.45)   {20\%};
-\node[pct, text=ink] at (76.5,0.45) {21\%};  % paper on this blue is < 4.5:1
-\node[pct] at (92.5,0.45) {11\%};
+% ---- txn_sw_list: 243 cycles
+\node[row] at (0,0.82) {\code{txn\_sw\_list}\enspace{\color{muted}243 cycles per update}};
+\fill[seg, fill=stripes]  (0,0.2)   rectangle (70,0.8);
+\fill[seg, fill=muted]    (70,0.2)  rectangle (108,0.8);
+\fill[seg, fill=onelock]  (108,0.2) rectangle (129,0.8);
+\fill[seg, fill=accent]   (129,0.2) rectangle (148,0.8);
+\fill[seg, fill=old]      (148,0.2) rectangle (243,0.8);
+\node[num, text=ink] at (35,0.5)    {70};
+\node[num] at (89,0.5)    {38};
+\node[num] at (118.5,0.5) {21};
+\node[num] at (138.5,0.5) {19};
+\node[num] at (195.5,0.5) {95};
 
-\node[nam] at (23,-0.1)   {\code{call\_rcu} plumbing\\{\scriptsize\color{muted}sched\_getcpu, queue lookup, enqueue, wake-up}};
-\node[nam] at (56,-0.1)   {txn descriptor slab};
-\node[nam] at (76.5,-0.1) {staging\\{\scriptsize\color{muted}list op + record}};
-\node[nam] at (92.5,-0.1) {\textbf{commit}\\{\scriptsize\color{muted}install, flip, settle}};
-
-\draw[decorate, decoration={brace, amplitude=2mm}, muted, line width=0.7pt]
-  (0.3,1.05) -- (65.7,1.05)
-  node[midway, above=2.5mm, font=\footnotesize, text=ink]
-  {the txn descriptor's reclaim: 66\%};
+\node[nam] at (35,0.12)    {write function\\{\scriptsize\color{muted}list op + record}};
+\node[nam] at (89,0.12)    {\code{call\_rcu}};
+\node[nam] at (118.5,0.12) {nodes};
+\node[nam] at (138.5,0.12) {\textbf{commit}};
+\node[nam] at (195.5,0.12) {txn descriptor slab\\{\scriptsize\color{muted}allocate, hand back; four locked instructions}};
 \end{tikzpicture}

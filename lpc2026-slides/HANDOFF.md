@@ -94,7 +94,7 @@ Type scale (artifact, 1920×1080): 88 cover / 60 titles / 36 lead / 30 body /
 ## 5. Slide-by-slide draft (~25 slides, ~33 min + Q&A)
 
 Timing guide ≈ 1.3 min/slide. `[opt]` = cut first if short on time.
-Numbers are P1's, engine pin 18809ea8 (provenance in §7).
+Numbers are P1's, engine pin 2793224e since the 2026-10-03 re-take (provenance in §7).
 
 ### A. The problem (~7 min)
 
@@ -311,49 +311,78 @@ in the reader count):
 | arm | scattered (L2 hops) | walk order (L1 hops) |
 |---|---|---|
 | rculist + load | 0.964 | 0.932 |
-| rculist + tag test (control) | 1.003 | 0.894 |
-| **txn_sw_list** | **1.003** | **0.872** |
+| rculist + tag test (control) | 1.003 | 0.890 |
+| **txn_sw_list** | **1.002** | **0.892** |
 | rculist + load + test | 0.982 | 0.800 |
 
 Message: on scattered nodes (a list allocated over time) the branch is **free**
-— 1.002–1.003 of rculist at 1–192 readers, matching the control within 0.06%.
+— 1.002–1.003 of rculist at 1–192 readers, matching the control within 0.05%.
 Only a list walked in allocation order that the prefetcher keeps in L1 shows it:
-≈12.7% (control 10.7%). L3/DRAM-sized lists: indistinguishable within noise.
-Scaling 97.4–98.4% of ideal. Caveat to keep: few-% differences between the
+≈10.7%, the same as the control (10.6–10.8% against 10.4–11.2%; at 18809ea8 the
+two were 2% apart, which was code layout). L3/DRAM-sized lists:
+indistinguishable within noise (13% and 5%). Scaling 97.1–98.4% of ideal. Caveat to keep: few-% differences between the
 load controls are code-level noise (P1 §7).
 
 **23. Against schemes that give readers more.** (P1 tab:comparison + fig:readclass)
 
 | | per-element state | extra loads | extra branches | reader guarantee | reader cost vs txn, scattered / walk |
 |---|---|---|---|---|---|
-| Existence | `eh_egi` field | 1 | 1 | per-element | 3% / 15% |
-| RLU | object header | 1 | 1 | snapshot | 2–6% / 22–44% |
-| MV-RLU | header + versions | ≥2 | ≥3 | snapshot | 1.40× / 2.91× (192 readers) |
+| Existence | `eh_egi` field | 1 | 1 | per-element | 2–3% / 15–17% |
+| RLU | object header | 1 | 1 | snapshot | 1–3% / 23–44% |
+| MV-RLU | header + versions | ≥2 | ≥3 | snapshot | 1.43× / 3.01× (192 readers) |
 | **This work** | **none** | **0** | 1 | never new-then-old | — |
 
 *They charge readers more AND deliver more: a price, not a defect.* Existence
 measured in its best layout (32-B element); MV-RLU global-clock config. Do not
-rank write throughput across this boundary.
+rank write throughput across this boundary. The scattered figures are from two
+readers up: at one reader existence and RLU read low in four runs of five in
+the 2026-10-03 take (gaps of 7% and 9% there), unexplained and not quoted.
 
-**24. Writer: about 2×, and it is not the flip.** Big number **~2×** (one writer
-with readers: 1.9–2.1 on scattered nodes; walk order 1.92 → 1.37 at 8 readers,
-1.4–1.7 up to 191; 2.5–2.6 with no reader). Profile of the gap (no reader, no
-mutex, widest ratio 3.0): `call_rcu` plumbing **46%**, staging **21%**,
-descriptor slab **20%**, commit itself **11%**. Mechanism: one extra
-grace-period-deferred free per update (the proxy block); call_rcu entered 3× as
-often as plain RCU. Remedies: rseq-supplied CPU id / rseq enqueue in call_rcu
-(helps plain RCU too), `URCU_TXN_SLAB_BATCH` (opt-in, off in these numbers),
-single-edge commits need no proxy.
+**24. Writer: 1.3–1.8×, and it is not the flip.** Big number **1.3–1.8×** (one
+writer with readers, each under the mutex: scattered nodes 1.55–1.58 up to 4
+readers and 1.61–1.80 beyond; walk order 1.34–1.39 up to 4 readers, 1.30 at 8,
+1.26–1.52 up to 191). Figure: two bars on one cycle scale, the writer's thread
+per update with ONE reader running, no mutex, sampled at retirement: rculist
+129 cycles (write function 47, call_rcu 32, nodes 50); txn_sw_list 243 (write
+function 70, call_rcu 38, nodes 21, **commit 19**, **descriptor slab 95**).
+Mechanism: each update takes a fresh descriptor that must outlive a grace
+period; more than half the slab's 95 cycles sit on four locked instructions
+(pop lock taken and released, a compare-and-swap per pop and per push).
+
+*What changed since the "about 2×" versions of this slide* (all 2026-10-03):
+- Engine pin moved 18809ea8 → **2793224e**: batched descriptor retirement by
+  default (`c21f5a38`), the record append inlined and `reserve(2)` no longer
+  rounded up to 8 records (`79ef08e8`), the slab's cpu read from the rseq area
+  (`4de8fabf`), no legacy barrier beside the slab freelist's cmpxchg
+  (`2793224e`). Scattered-node ratio by step: 1.91–2.13 → 1.71–1.89 (batching)
+  → 1.55–1.80.
+- Controls at the pin: batch off (`-DURCU_TXN_SLAB_NO_BATCH`) 1.86–1.99
+  scattered, 1.38–1.71 walk order, so batching is worth 9–23%; experimental
+  rseq slab (`--enable-slab-rseq`) 1.47–1.50 scattered and 1.25–1.31 walk
+  order up to 4 readers, no different from 8 readers up.
+- **No ratio with no reader.** Earlier versions quoted 2.5–2.6× and profiled
+  that configuration ("widest ratio, 3.0"). There rculist's writer defers nodes
+  faster than the call_rcu worker on its own hardware thread frees them: the
+  worker runs half the CPU without sleeping and the process grows 120–140 MiB/s
+  (265 without the mutex). The transacted list stays flat. With 1–8 readers
+  both are flat (`scripts/p1_steady_check.csv` in the benchmark tree). If asked
+  "and with no readers?": say this, do not give a number.
+- The profile is sampled at retirement (`EVENT=cycles`). The precise event on
+  this machine charges a stall to the instructions that follow it and moved
+  cost between categories from build to build; do not mix the two.
+- Node allocation reads lower for the transacted writer (21 against 50 cycles).
+  Not explained; do not claim it.
 
 **25. Writers scale with fine-grained locks.** Line chart (P1 fig:writerscale): writers
 on disjoint slots, plan unlocked → lock in ascending address order → validate →
-commit; no readers. Lock bit in each node: **8.0 → 377 Mops/s at 192 writers
-(47×)**; stripes 302; rculist under the same stripes 379; one global lock falls
-from 8.9 to ~1 (**355×** below the bit lock). rculist leads 1.11–1.36× from
-16–128 writers, level from 160 (0.91–1.01). Why rculist can't use the in-node
-lock: its `prev` is unordered, so it would need a forward walk. Caveats to say:
-each writer owns its slots (no retries), no lookup cost, memory placement
-matters on this box (bistable across sockets; 191→192 jump accepted).
+commit; no readers. Lock bit in each node: **10.3 → 386 Mops/s at 192 writers
+(38×)**; stripes 332; rculist under the same stripes 403; one global lock falls
+from 12.0 to ~1 (**339×** below the bit lock). rculist leads 1.57× alone, 1.41×
+at 2 writers and 1.03–1.28× from 4 to 96, level from 128 (0.94–1.04). Why rculist can't
+use the in-node lock: its `prev` is unordered, so it would need a forward walk.
+Caveats to say: each writer owns its slots (no retries), no lookup cost, memory
+placement matters on this box (128 and 160 writers two-moded, up to 21%;
+191→192 jump of 5–19% accepted). Both lists hold memory flat here.
 
 ### F. Kernel and close (~3 min)
 
@@ -397,10 +426,10 @@ whose back edges must move in place.
 
 **28. What it is not.** Not STM (no snapshot, no opacity); exclusion is the
 embedder's (per slot, locks); tag contract; commit width grows with edges (a tall tower
-commits many records where existence flips one group); writer ~2×.
+commits many records where existence flips one group); writer 1.3–1.8×.
 
 **29. Summary + availability.** Paper: `[arXiv link — TBD]`. Code:
-github.com/compudj/userspace-rcu-dev @ `18809ea8`, `include/urcu/`:
+github.com/compudj/userspace-rcu-dev @ `2793224e` (on GitHub since 2026-10-03), `include/urcu/`:
 `rcu-txn-sw.h`, `rcu-txn-sw-list.h`, `rcu-txn-sw-hlist.h`, `rcu-txn-status.h`.
 Questions.
 
@@ -411,7 +440,7 @@ Questions.
 - *Why not copy?* Cost scales with the region; a pinned node can't be copied.
 - *Isn't this existence?* Existence adds a per-element field (+1 load +1
   branch) and gives a stronger per-element guarantee; we add no per-element
-  state. 3% / 15%.
+  state. 2–3% / 15–17%.
 - *HTM?* Commodity HTM may abort → needs a fallback that meets the same
   problem; s390 constrained txns: ≤32 instructions / 256 bytes.
 - *Does the tag test need a barrier?* No: the proxy's immutable fields are
@@ -445,7 +474,7 @@ Questions.
     speaker note each on slide 11 (the flip-latch: lineage) and slide 12
     (lifecycle: "why settle at all?"). No main-line slide changed.
 
-## 6. Engine API facts (verified at 18809ea8, `include/urcu/`)
+## 6. Engine API facts (verified at 18809ea8; names re-checked at 2793224e, `include/urcu/`)
 
 `rcu-txn-sw.h` — two layers.
 - Low level: `struct urcu_txn_sw_group { unsigned long selector; }`,
@@ -460,9 +489,13 @@ Questions.
   pairwise-distinct slots), `urcu_txn_sw_load(t, slot, tag)` (RYW),
   `urcu_txn_sw_record_chain(...)` (fusing), `urcu_txn_sw_declare_disjoint(t)`,
   `urcu_txn_sw_install(t)` (white-box), `urcu_txn_sw_commit(t)` /
-  `urcu_txn_sw_commit_flavor(t, call_rcu_fn)` → `enum urcu_txn_status`
-  (OK or MEMORY_ERROR). Debug knobs: `URCU_TXN_SW_EXCL_VALIDATE`,
-  `URCU_TXN_SW_DEBUG_DISJOINT`; build option `URCU_TXN_SLAB_BATCH`.
+  `urcu_txn_sw_commit_flavor(t, call_rcu_fn, flavor)` → `enum urcu_txn_status`
+  (OK or MEMORY_ERROR; the third argument since `e3241ffa`, NULL allowed).
+  Debug knobs: `URCU_TXN_SW_EXCL_VALIDATE`, `URCU_TXN_SW_DEBUG_DISJOINT`; build
+  option `URCU_TXN_SLAB_NO_BATCH` (batching is the default since `c21f5a38`);
+  configure option `--enable-slab-rseq` (experimental). `urcu_txn_sw_reserve(t,
+  n)` takes the smallest slab class that holds n since `79ef08e8` (a list op's
+  descriptor is 224 bytes, not 416).
 - `rcu-txn-sw-list.h`: `struct urcu_txn_sw_list_node { next, prev }`,
   `struct urcu_txn_sw_list_head { node }`, `URCU_TXN_SW_LIST_PROXY_TAG 1UL`,
   `urcu_txn_sw_list_{next,prev}_rcu`, `_pending`, `add_after/add_before/del/
@@ -492,19 +525,30 @@ Worth fixing before the talk if the audience is pointed at the headers.
 
 ## 7. Numbers: provenance and caveats
 
-All from P1 at engine pin **18809ea8** (articles `57a6f4a`, writer-scaling
-figure `5522c28`). Setup: 2× AMD EPYC 9654 (96 cores/socket, 24 NUMA nodes),
+All from P1 at engine pin **2793224e** (re-take of 2026-10-03: benchmark tree
+`24dcb17`, with `af3dbad` adding `scripts/p1_figdata.py` and `p1_numbers.py`,
+which regenerate P1's `data/fig-*.csv` and recompute every figure §7 quotes;
+the engine branch is on GitHub at that commit). Setup: 2× AMD EPYC 9654 (96 cores/socket, 24 NUMA nodes),
 worker i pinned to core i, ≤192 workers (one-writer sweep stops at 191
 readers), liburcu QSBR, per-CPU call_rcu workers, jemalloc per-CPU arenas;
 10,000-node list, 200-node churn; median of five 3 s runs after 4 s untimed
 warm-up. Data: `p1-sw-flip-latch/data/fig-*.csv`; text: P1 §7.
 
 - Always quote the reader-cost numbers **with their layout** (scattered vs walk
-  order). The 12.7% is a property of an L1-resident arena-order list.
+  order). The 10.7% is a property of an L1-resident arena-order list.
 - Writer scaling: 64-B-aligned nodes, CHURN = 64 × writers, no readers, 2 s
   windows after warm-up; up to 96 writers memory on socket 0.
-- These are publication-grade (measured on the quiet machine at the pin). Do
-  not replace them with new runs without Mathieu's say-so (rules below).
+- These are publication-grade (measured on the quiet machine at the pin, the
+  per-point machine log clean). Do not replace them with new runs without
+  Mathieu's say-so (rules below).
+- Engine trees for P1 must be configured with the benchmark Makefile's
+  `URCU_CFLAGS` (`-O2 -DNDEBUG …`). The 18809ea8 tree was configured bare, so
+  the numbers this deck carried before ran liburcu's own code at `-g -O2` with
+  assertions (measured effect: none).
+- The dentry-cache sweep below is on `c21f5a38`, three engine commits behind
+  P1's pin: batching on, but with the 8-record reserve floor, the out-of-line
+  append and the slab's legacy barriers. Its ratios are against a seqlock
+  baseline in the same build, so they stand, but they are not at P1's pin.
 
 **Slide 26 and backup 33 (dentry cache)** are not P1's: benchmark tree
 `efficios-trie-benchmark` at `3a79ed3`, sweep `c03704139064-c21f5a38`
@@ -527,6 +571,19 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
 4. ~~Format~~ — **decided 2026-09-30: Beamer** (§10). The claude.ai artifact
    stays empty.
 5. Optional engine header doc fixes (§6).
+6. ~~Slides 24–25 predate the batching default~~ — **done 2026-10-03**:
+   Mathieu chose the re-take, then three engine changes, then a full re-take of
+   P1 §7 at `2793224e`; slides 22–25, 27–29 and P1 follow it (§5 slide 24).
+7. ~~Push `urcu-txn-dev`~~ — **done 2026-10-03** (GitHub tip `2793224e`).
+8. ~~Commit the re-take~~ — **done 2026-10-03**: benchmark tree `24dcb17` and
+   `af3dbad`; `articles` `e71e58f` (P1) and the deck commit that carries this
+   line. Neither tree is pushed.
+9. ~~P1's four changed claims~~ — **read by Mathieu 2026-10-03, kept as
+   written**: no ratio with no reader; the profile at one reader, in cycles;
+   traversal order "up to 4%"; the remedies paragraph quoting the experimental
+   rseq slab. Decided the same day: the headline stays the DEFAULT build (the
+   slab's freelist with atomics), the rseq slab stays a remedy.
+10. Optional: re-sweep the dentry cache at `2793224e` so slide 26 is at P1's pin.
 
 ## 9. Standing rules (restated for the laptop session)
 
@@ -581,7 +638,9 @@ and §7 live there).
   reverse walk for rculist", because P1 §2.4 says list_bidir's sole caller
   takes one hop and never needs coherence. Worth Mathieu's look.
   The code on slides 13 and 16–19 is §5's text (verified at 18809ea8 on the
-  other machine), re-wrapped to fit. Re-checked 2026-10-03 against the engine
+  other machine), re-wrapped to fit; every identifier the deck names exists at
+  2793224e (checked 2026-10-03), and no listing shows `commit_flavor`'s
+  signature, the one that changed. Re-checked 2026-10-03 against the engine
   tree, `~/doc/userspace-rcu`, branch `urcu-txn-dev` at 18809ea8 (also the tip
   of `github-dev/urcu-txn-dev`): every listing matches the headers, as do the
   signatures and the commit's `nr <= 1` path, the 16-byte record alignment and
