@@ -75,7 +75,41 @@
 % (https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-579.html), which states the
 % report is based on a dissertation submitted September 2003 to King's College,
 % Cambridge, and was issued as UCAM-CL-TR-579 in February 2004.
-% This thesis contains OSTM (object-based software transactional memory).
+% This thesis contains OSTM (object-based software transactional memory); the
+% thesis itself calls it FSTM, the journal version (fraser2007locks) OSTM.
+%
+% READ IN FULL 2026-10-03 (116 pp). Until then both papers cited it only for the
+% descriptor-and-status "shape". What it actually contains, by section:
+%   3.2.1  MCAS in three phases -- acquire, decision point, release -- with the
+%          status UNDECIDED / SUCCESSFUL / FAILED and the term "logical value".
+%          The install is CCAS, a CAS conditional on the status being undecided,
+%          and the REASON is given: it "prevents a phase-one update from
+%          occurring 'too late'", when "a helping process could incorrectly
+%          reacquire a location after the MCAS operation has already succeeded".
+%          This is the PRIMARY source for "the conditional install exists on
+%          account of helping"; Guerraoui 2020 and PathCAS only repeat it.
+%          Also: a location not owned "stores its logical value directly,
+%          allowing direct access with no further computation or memory
+%          accesses" -- the eager release, which is therefore NOT ours.
+%          Also: acquire in ADDRESS ORDER, so recursive helping is bounded.
+%   3.3.2  FSTM: reading an acquired header "does not need to involve recursive
+%          helping"; a READ PHASE that validates read-only objects at commit
+%          instead of acquiring them (prior art for guards, P2 sec:guard, P3),
+%          the fourth status READ-CHECKING it needs, and aborts ordered by
+%          descriptor address so that mutual aborts cannot livelock.
+%   2.1.3  "excessive helping can generate harmful memory contention".
+%   4.3.2  MCAS skip list: one MCAS re-points the predecessors, rewrites the
+%          removed node's own forward pointers and nulls its value field --
+%          logical deletion in the commit that unlinks. Fig. 4.4 is the
+%          insert-after-a-node-being-deleted hazard. 4.4.1: a BST thread link
+%          "acts as a tombstone".
+%   5.1    Descriptor identification: TWO reserved low bits in every location
+%          that may hold a descriptor, shared out among descriptor kinds and
+%          structure marks in ONE table (the fixed tag P1 sec:pertag argues
+%          against); descriptor pools recognized by address as the alternative.
+%   5.2.2  Descriptors are REFERENCE COUNTED (Michael-Scott), type-stable.
+%   5.2.3  Epoch-based reclamation of NODES -- this is where EBR comes from --
+%          citing RCU's limbo lists, and "not strictly lock-free".
 @phdthesis{fraser2004lockfreedom,
   author       = {Keir Fraser},
   title        = {Practical Lock-Freedom},
