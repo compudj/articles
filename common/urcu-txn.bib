@@ -157,6 +157,18 @@
 % Not in the original request, but this is the current reference point for
 % low-overhead k-CAS and the natural baseline for a sole-driver MCAS engine.
 % Preprint: arXiv:2008.02527.
+%
+% READ IN FULL 2026-10-03, AND IT IS MUCH CLOSER TO P2 THAN ONE SENTENCE OF ITS
+% INTRODUCTION SUGGESTS. Its own algorithm installs by PLAIN CAS with NO RDCSS
+% while KEEPING helping and lock-freedom: a decided operation's descriptor is
+% left in its slots, and the unlock is deferred to a later MCAS on that slot or
+% to epoch reclamation ("similar to RCU"), which is what forecloses the install
+% ABA. k+1 CASes per uncontended k-CAS; readers do not write unless they meet an
+% in-flight operation; a lower bound of k CASed locations for any lock-free
+% disjoint-access-parallel k-CAS. So: never cite it as merely "an analysis that
+% ties RDCSS to helping". P2 sec:norddcss, tab:closures and sec:vardefer are
+% where it is engaged; P1 sec:relmcas and sec:varsettle cite it for the bound
+% and for the lazy settle.
 @inproceedings{guerraoui2020mcas,
   author       = {Rachid Guerraoui and
                   Alex Kogan and
@@ -173,6 +185,28 @@
   year         = {2020},
   doi          = {10.4230/LIPIcs.DISC.2020.4},
   url          = {https://doi.org/10.4230/LIPIcs.DISC.2020.4}
+}
+
+% verified: the PDF itself -- arXiv:2008.02527v1 [cs.DC], 6 Aug 2020, 28 pages,
+% whose title-page footnote reads "A shorter version of this paper will appear
+% in the proceedings of DISC '20".
+% The FULL version of guerraoui2020mcas. Its body refers the reader to "the full
+% version of our paper" for the ABA example, so the appendices are cited through
+% THIS entry, with the appendix number: A.1 (the ABA trace of Harris et al. with
+% a CAS in place of RDCSS), A.2 (correctness), A.4 (the two-list epoch
+% reclamation), A.6 (the read-side detach for read-dominated workloads), A.7
+% (the 50/98/100%-read graphs). Cite the proceedings entry for everything else.
+@misc{guerraoui2020mcasfull,
+  author       = {Rachid Guerraoui and
+                  Alex Kogan and
+                  Virendra J. Marathe and
+                  Igor Zablotchi},
+  title        = {Efficient Multi-word Compare and Swap},
+  year         = {2020},
+  month        = aug,
+  howpublished = {arXiv preprint},
+  note         = {arXiv:2008.02527; full version of the {DISC} 2020 paper},
+  url          = {https://arxiv.org/abs/2008.02527}
 }
 
 
