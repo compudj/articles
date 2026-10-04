@@ -659,14 +659,15 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
 \end{frame}
 
 % ===========================================================================
-% B, continued. The model: what it guarantees, and where it stands
+% B, continued. The guarantees: what the model provides, and where it stands
 %
 % After the mechanism and the API since 2026-10-04: for this room the
 % technical achievement comes first, and its place in the state of the art
 % second. These three slides lean on the selector, the one branch and the
-% exclusion contract, all of which the room has now seen.
+% exclusion contract, all of which the room has now seen. Their own kicker,
+% so that "The model" does not come back after "The API".
 % ===========================================================================
-\talksection{The model}
+\talksection{The guarantees}
 
 \begin{frame}{What it provides, and what it does not}
 \begin{columns}[T, onlytextwidth]

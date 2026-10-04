@@ -54,8 +54,10 @@ machine's Claude memory, so the standing rules are restated at the end.
    model provides, never new-then-old and "Between RCU and STM" come after
    them. Renumbering: old 11–16 → **8–13**, old 8–10 → **14–16**; slides 1–7
    and 17–33 keep their numbers. Commit messages and notes written before
-   that date use the old numbers. Each slide kept its kicker, so the kickers
-   read MODEL (7), MECHANISM (8–12), API (13), MODEL (14–16), API (17–21).
+   that date use the old numbers. Slides 14–16 carry the kicker "The
+   guarantees" (Mathieu, 2026-10-04) and the others kept theirs, so the
+   kickers read MODEL (7), MECHANISM (8–12), API (13), GUARANTEES (14–16),
+   API (17–21).
 
 Advice given (not yet a decision), because Linus may attend: the dcache is his
 code, and "dissolve `rename_lock` + `d_seq`" is the claim most likely to be
@@ -209,7 +211,7 @@ Fine-grained locks (per bucket, per node) are the ordinary way to meet it:
 writers on disjoint slots commit concurrently. Commit fails only for want of
 memory; `urcu_txn_sw_reserve()` up front rules that out.
 
-### D. The API (~8 min; slide 13 here, slides 17–21 after the model)
+### D. The API (~8 min; slide 13 here, slides 17–21 after the guarantees)
 
 **13. The API on one slide.** (names verified at 18809ea8)
 ```c
@@ -230,7 +232,7 @@ Commit: nr ≤ 1 → a plain release store, no proxy, freed at once; nr ≥ 2 �
 park proxies, flip, settle, `call_rcu()` the block. OOM is sticky (check only
 commit's status). Never returns ABORT.
 
-### B, continued. The model: what it guarantees, where it stands (~4.5 min)
+### B, continued. The guarantees: what the model provides, where it stands (~4.5 min)
 
 After the mechanism and the API since 2026-10-04 (§2 item 7).
 
