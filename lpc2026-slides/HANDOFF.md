@@ -370,6 +370,18 @@ Mechanism: each update takes a fresh descriptor that must outlive a grace
 period; more than half the slab's 95 cycles sit on four locked instructions
 (pop lock taken and released, a compare-and-swap per pop and per push).
 
+*Reworded 2026-10-04* (Mathieu: "four locked instructions" on the figure
+"makes it look like this is necessary", while the rseq slab is closer to what
+a kernel port would do, and the kernel "may be able to directly use kfree_rcu
+and allocator rather than have a custom slab"). The slab segment's caption is
+now "allocate, hand back"; under the figure: "Intrinsic: a fresh txn
+descriptor per update, kept for a grace period. The commit: 19 cycles of 243."
+and "Not intrinsic: this slab. Under rseq: no lock, no atomics. A kernel port
+could use the allocator and `kfree_rcu()`." The kernel sentence is not P1's
+and nothing about it is measured; slide 27 gets no line for it. The bars and
+the headline are unchanged. The rseq build has ratios but no profile:
+`HANDOFF-slab-profile.md` is the handoff for that investigation.
+
 *What changed since the "about 2×" versions of this slide* (all 2026-10-03):
 - Engine pin moved 18809ea8 → **2793224e**: batched descriptor retirement by
   default (`c21f5a38`), the record append inlined and `reserve(2)` no longer
@@ -684,6 +696,11 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
     choosing); sec. 10.2's "STM instruments every read"; sec. 3.4's "weaker
     than STM". And Howard and Walpole (HotPar 2011) is not cited. The work
     is handed off in `p1-sw-flip-latch/HANDOFF-stm-scope.md`.
+
+13. Profile of the descriptor slab with and without rseq (Mathieu,
+    2026-10-04; §5 slide 24): how much of the slab's 95 cycles the rseq slab
+    removes, and what is left. Handoff for the benchmark machine:
+    `HANDOFF-slab-profile.md`. No run without Mathieu's go-ahead.
 
 ## 9. Standing rules (restated for the laptop session)
 

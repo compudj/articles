@@ -36,30 +36,30 @@
   row/.style = {font=\footnotesize, text=ink, anchor=south west},
 ]
 % ---- rculist: 129 cycles
-\node[row] at (0,1.86) {\code{rculist}\enspace{\color{muted}129 cycles per update}};
-\fill[seg, fill=stripes]  (0,1.24)  rectangle (47,1.84);
-\fill[seg, fill=muted]    (47,1.24) rectangle (79,1.84);
-\fill[seg, fill=onelock]  (79,1.24) rectangle (129,1.84);
-\node[num, text=ink] at (23.5,1.54) {47};   % paper on this blue is < 4.5:1
-\node[num] at (63,1.54)   {32};
-\node[num] at (104,1.54)  {50};
+\node[row] at (0,1.70) {\code{rculist}\enspace{\color{muted}129 cycles per update}};
+\fill[seg, fill=stripes]  (0,1.16)  rectangle (47,1.68);
+\fill[seg, fill=muted]    (47,1.16) rectangle (79,1.68);
+\fill[seg, fill=onelock]  (79,1.16) rectangle (129,1.68);
+\node[num, text=ink] at (23.5,1.42) {47};   % paper on this blue is < 4.5:1
+\node[num] at (63,1.42)   {32};
+\node[num] at (104,1.42)  {50};
 
 % ---- txn_sw_list: 243 cycles
-\node[row] at (0,0.82) {\code{txn\_sw\_list}\enspace{\color{muted}243 cycles per update}};
-\fill[seg, fill=stripes]  (0,0.2)   rectangle (70,0.8);
-\fill[seg, fill=muted]    (70,0.2)  rectangle (108,0.8);
-\fill[seg, fill=onelock]  (108,0.2) rectangle (129,0.8);
-\fill[seg, fill=accent]   (129,0.2) rectangle (148,0.8);
-\fill[seg, fill=old]      (148,0.2) rectangle (243,0.8);
-\node[num, text=ink] at (35,0.5)    {70};
-\node[num] at (89,0.5)    {38};
-\node[num] at (118.5,0.5) {21};
-\node[num] at (138.5,0.5) {19};
-\node[num] at (195.5,0.5) {95};
+\node[row] at (0,0.74) {\code{txn\_sw\_list}\enspace{\color{muted}243 cycles per update}};
+\fill[seg, fill=stripes]  (0,0.2)   rectangle (70,0.72);
+\fill[seg, fill=muted]    (70,0.2)  rectangle (108,0.72);
+\fill[seg, fill=onelock]  (108,0.2) rectangle (129,0.72);
+\fill[seg, fill=accent]   (129,0.2) rectangle (148,0.72);
+\fill[seg, fill=old]      (148,0.2) rectangle (243,0.72);
+\node[num, text=ink] at (35,0.46)    {70};
+\node[num] at (89,0.46)    {38};
+\node[num] at (118.5,0.46) {21};
+\node[num] at (138.5,0.46) {19};
+\node[num] at (195.5,0.46) {95};
 
 \node[nam] at (35,0.12)    {write function\\{\scriptsize\color{muted}list op + record}};
 \node[nam] at (89,0.12)    {\code{call\_rcu}};
 \node[nam] at (118.5,0.12) {nodes};
 \node[nam] at (138.5,0.12) {\textbf{commit}};
-\node[nam] at (195.5,0.12) {txn descriptor slab\\{\scriptsize\color{muted}allocate, hand back; four locked instructions}};
+\node[nam] at (195.5,0.12) {txn descriptor slab\\{\scriptsize\color{muted}allocate, hand back}};
 \end{tikzpicture}

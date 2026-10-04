@@ -1054,15 +1054,17 @@ ranked across this boundary.}
   \item No reader: no ratio. Plain RCU outruns its own reclaim there.
   \end{itemize}
 \end{columns}
-\vspace{2mm}
+\vspace{1mm}
 {\small\bfseries Where the cycles go\enspace
  {\mdseries\color{muted}one writer, one reader, no mutex: the writer's thread,
  per update}\par}
 \vspace{1mm}
 \centerfig{fig-profile}
 \vspace{1mm}
-\aside{Each update takes a fresh txn descriptor (it must outlive a grace
-period). The commit: 19 cycles of 243.}
+\aside{Intrinsic: a fresh txn descriptor per update, kept for a grace period.
+The commit: 19 cycles of 243.}
+\aside{Not intrinsic: this slab. Under rseq: no lock, no atomics. A kernel
+port could use the allocator and \code{kfree\_rcu()}.}
 \note{\footnotesize	% at the notes' own size the last lines fall off the page
 \begin{itemize}
 \item A parked group block must outlive a grace period: a reader that loaded
@@ -1071,11 +1073,12 @@ period). The commit: 19 cycles of 243.}
 \item At engine 2793224e (3 Oct). Earlier copies said about 2×, at 18809ea8:
       no batched retirement, an out-of-line append, a 416-byte descriptor
       (now 224), a redundant full barrier in the slab's pop and push.
-\item The slab's 95 cycles: more than half on four locked instructions (its
-      pop lock taken and released, a compare-and-swap per pop and per push),
-      the rest on a block that comes back out of cache a grace period later.
-      The experimental rseq slab (--enable-slab-rseq) has none of the four:
-      1.5× scattered, 1.3× walk order up to 4 readers; no different from 8 up.
+\item The slab's 95 cycles: over half on four locked instructions (pop lock
+      and unlock, a cmpxchg per pop and per push), the rest on a block that
+      comes back cache-cold a grace period later. The four: a freelist any CPU
+      may push to, not the mechanism; the rseq slab has none, 1.5× scattered,
+      1.3× walk order up to 4 readers, same from 8 up. Not profiled. Kernel
+      (not P1's, not measured): the allocator and kfree\_rcu(), no slab.
 \item Batching is worth 9--23\% to the writer. With one call\_rcu per
       descriptor (URCU\_TXN\_SLAB\_NO\_BATCH) the ratio is 1.9--2.0×
       scattered, 1.4--1.7× walk order.
@@ -1084,8 +1087,8 @@ period). The commit: 19 cycles of 243.}
       and the process grows by more than 100 MB/s, a rate it cannot sustain.
       With 1 to 8 readers both lists hold memory flat. Earlier slides quoted
       2.5--2.6× there: do not.
-\item Both writers collapse between 4 and 8 readers as grace periods lengthen:
-      scattered, plain RCU 14.3 → 4.7 Mops/s, txn 9.3 → 2.6.
+\item Both collapse from 4 to 8 readers (longer grace periods): scattered,
+      RCU 14.3 → 4.7 Mops/s, txn 9.3 → 2.6.
 \item Node allocation reads lower for the transacted writer (21 against 50).
       Not explained; do not claim it.
 \item We report with readers: a structure with no readers has no use for
