@@ -1102,16 +1102,16 @@ forward walk.\par}
 \column{0.34\textwidth}
   \begingroup\small
   A \textbf{userspace model}, two engines.\par
-  \vspace{2mm}
+  \vspace{1mm}
   \textbf{\color{old}The kernel's scheme.}
   \code{d\_seq} hand over hand, \code{rename\_lock}, \code{i\_rwsem}.\par
-  \vspace{2mm}
+  \vspace{1mm}
   \textbf{\color{accent}Bucket lock + SW txn.}
   Bit locks on the bucket and child-list heads. A rename is \textbf{one
   commit} across both indexes. No \code{d\_seq}, no \code{rename\_lock}, no
   lock in \code{readdir}.\par
   \endgroup
-  \vspace{2.5mm}
+  \vspace{1.5mm}
   \aside{Reader rows: both engines at the same paced rename load.
   A userspace model is not kernel evidence: no reference counts, and no
   \code{i\_rwsem}, which filesystems rely on.}
@@ -1344,8 +1344,8 @@ the facility cannot know a structure's traversal order.}
 \centerfig{fig-writecost}
 \vspace{4mm}
 {\small Both writers collapse between four readers and eight. Scattered: the
-ratio stays 1.91--2.12 throughout. Walk order: the cheaper writer loses more,
-1.92 → 1.37 at eight readers, then 1.4--1.7 up to 191.\par}
+ratio is 1.55--1.58 up to four readers and 1.61--1.80 beyond. Walk order:
+1.34--1.39 up to four readers, 1.30 at eight, 1.26--1.52 up to 191.\par}
 \note{Uncontended writer mutex on both; both reclaim through call\_rcu(), same
 RCU flavor, so the separation isolates the pseudo-transaction layer. Median of
 five 3 s runs after 4 s warm-up.}
@@ -1354,7 +1354,7 @@ five 3 s runs after 4 s warm-up.}
 \begin{frame}{Dentry cache: the model, and where it loses}
 \footnotesize
 \begin{columns}[T, onlytextwidth]
-\column{0.48\textwidth}
+\column{0.46\textwidth}
   \textbf{The baseline is the kernel's}
   \begin{itemize}
   \item Lookup: the RCU walk. \code{d\_seq} hand over hand;
@@ -1365,19 +1365,19 @@ five 3 s runs after 4 s warm-up.}
         locks that spin as \code{bit\_spin\_lock()} does, a queued spinlock
         on the LRU shards.
   \end{itemize}
-  \vspace{1mm}
+  \vspace{0.5mm}
   \textbf{The comparison}
   \begin{itemize}
   \item Readers are compared under paced writers, at the points both
         engines' writers sustain.
   \end{itemize}
-  \vspace{1mm}
+  \vspace{0.5mm}
   \textbf{Not modelled}
   \begin{itemize}
   \item Reference counts (\code{lockref}): walks stay in RCU. Mounts, hard
         links, security hooks.
   \end{itemize}
-\column{0.48\textwidth}
+\column{0.52\textwidth}
   \textbf{How the model commits}
   \begin{itemize}
   \item \code{rcu-txn.h}'s single-writer commit: park, one flip, settle.
@@ -1385,7 +1385,7 @@ five 3 s runs after 4 s warm-up.}
   \item Not \code{rcu-txn-sw.h}: readers resolve through the commit's
         descriptor, not a proxy's group.
   \end{itemize}
-  \vspace{1mm}
+  \vspace{0.5mm}
   \textbf{Where it loses}
   \begin{itemize}
   \item Hits on objects being renamed: \dcrange{hit}. A rename publishes a
@@ -1393,7 +1393,7 @@ five 3 s runs after 4 s warm-up.}
         hit reads three cache lines instead of one.
   \item At rest: \dcrange{hit-rest}, per-hop pointer decoding.
   \end{itemize}
-  \vspace{1mm}
+  \vspace{0.5mm}
   \textbf{What the writers' lead includes}
   \begin{itemize}
   \item The baseline takes \code{i\_rwsem}, which filesystems rely on, and
