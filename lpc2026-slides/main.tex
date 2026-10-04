@@ -746,11 +746,11 @@ cannot happen, by construction: no seqcount, no retry.}
 \begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
 \begin{tabular}{@{}>{\raggedright}p{31mm}>{\raggedright}p{26mm}>{\columncolor{accent!9}\raggedright}p{40mm}>{\raggedright\arraybackslash}p{30mm}@{}}
 \toprule
-& \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{STM} \\
+& \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{Opaque STM} \\
 \midrule
 Atomic to readers & one slot & N slots, one commit & read and write sets \\
 The reader pays & nothing & one predicted branch; no added load, no
-  per-element state & a barrier on every read \\
+  per-element state & a barrier on each transactional read \\
 The reader gets & one slot at a time & never new-then-old
   & isolation, opacity \\
 \bottomrule
@@ -769,6 +769,16 @@ membership test --- strictly more, and charged to readers
       free. Copying just does not scale to the update.
 \item We did not fail to provide isolation; we declined to charge for it.
       A reader who needs a snapshot needs a different facility.
+\item The column is an opaque STM (TL2 is one), not every STM. If asked: a
+      read can opt out of the barrier, and is then not isolated. Reads outside
+      any transaction under weak atomicity; Intel's \code{[[waiver]]} and
+      \code{transaction\_pure}; STAMP's hand instrumentation of ``important''
+      loads only (Kestor et al., TRANSACT 2011).
+\item Closest on that side: Howard and Walpole (HotPar 2011) run RCU readers
+      outside a modified SwissTM. Their readers ``can see partially completed
+      commits'': the commit replays its writes in program order, grace
+      periods included. Here the reader pays one branch, and the commit is
+      atomic to it.
 \end{itemize}}
 \end{frame}
 

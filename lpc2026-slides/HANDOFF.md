@@ -256,8 +256,10 @@ for split edits.
 
 **16. Between RCU and STM** (the title's bridge). Three columns: RCU — one slot
 atomic, readers free | pseudo-txn — N slots atomic to readers, readers
-uninstrumented, write set only | STM — read+write sets, isolation/opacity, read
-barrier on every read. *Isolation is a read-side cost once updates mutate in place;
+uninstrumented, write set only | **opaque** STM — read+write sets,
+isolation/opacity, a barrier on each transactional read (scoped 2026-10-04: the
+column read "STM" and "a barrier on every read", which is not true of every
+STM; see "STM reads can opt out" under the anticipated questions). *Isolation is a read-side cost once updates mutate in place;
 we decline to charge readers for it.* Honest asterisk: RLU/existence give
 readers strictly more, and charge more.
 
@@ -521,6 +523,35 @@ Questions.
   - Where it is in the deck: backup slide 30 (the Q&A and its note), and one
     speaker note each on slide 8 (the flip-latch: lineage) and slide 9
     (lifecycle: "why settle at all?"). No main-line slide changed.
+- *STM reads can opt out of the barrier.* (added 2026-10-04, on Mathieu's
+  concern that slide 16's STM column claimed for STM in general what holds
+  for some STMs.) They can, and the column is "Opaque STM" now. Read in the
+  papers that day:
+  - **Kestor, Dalessandro, Cristal, Scott, Unsal, "Interchangeable Back Ends
+    for STM Compilers", TRANSACT 2011**: STAMP's original code "uses hand
+    instrumentation of (only) 'important' loads and stores"; Intel's
+    `transaction [[waiver]]` extension disables "instrumentation of many
+    'unimportant' loads and stores"; a `transaction_pure` function runs
+    inside an atomic transaction "without instrumentation on its loads and
+    stores". So the programmer does choose, per load.
+  - Weak atomicity (the term is Blundell, Lewis, Martin, IEEE CAL 2006; the
+    paper itself was not read, only its abstract): reads outside any
+    transaction are not instrumented.
+  - **Howard and Walpole, "A Relativistic Enhancement to Software
+    Transactional Memory", HotPar 2011**: relativistic (RCU) readers run
+    "completely outside the transactional system", a SwissTM modified to
+    replay a commit's writes in program order with the memory barriers and
+    grace periods of the relativistic algorithm. It requires weak atomicity
+    ("A strongly atomic transactional memory system would include the
+    relativistic reads as part of its atomicity guarantee. This would impact
+    read performance.") and says "in our system, readers can see partially
+    completed commits". The nearest "RCU readers, transactional writers"
+    work, and the contrast is the talk's claim: there the structure is kept
+    always-consistent by write order and grace periods inside the commit;
+    here N slots flip at once and no grace period is waited for.
+  - What holds against all of them: a read that opts out of the barrier is
+    not isolated. The cost follows the guarantee, which is the slide's lead.
+  - **P1 says the same broad things and is NOT changed** (§8 item 12).
 
 ## 6. Engine API facts (verified at 18809ea8; names re-checked at 2793224e, `include/urcu/`)
 
@@ -644,6 +675,15 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
     is not evaluated; and the share of the writers' lead that is `i_rwsem`
     is not isolated (it would take an engine arm that keeps the baseline's
     two locks; not built, not run).
+12. P1 and STM "in general" (Mathieu, 2026-10-04; §5, "STM reads can opt
+    out"). Not edited. Three statements are broader than the sources allow:
+    sec. 6.4's "What an STM does instead" ("Its read barrier sits on *every*
+    read"; "Where the instrumentation itself is reduced, it is the compiler
+    that reduces it, and it does not ask" — Intel's `[[waiver]]`,
+    `transaction_pure` and STAMP's hand instrumentation are the programmer
+    choosing); sec. 10.2's "STM instruments every read"; sec. 3.4's "weaker
+    than STM". And Howard and Walpole (HotPar 2011) is not cited. The work
+    is handed off in `p1-sw-flip-latch/HANDOFF-stm-scope.md`.
 
 ## 9. Standing rules (restated for the laptop session)
 
