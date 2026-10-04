@@ -47,6 +47,15 @@ machine's Claude memory, so the standing rules are restated at the end.
    arms of the same benchmark fall under decision 4 and are not shown.
 6. **Charts are static** (projected + PDF upload): no hover/tooltips; print the
    numbers that matter on the chart.
+7. **Mechanism before guarantees (2026-10-04).** Mathieu: "for lpc, presenting
+   the technical achievement first will catch the audience interest. _then_
+   we contextualize it in the SOA". The flip-latch, lifecycle, read side,
+   tags, exclusion and the API on one slide now follow slide 7; what the
+   model provides, never new-then-old and "Between RCU and STM" come after
+   them. Renumbering: old 11–16 → **8–13**, old 8–10 → **14–16**; slides 1–7
+   and 17–33 keep their numbers. Commit messages and notes written before
+   that date use the old numbers. Each slide kept its kicker, so the kickers
+   read MODEL (7), MECHANISM (8–12), API (13), MODEL (14–16), API (17–21).
 
 Advice given (not yet a decision), because Linus may attend: the dcache is his
 code, and "dissolve `rename_lock` + `d_seq`" is the claim most likely to be
@@ -95,6 +104,7 @@ Type scale (artifact, 1920×1080): 88 cover / 60 titles / 36 lead / 30 body /
 ## 5. Slide-by-slide draft (~25 slides, ~33 min + Q&A)
 
 Timing guide ≈ 1.3 min/slide. `[opt]` = cut first if short on time.
+Order and numbers are the deck's since the 2026-10-04 reorder (§2 item 7).
 Numbers are P1's, engine pin 2793224e since the 2026-10-03 re-take (provenance in §7).
 
 ### A. The problem (~7 min)
@@ -149,7 +159,7 @@ writer waits; steer/validate the reader (seqcount retry like the dcache's
 `d_seq`/`rename_lock`, per-element locks) → paid on *every* traversal; decline
 (no reverse iterator).
 
-### B. The model (~6 min)
+### B. The model: the definition (~1.5 min)
 
 **7. A pseudo-transaction.** Definition: a frozen set of {slot, old, new}
 records made visible by one commit step. Table "journaling FS vs
@@ -159,43 +169,18 @@ slot and no instant is torn; readers not transactional ↔ plain RCU readers;
 atomicity, not isolation ↔ atomicity, not opacity. *"Pseudo-" is a
 disambiguation, not an apology.*
 
-**8. What it provides, and what it does not.** Provided: write-set atomicity;
-no tearing; the commit linearizes at one point (scoped to the WRITE);
-cross-structure atomicity — unit = one pseudo-txn (two commits = two
-linearization points).
-Not provided: **a reader is not a transaction of any kind**; no opacity, no
-multi-read snapshot; no read validation in SW (under exclusion nothing to
-validate against).
-
-**9. Never new-then-old.** Selector written once 0→1, never back ⇒ a reader
-resolving slots of one commit *along a dependency chain* sees o…o,n…n, never
-n then o. Scope: an address dependency or an acquire; two independently-reached
-slots (cached pointer, sibling subtrees) owe an acquire
-(`-DURCU_DEREFERENCE_USE_VOLATILE` on weak ordering). Kernel aside: arm64 +
-`CONFIG_LTO` already promotes `READ_ONCE()` to acquire for this reason.
-New-then-old is exactly what forces seqcount-style read-side remedies; the
-model forbids it by construction. `[opt]` Triplett's reverse-publish-order rule
-for split edits.
-
-**10. Between RCU and STM** (the title's bridge). Three columns: RCU — one slot
-atomic, readers free | pseudo-txn — N slots atomic to readers, readers
-uninstrumented, write set only | STM — read+write sets, isolation/opacity, read
-barrier on every read. *Isolation is a read-side cost once updates mutate in place;
-we decline to charge readers for it.* Honest asterisk: RLU/existence give
-readers strictly more, and charge more.
-
 ### C. The mechanism (~6 min)
 
-**11. The flip-latch: one level of indirection.** Diagram (P1 `fig-fliplatch`):
+**8. The flip-latch: one level of indirection.** Diagram (P1 `fig-fliplatch`):
 slots → tagged proxy {old, new, group} → group {selector}. *Every proxy in a
 group reads the same selector; one release store flips the set.*
 
-**12. Lifecycle.** Table (P1 tab:lifecycle): before / Build / Install /
+**9. Lifecycle.** Table (P1 tab:lifecycle): before / Build / Install /
 **Commit** / Settle / after; the reader's column reads o, o, o, **n**, n, n.
 Install and settle both rewrite the slot yet change nothing a reader resolves;
 settle *is* the uninstall; then `call_rcu()` the block.
 
-**13. The read side is one branch.** (verified, 18809ea8)
+**10. The read side is one branch.** (verified, 18809ea8)
 ```c
 static inline void *urcu_txn_sw_resolve(void *v, uintptr_t tag)
 {
@@ -210,23 +195,23 @@ load**. Parked (install→settle only): proxy → group → selector → ptr[sel
 indexed, a data dependency, not a branch. Nice detail: untag *subtracts* the tag
 so the compiler folds it into the load displacement.
 
-**14. Tags.** Parked slot = `(record_address | tag)`; recognized iff
+**11. Tags.** Parked slot = `(record_address | tag)`; recognized iff
 `(v & tag) == tag`. **Per-record tag**, because one commit may span structures
 with different encodings (bit 0 vs a reserved nibble) — cross-structure
 atomicity forces it. Records 16-byte aligned → 4 low bits. Store the tag, not a
 tagged pointer → the descriptor can grow by realloc. Contract: no legitimate
 slot value may carry the tag pattern (debug build asserts).
 
-**15. Exclusion is per slot.** No install CAS, no conflict detection, no abort —
+**12. Exclusion is per slot.** No install CAS, no conflict detection, no abort —
 that is why it is cheap. Two writers on one slot silently corrupt;
 `-DURCU_TXN_SW_EXCL_VALIDATE` aborts the process on a violation (free when off).
 Fine-grained locks (per bucket, per node) are the ordinary way to meet it:
 writers on disjoint slots commit concurrently. Commit fails only for want of
 memory; `urcu_txn_sw_reserve()` up front rules that out.
 
-### D. The API (~8 min)
+### D. The API (~8 min; slide 13 here, slides 17–21 after the model)
 
-**16. The API on one slide.** (names verified at 18809ea8)
+**13. The API on one slide.** (names verified at 18809ea8)
 ```c
 struct urcu_txn_sw_txn txn;                    /* on-stack handle */
 
@@ -244,6 +229,37 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
 Commit: nr ≤ 1 → a plain release store, no proxy, freed at once; nr ≥ 2 →
 park proxies, flip, settle, `call_rcu()` the block. OOM is sticky (check only
 commit's status). Never returns ABORT.
+
+### B, continued. The model: what it guarantees, where it stands (~4.5 min)
+
+After the mechanism and the API since 2026-10-04 (§2 item 7).
+
+**14. What it provides, and what it does not.** Provided: write-set atomicity;
+no tearing; the commit linearizes at one point (scoped to the WRITE);
+cross-structure atomicity — unit = one pseudo-txn (two commits = two
+linearization points).
+Not provided: **a reader is not a transaction of any kind**; no opacity, no
+multi-read snapshot; no read validation in SW (under exclusion nothing to
+validate against).
+
+**15. Never new-then-old.** Selector written once 0→1, never back ⇒ a reader
+resolving slots of one commit *along a dependency chain* sees o…o,n…n, never
+n then o. Scope: an address dependency or an acquire; two independently-reached
+slots (cached pointer, sibling subtrees) owe an acquire
+(`-DURCU_DEREFERENCE_USE_VOLATILE` on weak ordering). Kernel aside: arm64 +
+`CONFIG_LTO` already promotes `READ_ONCE()` to acquire for this reason.
+New-then-old is exactly what forces seqcount-style read-side remedies; the
+model forbids it by construction. `[opt]` Triplett's reverse-publish-order rule
+for split edits.
+
+**16. Between RCU and STM** (the title's bridge). Three columns: RCU — one slot
+atomic, readers free | pseudo-txn — N slots atomic to readers, readers
+uninstrumented, write set only | STM — read+write sets, isolation/opacity, read
+barrier on every read. *Isolation is a read-side cost once updates mutate in place;
+we decline to charge readers for it.* Honest asterisk: RLU/existence give
+readers strictly more, and charge more.
+
+### D, continued. The API: the structures built on it
 
 **17. The list: the reverse walk comes back.**
 ```c
@@ -413,11 +429,11 @@ engine tree): the model's index commits go through `rcu-txn.h`'s
 single-writer path — `urcu_txn_store_sw()` + `urcu_txn_commit_sw()`, i.e.
 `urcu_txn_desc_commit_sw()`: park by plain store, one release store of the
 descriptor's status word, settle, retire after a grace period; no CAS, no
-contention abort. Same park/flip/settle shape as slide 12, but it is NOT
+contention abort. Same park/flip/settle shape as slide 9, but it is NOT
 `rcu-txn-sw.h`'s `urcu_txn_sw_commit()`, and its readers resolve with
 `urcu_txn_resolve_record()` (record → descriptor status → old or new), not
 through a proxy's group selector. The slide says "SW txn" and "one commit",
-which hold; do not say the model uses the API of slides 16–19. Backup slide
+which hold; do not say the model uses the API of slides 13 and 17–19. Backup slide
 33 states it ("How the model commits"), at Mathieu's request (2026-10-03):
 the one place the deck names `rcu-txn.h`, and only its single-writer path.
 Two limits of the model, to say out loud (Mathieu, 2026-10-03; on slide 26's
@@ -501,7 +517,7 @@ Questions.
     is not lock-free; theirs is. P2 was re-scoped on this the same day
     (`p2-sole-driver-mcas/SCOPE.md`, section dated 2026-10-03).
   - Where it is in the deck: backup slide 30 (the Q&A and its note), and one
-    speaker note each on slide 11 (the flip-latch: lineage) and slide 12
+    speaker note each on slide 8 (the flip-latch: lineage) and slide 9
     (lifecycle: "why settle at all?"). No main-line slide changed.
 
 ## 6. Engine API facts (verified at 18809ea8; names re-checked at 2793224e, `include/urcu/`)
@@ -657,7 +673,7 @@ and §7 live there).
 
 - Slides 1–29 follow §5 one-for-one and keep its numbering (the placeholders
   point at it). Backup, after `\appendix`: 30 anticipated questions, 31
-  Triplett's reverse-publish rule (the `[opt]` of slide 9), 32 P1's
+  Triplett's reverse-publish rule (the `[opt]` of slide 15), 32 P1's
   one-writer-with-readers curves, 33 the dentry-cache model and where it
   loses (added last, so nothing was renumbered).
 - Charts read `../p1-sw-flip-latch/data/*.csv` in place, and the printed
@@ -679,7 +695,7 @@ and §7 live there).
   spinlock" as the kernel reading; and "list_bidir users" became "a coherent
   reverse walk for rculist", because P1 §2.4 says list_bidir's sole caller
   takes one hop and never needs coherence. Worth Mathieu's look.
-  The code on slides 13 and 16–19 is §5's text (verified at 18809ea8 on the
+  The code on slides 10, 13 and 17–19 is §5's text (verified at 18809ea8 on the
   other machine), re-wrapped to fit; every identifier the deck names exists at
   2793224e (checked 2026-10-03), and no listing shows `commit_flavor`'s
   signature, the one that changed. Re-checked 2026-10-03 against the engine

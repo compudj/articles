@@ -417,7 +417,7 @@ has no way to ask for it.}
 \end{frame}
 
 % ===========================================================================
-% B. The model
+% B. The model: the definition (what it guarantees follows the API)
 % ===========================================================================
 \talksection{The model}
 
@@ -460,108 +460,6 @@ publishes the transition to \textit{new}, for all of them at once.
 \item A journaling filesystem calls this a transaction and has never meant
       isolation by it. This table is what stops the room filing the model
       under ``weak STM'' in the first thirty seconds.
-\end{itemize}}
-\end{frame}
-
-\begin{frame}{What it provides, and what it does not}
-\begin{columns}[T, onlytextwidth]
-\column{0.48\textwidth}
-  {\large\bfseries\color{accent}Provided\par}
-  \vspace{1mm}
-  \begin{itemize}\small
-  \item \textbf{Write-set atomicity}: every record resolves \emph{old} before
-        the commit, \emph{new} after.
-  \item \textbf{No tearing}: no slot, and no instant, is ever torn.
-  \item \textbf{The commit linearizes at one point} --- a claim about the
-        write, and only the write.
-  \item \textbf{Cross-structure atomicity}. The unit is one
-        pseudo-transaction: two commits are two linearization points.
-  \end{itemize}
-\column{0.48\textwidth}
-  {\large\bfseries\color{old}Not provided\par}
-  \vspace{1mm}
-  \setbeamertemplate{itemize item}{\textcolor{old}{–}}
-  \begin{itemize}\small
-  \item \textbf{A reader is not a transaction of any kind}: a sequence of
-        single-slot reads. A traversal may straddle a commit.
-  \item \textbf{No opacity, no multi-read snapshot.}
-  \item \textbf{No read validation}: under exclusion there is nothing to
-        validate against.
-  \end{itemize}
-\end{columns}
-\note{%
-\begin{itemize}
-\item A single-slot read is itself linearizable, at its own load. A traversal
-      of several slots is a sequence of loads, not one operation.
-\item Serializability is claimed nowhere. Linearizable is scoped to the
-      commit, never to a read-then-commit bracket.
-\item An embedder that needs a multi-read snapshot layers its own versioning
-      on top (seqcount, validating transaction).
-\end{itemize}}
-\end{frame}
-
-\begin{frame}{Never new-then-old}
-\lead{The selector is written once, 0 → 1, and never back. A reader that
-resolves the slots of one commit \textbf{along a dependency chain} sees}
-\vspace{4mm}
-{\centering
-{\ttfamily\Large\textcolor{old}{o o o}\ \textcolor{accent}{n n n}}%
-\enspace{\small\color{muted}allowed}\qquad\qquad
-{\ttfamily\Large\textcolor{accent}{n}\ \textcolor{old}{o}}%
-\enspace{\small\color{old}never}\par}
-\vspace{6mm}
-The chain is an address dependency --- every ordinary walk down a list or a
-tree --- or an acquire.
-
-\vspace{8mm}
-\punch{New-then-old is what drives readers to seqcount retries. Here it
-cannot happen, by construction: no seqcount, no retry.}
-\note{%
-\begin{itemize}
-\item A reader may lag a commit; it never regresses across one.
-\item Not a seqcount, and not a seqcount's guarantee: a seqcount-validated
-      walk gets a consistent view by retrying; here a reader never retries,
-      and what it is spared is exactly new-then-old --- not the straddle.
-\item Strictly more than independent registers, strictly less than a
-      snapshot --- and the middle ground is usable, not merely tolerable.
-\item [opt] Split edits: Triplett's rule, commit in reverse of the reader's
-      read order (backup slide).
-\item If asked: two slots reached independently (a cached pointer, sibling
-      subtrees) have no chain and owe an acquire; it bites under
-      -DURCU\_DEREFERENCE\_USE\_VOLATILE on weakly-ordered hardware.
-\item If asked, kernel side: arm64 with CONFIG\_LTO already promotes
-      READ\_ONCE() to acquire, because LTO may turn an address dependency
-      into a control one.
-\end{itemize}}
-\end{frame}
-
-\begin{frame}{Between RCU and STM}
-\begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
-\begin{tabular}{@{}>{\raggedright}p{31mm}>{\raggedright}p{26mm}>{\columncolor{accent!9}\raggedright}p{40mm}>{\raggedright\arraybackslash}p{30mm}@{}}
-\toprule
-& \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{STM} \\
-\midrule
-Atomic to readers & one slot & N slots, one commit & read and write sets \\
-The reader pays & nothing & one predicted branch; no added load, no
-  per-element state & a barrier on every read \\
-The reader gets & one slot at a time & never new-then-old
-  & isolation, opacity \\
-\bottomrule
-\end{tabular}\par\endgroup
-\vspace{4mm}
-\lead{Isolation is a read-side cost once updates mutate in place.
-\textbf{RCU pseudo-transactions decline to charge readers for it.}}
-\vspace{2mm}
-\aside{Honest asterisk: RLU gives readers a snapshot, existence a per-element
-membership test --- strictly more, and charged to readers
-(slide~\ref{fr:comparison}).}
-\note{%
-\begin{itemize}
-\item ``Once updates mutate in place'' is load-bearing: copy-on-write gives
-      readers a free snapshot, which is why a reader gets a coherent node for
-      free. Copying just does not scale to the update.
-\item We did not fail to provide isolation; we declined to charge for it.
-      A reader who needs a snapshot needs a different facility.
 \end{itemize}}
 \end{frame}
 
@@ -710,6 +608,7 @@ next load's displacement.}
 \item A commit fails only for want of memory, before anything is parked.
       \code{urcu\_txn\_sw\_reserve()} up front rules that out.
 \end{itemize}
+\label{fr:exclusion}
 \note{%
 \begin{itemize}
 \item The validator claims the handle (catching a transaction handed between
@@ -758,6 +657,124 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
       MEMORY\_ERROR only.
 \end{itemize}}
 \end{frame}
+
+% ===========================================================================
+% B, continued. The model: what it guarantees, and where it stands
+%
+% After the mechanism and the API since 2026-10-04: for this room the
+% technical achievement comes first, and its place in the state of the art
+% second. These three slides lean on the selector, the one branch and the
+% exclusion contract, all of which the room has now seen.
+% ===========================================================================
+\talksection{The model}
+
+\begin{frame}{What it provides, and what it does not}
+\begin{columns}[T, onlytextwidth]
+\column{0.48\textwidth}
+  {\large\bfseries\color{accent}Provided\par}
+  \vspace{1mm}
+  \begin{itemize}\small
+  \item \textbf{Write-set atomicity}: every record resolves \emph{old} before
+        the commit, \emph{new} after.
+  \item \textbf{No tearing}: no slot, and no instant, is ever torn.
+  \item \textbf{The commit linearizes at one point} --- a claim about the
+        write, and only the write.
+  \item \textbf{Cross-structure atomicity}. The unit is one
+        pseudo-transaction: two commits are two linearization points.
+  \end{itemize}
+\column{0.48\textwidth}
+  {\large\bfseries\color{old}Not provided\par}
+  \vspace{1mm}
+  \setbeamertemplate{itemize item}{\textcolor{old}{–}}
+  \begin{itemize}\small
+  \item \textbf{A reader is not a transaction of any kind}: a sequence of
+        single-slot reads. A traversal may straddle a commit.
+  \item \textbf{No opacity, no multi-read snapshot.}
+  \item \textbf{No read validation}: under exclusion there is nothing to
+        validate against.
+  \end{itemize}
+\end{columns}
+\label{fr:provides}
+\note{%
+\begin{itemize}
+\item A single-slot read is itself linearizable, at its own load. A traversal
+      of several slots is a sequence of loads, not one operation.
+\item Serializability is claimed nowhere. Linearizable is scoped to the
+      commit, never to a read-then-commit bracket.
+\item An embedder that needs a multi-read snapshot layers its own versioning
+      on top (seqcount, validating transaction).
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Never new-then-old}
+\lead{The selector is written once, 0 → 1, and never back. A reader that
+resolves the slots of one commit \textbf{along a dependency chain} sees}
+\vspace{4mm}
+{\centering
+{\ttfamily\Large\textcolor{old}{o o o}\ \textcolor{accent}{n n n}}%
+\enspace{\small\color{muted}allowed}\qquad\qquad
+{\ttfamily\Large\textcolor{accent}{n}\ \textcolor{old}{o}}%
+\enspace{\small\color{old}never}\par}
+\vspace{6mm}
+The chain is an address dependency --- every ordinary walk down a list or a
+tree --- or an acquire.
+
+\vspace{8mm}
+\punch{New-then-old is what drives readers to seqcount retries. Here it
+cannot happen, by construction: no seqcount, no retry.}
+\note{%
+\begin{itemize}
+\item A reader may lag a commit; it never regresses across one.
+\item Not a seqcount, and not a seqcount's guarantee: a seqcount-validated
+      walk gets a consistent view by retrying; here a reader never retries,
+      and what it is spared is exactly new-then-old --- not the straddle.
+\item Strictly more than independent registers, strictly less than a
+      snapshot --- and the middle ground is usable, not merely tolerable.
+\item [opt] Split edits: Triplett's rule, commit in reverse of the reader's
+      read order (backup slide).
+\item If asked: two slots reached independently (a cached pointer, sibling
+      subtrees) have no chain and owe an acquire; it bites under
+      -DURCU\_DEREFERENCE\_USE\_VOLATILE on weakly-ordered hardware.
+\item If asked, kernel side: arm64 with CONFIG\_LTO already promotes
+      READ\_ONCE() to acquire, because LTO may turn an address dependency
+      into a control one.
+\end{itemize}}
+\end{frame}
+
+\begin{frame}{Between RCU and STM}
+\begingroup\renewcommand{\arraystretch}{1.3}\arrayrulecolor{muted!60}
+\begin{tabular}{@{}>{\raggedright}p{31mm}>{\raggedright}p{26mm}>{\columncolor{accent!9}\raggedright}p{40mm}>{\raggedright\arraybackslash}p{30mm}@{}}
+\toprule
+& \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{STM} \\
+\midrule
+Atomic to readers & one slot & N slots, one commit & read and write sets \\
+The reader pays & nothing & one predicted branch; no added load, no
+  per-element state & a barrier on every read \\
+The reader gets & one slot at a time & never new-then-old
+  & isolation, opacity \\
+\bottomrule
+\end{tabular}\par\endgroup
+\vspace{4mm}
+\lead{Isolation is a read-side cost once updates mutate in place.
+\textbf{RCU pseudo-transactions decline to charge readers for it.}}
+\vspace{2mm}
+\aside{Honest asterisk: RLU gives readers a snapshot, existence a per-element
+membership test --- strictly more, and charged to readers
+(slide~\ref{fr:comparison}).}
+\note{%
+\begin{itemize}
+\item ``Once updates mutate in place'' is load-bearing: copy-on-write gives
+      readers a free snapshot, which is why a reader gets a coherent node for
+      free. Copying just does not scale to the update.
+\item We did not fail to provide isolation; we declined to charge for it.
+      A reader who needs a snapshot needs a different facility.
+\end{itemize}}
+\end{frame}
+
+% ===========================================================================
+% D, continued. The API: the structures built on it
+% ===========================================================================
+\talksection{The API}
 
 \begin{frame}[fragile]{The list: the reverse walk comes back}
 \begin{codeblock}
@@ -1123,7 +1140,7 @@ forward walk.\par}
 \begin{itemize}
 \item The shape is slide \ref{fr:twostructs}'s: a rename leaves the old hash bucket and child
       list and enters the new ones in one flip, under fine-grained locks
-      (slide 15).
+      (slide \ref{fr:exclusion}).
 \item If asked which API: the model commits through \code{rcu-txn.h}'s
       single-writer path, \code{urcu\_txn\_store\_sw()} and
       \code{urcu\_txn\_commit\_sw()}: park by plain store, one release store
@@ -1140,7 +1157,7 @@ forward walk.\par}
 \item Why it loses, and what the writers' lead includes: backup slide
       \ref{fr:dcachemodel}.
 \item The whole-path consistency the model's lookups get is the embedder's
-      re-check of a deletion mark, not the facility's: slide 8 stands.
+      re-check of a deletion mark, not the facility's: slide \ref{fr:provides} stands.
 \item Say ``model'' and ``userspace'' each time: that \code{rename\_lock} and
       \code{d\_seq} can go is the claim most likely to be challenged.
 \end{itemize}}
