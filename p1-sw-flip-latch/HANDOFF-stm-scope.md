@@ -437,3 +437,135 @@ If P1 settles on other words than "opaque STM", the deck should follow before
 5. Whether Howard and Walpole is the source Mathieu remembered is not
    established; `[[waiver]]` and early release (already cited) are the other
    candidates.
+
+## 9. Review from the other session (2026-10-04)
+
+Read against `p1-sw-flip-latch/main.tex` at `articles` commit `e71e58f`.
+**Nothing in P1 was changed and no LaTeX build was run.** Sections 1–8 above
+are untouched; this section only adds.
+
+### 9.1 What checks out
+
+- Every P1 pointer in §4 matches the source: lines 57, 756–758, 1936–1958,
+  3513–3555 (3519 and 3531 in particular) and 3804; `e71e58f` is the last
+  commit touching P1; the labels `sec:costcomparison`, `sec:onestore`,
+  `sec:buildpublish`, `sec:relrcu` exist (section 10.2's own label is
+  `sec:relstm`); the six cited keys are in `common/urcu-txn.bib` and the three
+  proposed ones are not.
+- The core fix in §3 is right: tie the read cost to the guarantee, not to
+  "STM" as a class.
+
+### 9.2 Bibliography (§5, open item 2) — confirmed, but not from dblp
+
+dblp refuses this machine too: both WebFetch and `curl` get its bot check
+("Making sure you're not a bot!" / "Access Denied"). The file's
+`% verified: dblp.org/rec/...` convention therefore still cannot be met from
+either machine. The fields were confirmed from the venues instead:
+
+- `howard2011relativistic`: USENIX's own page,
+  <https://www.usenix.org/conference/hotpar11/relativistic-enhancement-software-transactional-memory>,
+  carries a BibTeX block with booktitle "3rd USENIX Workshop on Hot Topics in
+  Parallelism (HotPar 11)", address Berkeley, CA, month May, year 2011,
+  publisher USENIX Association. The ordinal (3rd) is confirmed.
+- `kestor2011backends`: the TRANSACT 2011 program,
+  <https://sss.cs.purdue.edu/projects/transact11/program.html>, lists the
+  paper in Session 5 with authors "Gokcen Kestor, Luke Dalessandro, Adrián
+  Cristal, Michael L. Scott and Osman Unsal". The workshop page
+  (`transact11.html`, same directory) says it is the sixth TRANSACT, held
+  Sunday 5 June 2011 at the San Jose Convention Center, part of FCRC 2011,
+  sponsored by ACM SIGPLAN. The ordinal (6th) and the venue are confirmed;
+  the draft entry lacks the address (San Jose, CA).
+- `blundell2006subtleties`: Crossref gives IEEE Computer Architecture
+  Letters, volume 5, number 2, 2006, DOI `10.1109/L-CA.2006.18`, authors C.
+  Blundell, E.C. Lewis, M.M.K. Martin. Volume and number are confirmed. The
+  paper itself is still NOT read (open item 3 stands).
+
+### 9.3 Corrections to the drafts
+
+1. **§4.2, the back-reference in the Howard and Walpole paragraph.**
+   `sec:onestore` is the problem statement (the kernel's `__list_del`), not
+   the remedy. The grace-period drain is described in `sec:intermediate`
+   (line 1221, "The conventional remedy is to drain the readers") and in the
+   introduction's remedies list (lines 84–90); the ordering rule is in
+   `sec:publishorder` ("Which remedy applies", lines 1031–1040). Cite those.
+2. **§4.2, the opening sentence.** "so a *transaction's* whole read set is
+   mutually consistent" is still too broad for the other half of the concern
+   (open item 4). It holds for a committed transaction in any serializable
+   STM; for a transaction that will abort it holds only under opacity. A
+   wording that survives: "a committed transaction's read set is mutually
+   consistent, and opacity extends that to one that aborts". Related, **from
+   memory and NOT re-read**: that sentence cites `fraser2004lockfreedom`, and
+   Fraser's object-based STM validates reads only at commit, so a doomed
+   transaction can observe an inconsistent state. The 3 October Fraser re-read
+   can settle it.
+
+### 9.4 One addition: hardware TM
+
+Hardware TM is the case where a reader pays no barrier and still sees a
+commit atomically. P1 already scopes it (lines 350–361: "A transaction can
+publish a whole multi-word update atomically to a lockless reader ... so every
+user needs a non-transactional fallback"), so the paper is covered and the
+conclusion's "weaker than transactional memory" (line 3804) is safe. Neither
+this handoff nor the deck's prepared answer mentions it, and it is the obvious
+follow-up to a column headed "Opaque STM".
+
+### 9.5 "pay no per-read barrier" (§4.3) — refined after Mathieu's objection
+
+§4.3 said the phrase "sits oddly beside the paper's own count of one test and
+one branch per dereference", and this review first agreed and called it a
+contradiction. Mathieu, 2026-10-04:
+
+> about the "pay no per-read barrier", a test and branch is not a barrier,
+> right ? It does not say "no cost"
+
+He is right on both counts: the sentence does not claim "no cost", so it does
+not contradict the branch count, and in the paper's dominant sense a test and
+a branch is not a barrier. "Contradiction" is withdrawn. What remains is an
+ambiguity, because P1 uses "barrier" in three senses:
+
+- **Memory barrier**, the RCU sense: lines 77, 290–292
+  (`cmm_smp_read_barrier_depends()`), 324, 343, 992, 1071 ("no lock, no
+  barrier, no write to shared state"). A test and a branch is not one.
+- **STM read barrier**: lines 1937 and 1949. Line 758 sits in the sentence
+  that compares with STM, so this is the sense a TM reader applies there, and
+  in that literature any code interposed on a read counts.
+- **GC load barrier**: lines 3002–3008 call ZGC's check of the metadata bits
+  in a loaded reference "a load barrier on every reference load". **From
+  memory, not re-read in `yang2022zgc`**: ZGC's fast path is a test of those
+  bits and a conditional jump.
+
+So by the paper's own usage in the ZGC passage, a tag test and branch on the
+loaded word is a barrier, and a TM or GC reviewer can say "you do have a
+per-read barrier, a small one".
+
+The ZGC passage is the more exposed of the two. It faults ZGC because "the
+barrier runs whether or not any relocation is in flight" (lines 3006–3007).
+P1's own tag test also runs whether or not a commit is in flight (lines
+3505–3511: "only the predicted branch accounted for above"). The real
+difference is that ZGC's colour bits are permanent and P1's marker is
+transient, and the passage does not say that.
+
+Line 758 is not wrong. The suggestion is to close the ambiguity by saying
+what the reader does not do, for example:
+
+```latex
+readers are plain \rcu readers: no read set, no validation, and no added load,
+only a test and a predicted branch on the word they load anyway.
+```
+
+### 9.6 Agreed as written
+
+§4.1's replacement paragraph, and the rest of §4.3 ("weaker than STM"
+compares a guarantee with a class).
+
+### 9.7 Still open
+
+- Items 1, 3, 4 and 5 of §8 stand. Non-opaque STMs were not researched here
+  either.
+- Item 2 of §8: fields confirmed from the venues and Crossref (§9.2), dblp
+  keys still missing.
+- New: whether to reword the ZGC passage (lines 3002–3011) so that the
+  permanent-versus-transient marker is what separates it from P1's own tag
+  test (§9.5).
+- New: whether the deck's prepared answer should carry the hardware-TM case
+  (§9.4).
