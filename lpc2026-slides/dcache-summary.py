@@ -65,7 +65,10 @@ if len(srcs) != 1:
     sys.exit(f"the sweep CSVs carry {len(srcs)} provenance ids, want 1: {srcs}")
 bench = subprocess.run(["git", "-C", BENCH, "rev-parse", "--short", "HEAD"],
                        capture_output=True, text=True, check=True).stdout.strip()
-if subprocess.run(["git", "-C", BENCH, "status", "--porcelain", "--", "scripts"],
+# Tracked files only: the CSVs and the plot script are tracked, and leftovers
+# beside them (__pycache__, an old log) are not data this reads.
+if subprocess.run(["git", "-C", BENCH, "status", "--porcelain",
+                   "--untracked-files=no", "--", "scripts"],
                   capture_output=True, text=True, check=True).stdout.strip():
     sys.exit(f"{BENCH}/scripts has uncommitted changes: the commit id written "
              "next to the numbers would not name the data they came from")

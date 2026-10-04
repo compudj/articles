@@ -41,7 +41,8 @@ machine's Claude memory, so the standing rules are restated at the end.
 4. **The MW CAS-based engine (P2, sole-driver MCAS) is NOT presented.** No
    slide, not even a teaser.
 5. **Dentry cache: in (2026-10-03).** The benchmarks finished (sweep of
-   2026-10-02) and Mathieu cleared the figures for the talk. One slide (26)
+   2026-10-02; re-taken 2026-10-03 at P1's engine pin, nothing moved, §7)
+   and Mathieu cleared the figures for the talk. One slide (26)
    and one backup slide, on the bucket lock + SW txn engine only: the MW txn
    arms of the same benchmark fall under decision 4 and are not shown.
 6. **Charts are static** (projected + PDF upload): no hover/tooltips; print the
@@ -394,10 +395,14 @@ no `rename_lock`, no lock in `readdir`). Right: `fig-dcache.tex`, 11 of the
 22 rows of the benchmark tree's `figures/dcache_bucketlock_summary.png`
 (engine ÷ baseline, log axis, a dot per measured point): on par (lookups at
 10k–30k renames/s and at rest, allocating create/delete), faster (lookups at
-100k–300k renames/s 1.20–1.83×, reverse walk 1.41–7.16×, readdir 1.11–3.67×,
-create/delete in place 1.14–1.23×), slower (hits on objects being renamed
-0.84–0.93×, at rest 0.90–0.95×), writers flat out (leaf 20.8–21.5×, directory
-4.1–4.5×). Both "slower" rows are kept; the rows cut are on par or faster.
+100k–300k renames/s 1.18–1.85×, reverse walk 1.40–6.75×, readdir 1.11–3.38×,
+create/delete in place 1.13–1.21×), slower (hits on objects being renamed
+0.80–0.93×, at rest 0.90–0.96×), writers flat out (leaf 20.7–21.6×, directory
+4.0–4.5×). Both "slower" rows are kept; the rows cut are on par or faster.
+The hits row's low end was 0.84 in the 2026-10-02 sweep: the 160-reader point
+(0.80) counts now because the engine's writers kept the pace there, and the
+184-reader one dropped out because they did not. That region is noisy and its
+cause is not established (benchmark README); if asked, say so.
 Say "model" and "userspace" each time; the slide says userspace ratios are
 not kernel evidence. Backup slide 33 has the baseline's fidelity, the
 comparison rules, why it loses where it does, what the writers' lead
@@ -415,6 +420,27 @@ through a proxy's group selector. The slide says "SW txn" and "one commit",
 which hold; do not say the model uses the API of slides 16–19. Backup slide
 33 states it ("How the model commits"), at Mathieu's request (2026-10-03):
 the one place the deck names `rcu-txn.h`, and only its single-writer path.
+Two limits of the model, to say out loud (Mathieu, 2026-10-03; on slide 26's
+aside, slide 27's right column and backup 33; kernel facts checked in a
+v7.3-rc5 tree, written up in the benchmark tree's
+`experiments/dcache/README.md`, "What the model leaves out that a kernel port
+needs"):
+- **No reference count**, in either engine. Every walk stays inside one RCU
+  read-side section; a handle is valid only while the caller keeps the object
+  from being unlinked or evicted. The kernel leaves the RCU walk through
+  `try_to_unlazy()`, which takes `d_lockref` before anything blocks, and
+  `complete_walk()` ends every walk with a reference on its last component.
+  A port needs that existence guarantee across blocking. Whether a count is
+  the right tool or whether this is a use for hazard pointers is OPEN — not
+  evaluated; say it as a question.
+- **No `i_rwsem`** in the new engine: its `readdir` takes no lock, so the
+  dentry cache stops needing it. But `i_rwsem` is the VFS's directory lock,
+  held across the filesystem's own methods (`locking.rst`: `lookup` shared;
+  `create`, `link`, `unlink`, `mkdir`, `rmdir`, `rename` exclusive; taken in
+  `__start_dirop()` before the filesystem is called), so filesystems rely on
+  it as mutual exclusion. Part of the writers' lead is that lock; a port
+  that leaves the VFS alone does not get that part. The share is not
+  isolated for renames (no engine arm keeps the baseline's locks).
 
 **27. What a kernel port needs** `[Mathieu to confirm/fill: port status]`.
 Grounded items: a spare low bit in the slot (list pointers are aligned); commit
@@ -422,7 +448,11 @@ fails only on OOM and before anything is parked → reserve up front in
 non-sleeping context; one `call_rcu()` per multi-edge commit (batchable);
 exclusion validator as a debug option. Where it would land: rculist reverse
 walks (list_bidir users), cross-structure publish (hash + LRU), pinned objects
-whose back edges must move in place.
+whose back edges must move in place. Right column, added 2026-10-03, "For the
+dentry cache, also": reference counts, or hazard pointers? and `i_rwsem`:
+filesystems rely on it (the two limits under slide 26; they are about the
+model, not the facility). The slide is full: filling the placeholder means
+cutting something.
 
 **28. What it is not.** Not STM (no snapshot, no opacity); exclusion is the
 embedder's (per slot, locks); tag contract; commit width grows with edges (a tall tower
@@ -545,14 +575,18 @@ warm-up. Data: `p1-sw-flip-latch/data/fig-*.csv`; text: P1 §7.
   `URCU_CFLAGS` (`-O2 -DNDEBUG …`). The 18809ea8 tree was configured bare, so
   the numbers this deck carried before ran liburcu's own code at `-g -O2` with
   assertions (measured effect: none).
-- The dentry-cache sweep below is on `c21f5a38`, three engine commits behind
-  P1's pin: batching on, but with the 8-record reserve floor, the out-of-line
-  append and the slab's legacy barriers. Its ratios are against a seqlock
-  baseline in the same build, so they stand, but they are not at P1's pin.
+- The dentry-cache sweep below is at P1's pin, `2793224e`, since 2026-10-03,
+  and built `-DNDEBUG`: until then the benchmark's engine arms ran liburcu's
+  inline assertions and the seqlock baseline, which has none, did not. The
+  re-take changed nothing a slide says: an engine's own throughput is within
+  1% of the `c21f5a38` sweep in the median of 171 of 197 panel-and-engine
+  groups, and slide 26's eleven medians moved by at most 1.6% (directory
+  capacity 4%).
 
 **Slide 26 and backup 33 (dentry cache)** are not P1's: benchmark tree
-`efficios-trie-benchmark` at `3a79ed3`, sweep `c03704139064-c21f5a38`
-(2026-10-02, liburcu `c21f5a38`), same machine.
+`efficios-trie-benchmark` at `253d8e4`, sweep `3225b8ec0e79-2793224e`
+(2026-10-03, liburcu `2793224e`, no assertions), same machine. It replaced
+sweep `c03704139064-c21f5a38` (2026-10-02, benchmark tree `3a79ed3`).
 `make dcache-data` (`dcache-summary.py`) runs that tree's own
 `scripts/plot_dcache_bucketlock_summary.py` up to its drawing code and writes
 `data/dcache-summary{.csv,-points.csv,-macros.tex}`, which are committed (the
@@ -583,7 +617,15 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
    traversal order "up to 4%"; the remedies paragraph quoting the experimental
    rseq slab. Decided the same day: the headline stays the DEFAULT build (the
    slab's freelist with atomics), the rseq slab stays a remedy.
-10. Optional: re-sweep the dentry cache at `2793224e` so slide 26 is at P1's pin.
+10. ~~Re-sweep the dentry cache at `2793224e`~~ — **done 2026-10-03**
+    (3 h 27 min, no conservation failure, every figure fresh), built
+    `-DNDEBUG`; benchmark tree `253d8e4`; slides 26 and 33 read the new data
+    (§7). Nothing moved but the hits row's low end, 0.84 → 0.80 (§5 slide 26).
+11. Dentry cache, for a kernel port (Mathieu, 2026-10-03; §5 slide 26): how to
+    hold a dentry across blocking — a reference count, or hazard pointers —
+    is not evaluated; and the share of the writers' lead that is `i_rwsem`
+    is not isolated (it would take an engine arm that keeps the baseline's
+    two locks; not built, not run).
 
 ## 9. Standing rules (restated for the laptop session)
 
@@ -644,4 +686,4 @@ and §7 live there).
   tree, `~/doc/userspace-rcu`, branch `urcu-txn-dev` at 18809ea8 (also the tip
   of `github-dev/urcu-txn-dev`): every listing matches the headers, as do the
   signatures and the commit's `nr <= 1` path, the 16-byte record alignment and
-  the debug knobs. The dcache sweep's liburcu, `c21f5a38`, is in neither.
+  the debug knobs. The dcache sweep's liburcu is `2793224e` too since 2026-10-03.

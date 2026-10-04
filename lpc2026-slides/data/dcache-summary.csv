@@ -1,20 +1,20 @@
 # Written by lpc2026-slides/dcache-summary.py; do not edit.
-# efficios-trie-benchmark 3a79ed3, sweep c03704139064-c21f5a38:
+# efficios-trie-benchmark 253d8e4, sweep 3225b8ec0e79-2793224e:
 # bucket lock + SW txn / seqlock baseline, as that tree's
 # scripts/plot_dcache_bucketlock_summary.py computes it.
 y,hdr,key,group,n,lo,med,hi,sweep,bench
--1.25,1,hdr-par,par,0,nan,nan,nan,c03704139064-c21f5a38,3a79ed3
--2.25,0,lookup-low,par,2,1.0303,1.0398,1.0493,c03704139064-c21f5a38,3a79ed3
--3.25,0,lookup-rest,par,11,0.9791,1.0101,1.0512,c03704139064-c21f5a38,3a79ed3
--4.25,0,churn-alloc,par,19,0.9852,1.0003,1.0358,c03704139064-c21f5a38,3a79ed3
--5.5,1,hdr-faster,faster,0,nan,nan,nan,c03704139064-c21f5a38,3a79ed3
--6.5,0,lookup-high,faster,2,1.1957,1.5118,1.8280,c03704139064-c21f5a38,3a79ed3
--7.5,0,dpath,faster,5,1.4054,1.5161,7.1571,c03704139064-c21f5a38,3a79ed3
--8.5,0,readdir,faster,6,1.1099,1.5789,3.6702,c03704139064-c21f5a38,3a79ed3
--9.5,0,churn-inplace,faster,7,1.1384,1.1737,1.2304,c03704139064-c21f5a38,3a79ed3
--10.75,1,hdr-slower,slower,0,nan,nan,nan,c03704139064-c21f5a38,3a79ed3
--11.75,0,hit,slower,10,0.8396,0.8711,0.9326,c03704139064-c21f5a38,3a79ed3
--12.75,0,hit-rest,slower,11,0.9022,0.9133,0.9472,c03704139064-c21f5a38,3a79ed3
--14.0,1,hdr-capacity,capacity,0,nan,nan,nan,c03704139064-c21f5a38,3a79ed3
--15.0,0,cap-leaf,capacity,4,20.7719,20.9668,21.4808,c03704139064-c21f5a38,3a79ed3
--16.0,0,cap-dir,capacity,4,4.0611,4.1891,4.4824,c03704139064-c21f5a38,3a79ed3
+-1.25,1,hdr-par,par,0,nan,nan,nan,3225b8ec0e79-2793224e,253d8e4
+-2.25,0,lookup-low,par,2,1.0233,1.0432,1.0630,3225b8ec0e79-2793224e,253d8e4
+-3.25,0,lookup-rest,par,11,0.9873,1.0012,1.0499,3225b8ec0e79-2793224e,253d8e4
+-4.25,0,churn-alloc,par,19,0.9923,1.0003,1.0340,3225b8ec0e79-2793224e,253d8e4
+-5.5,1,hdr-faster,faster,0,nan,nan,nan,3225b8ec0e79-2793224e,253d8e4
+-6.5,0,lookup-high,faster,2,1.1827,1.5144,1.8461,3225b8ec0e79-2793224e,253d8e4
+-7.5,0,dpath,faster,5,1.3988,1.5288,6.7452,3225b8ec0e79-2793224e,253d8e4
+-8.5,0,readdir,faster,6,1.1135,1.5831,3.3847,3225b8ec0e79-2793224e,253d8e4
+-9.5,0,churn-inplace,faster,7,1.1264,1.1598,1.2076,3225b8ec0e79-2793224e,253d8e4
+-10.75,1,hdr-slower,slower,0,nan,nan,nan,3225b8ec0e79-2793224e,253d8e4
+-11.75,0,hit,slower,10,0.8016,0.8709,0.9277,3225b8ec0e79-2793224e,253d8e4
+-12.75,0,hit-rest,slower,11,0.9009,0.9191,0.9553,3225b8ec0e79-2793224e,253d8e4
+-14.0,1,hdr-capacity,capacity,0,nan,nan,nan,3225b8ec0e79-2793224e,253d8e4
+-15.0,0,cap-leaf,capacity,4,20.6875,21.2982,21.5645,3225b8ec0e79-2793224e,253d8e4
+-16.0,0,cap-dir,capacity,4,4.0186,4.3706,4.4883,3225b8ec0e79-2793224e,253d8e4
