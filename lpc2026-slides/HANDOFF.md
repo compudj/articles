@@ -378,7 +378,8 @@ now "allocate, hand back"; under the figure: "Intrinsic: a fresh txn
 descriptor per update, kept for a grace period. The commit: 19 cycles of 243."
 and "Not intrinsic: this slab. Under rseq: no lock, no atomics. A kernel port
 could use the allocator and `kfree_rcu()`." The kernel sentence is not P1's
-and nothing about it is measured; slide 27 gets no line for it. The bars and
+and nothing about it is measured; slide 27 got no line for it then (since
+2026-10-05 its reclaim line names `kfree_rcu()`: see slide 27). The bars and
 the headline are unchanged. The rseq build has ratios but no profile:
 `HANDOFF-slab-profile.md` is the handoff for that investigation.
 
@@ -474,17 +475,28 @@ needs"):
   that leaves the VFS alone does not get that part. The share is not
   isolated for renames (no engine arm keeps the baseline's locks).
 
-**27. What a kernel port needs** `[Mathieu to confirm/fill: port status]`.
+**27. What a kernel port needs.**
 Grounded items: a spare low bit in the slot (list pointers are aligned); commit
 fails only on OOM and before anything is parked → reserve up front in
-non-sleeping context; one `call_rcu()` per multi-edge commit (batchable);
-exclusion validator as a debug option. Where it would land: rculist reverse
+non-sleeping context; one `kfree_rcu()` per multi-edge commit, which batches
+already; exclusion validator as a debug option. Where it would land: rculist reverse
 walks (list_bidir users), cross-structure publish (hash + LRU), pinned objects
 whose back edges must move in place. Right column, added 2026-10-03, "For the
 dentry cache, also": reference counts, or hazard pointers? and `i_rwsem`:
 filesystems rely on it (the two limits under slide 26; they are about the
-model, not the facility). The slide is full: filling the placeholder means
-cutting something.
+model, not the facility).
+
+*Changed 2026-10-05* (Mathieu), twice. The reclaim line read "One
+`call_rcu()` per multi-edge commit (batchable)"; it is now "One `kfree_rcu()`
+per multi-edge commit: it batches already." His words: change "one
+call_rcu()" to "one kfree_rcu()", "It does the batching trick we do in
+userspace already." "It batches already" in place of "(batchable)" is the
+deck's wording of that reason, not his; the userspace trick is, as read here,
+the engine's batched retirement (open item 6). Like slide 24's kernel
+sentence, the line is not P1's and nothing about it is measured. And the
+port-status placeholder is gone ("I think we can remove the "PLACEHOLDER"
+block there"): the slide states no port status, and is no longer full (about
+15 mm free under both columns; the lists are still `\small`).
 
 **28. What it is not.** Not STM (no snapshot, no opacity); exclusion is the
 embedder's (per slot, locks); tag contract; commit width grows with edges (a tall tower
@@ -661,7 +673,8 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
 ## 8. Open items
 
 1. ~~Dentry-cache section~~ — **in, 2026-10-03** (§2 item 5, slide 26).
-2. Kernel-port status for slide 27 (placeholder).
+2. ~~Kernel-port status for slide 27 (placeholder)~~ — **placeholder removed
+   2026-10-05** at Mathieu's word; the slide states no port status (§5 slide 27).
 3. P1 public link (arXiv?) for slide 29 (placeholder).
 4. ~~Format~~ — **decided 2026-09-30: Beamer** (§10). The claude.ai artifact
    stays empty.

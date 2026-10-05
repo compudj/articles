@@ -1198,8 +1198,6 @@ forward walk.\par}
 \end{frame}
 
 \begin{frame}{What a kernel port needs}
-\placeholder{Port status --- Mathieu to confirm and fill.}
-\vspace{1.5mm}
 \begin{columns}[T, onlytextwidth]
 \column{0.48\textwidth}
   {\bfseries Needs\par}
@@ -1209,7 +1207,7 @@ forward walk.\par}
   \item A commit fails only on OOM, before anything is parked. Reserve
         before the first irreversible step and it cannot fail --- under a
         spinlock, say.
-  \item One \code{call\_rcu()} per multi-edge commit (batchable).
+  \item One \code{kfree\_rcu()} per multi-edge commit: it batches already.
   \item The exclusion validator as a debug option.
   \end{itemize}
 \column{0.48\textwidth}
