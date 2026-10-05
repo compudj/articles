@@ -1,0 +1,216 @@
+% LPC 2026, Tracing Microconference: three slides. The PDF goes to the
+% organizers, is published, and is what the room's projector shows: the slide
+% on upstream involvement is therefore in the deck, not held back on a laptop.
+% The backup slide on other kernel policies is parked in backup.tex.
+%
+% The content is plan.txt, in this directory. The look (fonts, palette, kicker
+% above the title, footline) is ../lpc2026-slides', copied rather than shared:
+% neither deck can then break the other.
+
+\documentclass[aspectratio=169, 10pt, t]{beamer}
+
+% ---------------------------------------------------------------------------
+% Fonts. IBM Plex is the design's face; where it is not installed, Lato + Noto
+% Sans Mono stand in. A font swap can move a line break, so `make` reports any
+% overfull box.
+% ---------------------------------------------------------------------------
+\usepackage{fontspec}
+\IfFontExistsTF{IBM Plex Sans}{%
+  % The 600 weight's name depends on the build: upstream's OTFs call it
+  % "SemiBold", Debian's fonts-ibm-plex TTFs "SmBld".
+  \IfFontExistsTF{IBM Plex Sans SemiBold}{\def\plexsb{SemiBold}}{\def\plexsb{SmBld}}%
+  \setsansfont{IBM Plex Sans}[BoldFont={IBM Plex Sans \plexsb},
+                              BoldItalicFont={IBM Plex Sans \plexsb\space Italic}]
+  \setmonofont{IBM Plex Mono}[BoldFont={IBM Plex Mono \plexsb}]
+}{%
+  \setsansfont{Lato}[BoldFont={Lato Semibold},
+                     BoldItalicFont={Lato Semibold Italic}]
+  \setmonofont{Noto Sans Mono}[Scale=0.945,
+                               BoldFont={Noto Sans Mono Bold}]
+}
+
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins}
+
+% ---------------------------------------------------------------------------
+% Palette.
+% ---------------------------------------------------------------------------
+\definecolor{paper}{HTML}{F5F3EE}
+\definecolor{paperalt}{HTML}{E9E5DC}
+\definecolor{ink}{HTML}{1A1D23}
+\definecolor{muted}{HTML}{4F5561}
+\definecolor{accent}{HTML}{2456A6}
+
+% ---------------------------------------------------------------------------
+% Beamer look: quiet. A small section kicker above each title stands in for
+% divider slides.
+% ---------------------------------------------------------------------------
+\setbeamersize{text margin left=9mm, text margin right=9mm}
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{background canvas}{bg=paper}
+\setbeamercolor{normal text}{fg=ink, bg=paper}
+\setbeamercolor{structure}{fg=accent}
+\setbeamercolor{alerted text}{fg=accent}
+\setbeamercolor{frametitle}{fg=ink}
+\setbeamercolor{kicker}{fg=muted}
+\setbeamercolor{footline}{fg=muted}
+\setbeamerfont{frametitle}{size=\LARGE, series=\bfseries}
+\setbeamerfont{kicker}{size=\scriptsize, series=\bfseries}
+\setbeamerfont{footline}{size=\tiny}
+
+% \talksection sets both beamer's section and the kicker. \gdef, and a plain
+% \def for the empty case: the template tests it against \@empty with \ifx,
+% which a \newcommand-defined (\long) macro would never equal.
+\def\kickertext{}
+\newcommand{\talksection}[1]{\section{#1}\gdef\kickertext{#1}}
+
+\makeatletter
+\setbeamertemplate{frametitle}{%
+  \vskip 4mm
+  \ifx\kickertext\@empty\else
+    {\usebeamerfont{kicker}\usebeamercolor[fg]{kicker}%
+     \addfontfeature{LetterSpace=6}\MakeUppercase{\kickertext}\par}%
+    \vskip 1mm
+  \fi
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}%
+   \insertframetitle\par}%
+  \vskip 1mm}
+\makeatother
+
+% No cover slide in a microconference slot, so the footline names the speaker.
+\setbeamertemplate{footline}{%
+  \usebeamerfont{footline}\usebeamercolor[fg]{footline}%
+  \hbox to \paperwidth{\hskip 9mm Mathieu Desnoyers, EfficiOS\enspace·\enspace
+    Tracing Microconference\enspace·\enspace LPC 2026\hfill
+    \insertframenumber\hskip 9mm}%
+  \vskip 3.5mm}
+
+\setbeamertemplate{itemize item}{\textcolor{accent}{–}}
+\setbeamertemplate{itemize subitem}{\textcolor{muted}{–}}
+\setlength{\leftmargini}{1.1em}
+
+% ---------------------------------------------------------------------------
+% Text blocks.
+% ---------------------------------------------------------------------------
+\tcbset{calloutbase/.style={enhanced, colback=paperalt, frame hidden, arc=2pt,
+  borderline west={1.6pt}{0pt}{accent}, left=3mm, right=3mm, top=1.5mm,
+  bottom=1.5mm, before skip=1mm, after skip=1mm, halign=flush left}}
+\newtcolorbox{callout}[1][]{calloutbase, fontupper=\small, #1}
+
+% A numbered constraint: the number hangs in the left margin of its box.
+\newlength{\constraintindent}
+\setlength{\constraintindent}{11mm}
+\newtcolorbox{constraint}[1]{calloutbase,
+  fontupper=\fontsize{11}{14}\selectfont,
+  enlarge left by=\constraintindent, width=\linewidth-\constraintindent,
+  overlay={\node[anchor=north west, inner sep=0pt, text=accent,
+                 font=\fontsize{26}{26}\selectfont\bfseries]
+           at ([xshift=-\constraintindent, yshift=-0.6mm]frame.north west) {#1};}}
+% Who said it, under a constraint.
+\newcommand{\source}[1]{{\par\vspace{1mm}\footnotesize\color{muted}#1\par}}
+
+% A bold heading over a short list.
+\newcommand{\area}[1]{{\par\vspace{1.3mm}\textbf{#1}\par}}
+
+\title{LPC 2026 Tracing Microconference}
+\author{Mathieu Desnoyers}
+\institute{EfficiOS Inc.}
+\date{Linux Plumbers Conference 2026}
+
+\begin{document}
+
+% ===========================================================================
+% 1. The two constraints
+% ===========================================================================
+\talksection{The constraints}
+
+\begin{frame}{Two constraints on kernel tracers}
+  \begin{constraint}{1}
+    Tracers are core code: they should be \textbf{built-in code only}, they
+    have no justification for being kernel modules.
+    \source{Paraphrasing core kernel developers}
+  \end{constraint}
+  \vspace{1mm}
+  \begin{constraint}{2}
+    ``If people need two tracing models, then the other one will be out of
+    tree. It's that simple.\par
+    \vspace{1.5mm}
+    So as far as I'm concerned, this discussion is not a discussion. Either
+    there's a way to merge things incrementally with SHARED infrastructure,
+    or there isn't.''
+    \source{Linus Torvalds, LKML, July 2025\\[0.3mm]
+      {\tiny\url{https://lore.kernel.org/lkml/CAHk-=wiT9Cz+EbbuKozqiu7DnZQ7ftAWSmGf-xy_CdhJPCsNSg@mail.gmail.com/}}}
+  \end{constraint}
+\end{frame}
+
+% ===========================================================================
+% 2. What the two do together
+% ===========================================================================
+\talksection{The consequence}
+
+\begin{frame}{Combined: a collaboration inhibitor}
+  \fontsize{11}{14}\selectfont
+  \begin{itemize}\setlength{\itemsep}{3mm}
+  \item It is more efficient to work \textbf{outside of common tracer code}
+        if that code cannot be used by an out-of-tree kernel tracer.
+  \item It actively \textbf{prevents} incrementally contributing LTTng
+        facilities into common tracer code \textbf{while keeping those
+        facilities usable by the LTTng tracer}.
+  \item Making perf, ftrace or eBPF use those facilities may justify
+        integrating those contributions, but \textbf{does not justify
+        exporting the required symbols} to GPL~modules.
+  \end{itemize}
+  \vfill
+  \begin{callout}[fontupper=\large\bfseries, top=2mm, bottom=2mm]
+    What is doable is an \textcolor{accent}{all-or-nothing} tracer ABI
+    swap,\\ \textcolor{accent}{never incremental}.
+  \end{callout}
+  \vspace{2mm}
+\end{frame}
+
+% ===========================================================================
+% 3. Upstream involvement
+% ===========================================================================
+\talksection{Upstream involvement}
+
+\begin{frame}{20 years of Linux kernel contributions}
+\begin{columns}[T, onlytextwidth]
+\column{0.54\textwidth}
+  \area{Atomic and local atomic headers}
+  \begin{itemize}
+  \item Generalization (\textasciitilde 2007)
+  \end{itemize}
+  \area{asm goto / static keys}
+  \begin{itemize}
+  \item Active involvement in the original desiderata leading to GCC support
+        of asm goto
+  \end{itemize}
+  \area{Tracing subsystem}
+  \begin{itemize}
+  \item Tracepoint implementation
+  \item Faultable system call tracepoints
+  \item Participation in the SFrame kernel vs userspace integration effort
+        (stack walk)
+  \item Reviewer
+  \end{itemize}
+\column{0.41\textwidth}
+  \area{RCU subsystem}
+  \begin{itemize}
+  \item Membarrier
+  \item Hazard pointers (ongoing)
+  \item Reviewer
+  \end{itemize}
+  \area{Scheduler}
+  \begin{itemize}
+  \item Restartable Sequences
+  \item Concurrency IDs
+  \end{itemize}
+  \area{Memory management}
+  \begin{itemize}
+  \item Hierarchical per-CPU RSS accounting (ongoing)
+  \end{itemize}
+\end{columns}
+\end{frame}
+
+\end{document}

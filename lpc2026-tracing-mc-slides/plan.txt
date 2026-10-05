@@ -1,0 +1,73 @@
+
+- Tracers are core code, they should be builtin code only, they have no
+  justification for being kernel modules. (paraphrasing core kernel
+  developers)
+
+- "If people need two tracing models, then the other one will be out of
+  tree. It's that simple.
+
+  So as far as I'm concerned, this discussion is not a discussion.
+  Either there's a way to merge things incrementally with SHARED
+  infrastructure, or there isn't." (Linus Torvalds)
+
+  https://lore.kernel.org/lkml/CAHk-=wiT9Cz+EbbuKozqiu7DnZQ7ftAWSmGf-xy_CdhJPCsNSg@mail.gmail.com/
+
+-----------------------------
+
+The combination of those two constraints act as a collaboration
+inhibitor in the tracing area. It's more efficient to just work outside
+of common tracer code if it cannot be used by an out of tree kernel
+tracer.
+
+It actively _prevents_ incrementally contributing LTTng facilities into
+common tracer code _while keeping those facilities usable by the LTTng
+tracer_.
+
+Making perf, ftrace or eBPF use those facilities may justify integration
+of those contributions, but does not justify exporting the required
+symbols to GPL modules. So what is doable is a all or nothing tracer ABI
+swap, never incremental.
+
+-----------------------------
+
+
+
+Backup material:
+-----------------------------
+
+I've been contributing to various areas of the Linux kernel over the
+past 20 years:
+
+- Atomic and local atomic header generalization (~2007)
+
+- Active involvement in asm goto / static keys original desiderata
+  leading to gcc support of asm goto.
+
+- Tracing subsystem
+  - Tracepoint implementation
+  - Faultable system call tracepoints
+  - Participation in Sframe kernel vs userspace integration effort (stack walk)
+  - Reviewer
+
+- RCU subsystem
+  - Membarrier
+  - Hazard pointers (ongoing)
+  - Reviewer
+
+- Scheduler
+  - Restartable Sequences
+  - Concurrency IDs
+
+- Memory management
+  - Hierarchical Per-CPU RSS accounting (ongoing)
+
+-----------------------------
+
+Other relevant Linux kernel policies:
+
+- GPL-exported symbols unused in-tree are being removed.
+  - Test coverage,
+  - Abuses by proprietary modules.
+- Out of tree code "don't exist".
+- Everything should be in-tree.
+

@@ -1,0 +1,24 @@
+% The backup slide on other kernel policies, parked: main.tex does not input
+% this file, so it is not in the PDF sent to the organizers. To bring it back,
+% \input{backup} before \end{document} and add backup.tex to the Makefile's
+% prerequisites.
+
+% ===========================================================================
+% Backup
+% ===========================================================================
+\appendix
+\talksection{Backup}
+
+\begin{frame}{Other relevant Linux kernel policies}
+  \large
+  \vspace{2mm}
+  \begin{itemize}\setlength{\itemsep}{5mm}
+  \item \textbf{GPL-exported symbols unused in-tree} are being removed.
+        \begin{itemize}\normalsize
+        \item Test coverage
+        \item Abuses by proprietary modules
+        \end{itemize}
+  \item Out-of-tree code \textbf{``does not exist''}.
+  \item \textbf{Everything} should be in-tree.
+  \end{itemize}
+\end{frame}
