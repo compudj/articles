@@ -10,7 +10,8 @@
 % multi-writer engine (P2) gets no slide, not even a teaser.
 %
 % The dentry cache, decided 2026-10-03 once its benchmarks finished: one slide
-% and one backup slide, on the bucket lock + SW txn engine only, with the
+% (two since 2026-10-05: the setup, then the chart) and one backup slide, on
+% the bucket lock + SW txn engine only, with the
 % numbers of the benchmark tree's sweep (data/, dcache-summary.py): re-taken
 % 2026-10-03 at P1's engine pin, 2793224e, built without assertions.
 
@@ -152,7 +153,7 @@
 %
 % Where and how big is set by the slides, not by taste: body text runs to
 % within 2.5 mm of the footline's baseline at the left margin (slides 22, 25,
-% 29), and to 3.2 mm at the right. So the logo sits at the right, by the
+% 30), and to 3.2 mm at the right. So the logo sits at the right, by the
 % frame number, 3 mm tall, lowered 0.85 mm to centre on the footline's
 % capitals. \smash: the footline stays as tall as its text, so the logo moves
 % no slide's layout. Black on transparent: it needs a light background (the
@@ -291,7 +292,7 @@
 \talksection{The problem}
 
 \begin{frame}{RCU's contract}
-  \lead{Readers pay nothing. In exchange, a writer gets \textbf{exactly one}
+  \lead{No reader overhead. In exchange, a writer gets \textbf{exactly one}
   atomic operation: \textbf{a single pointer store}.}
   \vspace{7mm}
   \centerfig{fig-contract}
@@ -325,10 +326,8 @@ next->prev = new;                              /* plain store, AFTER publish */
 \end{codeblocksmall}
 \vspace{2mm}
 \begin{itemize}
-\item \code{list\_del\_rcu()} poisons \code{prev}: rculist ships forward
-      iterators only --- and so does Userspace RCU's \code{cds\_list\_*\_rcu}.
-\item A considered trade, not an oversight: the poison buys use-after-delete
-      debugging.
+\item Linux kernel and Userspace RCU rculist expose forward iterators only.
+\item Tradeoff: poison \code{prev} for use-after-removal debugging.
 \end{itemize}
 \note{%
 \begin{itemize}
@@ -350,19 +349,17 @@ next->prev = new;                              /* plain store, AFTER publish */
 \column{0.52\textwidth}
   \small
   \begin{itemize}
-  \item Even properly published, two edges are \textbf{two release stores}.
+  \item Two edges are \textbf{two release stores}.
         Between them the forward chain has dropped E, the backward chain has
         not: \textbf{two different lists}, neither torn.
   \item E is a ghost until its grace period completes: the backward view trails by
         \textbf{up to a grace period}.
   \end{itemize}
   \vspace{2mm}
-\begin{callout}[fontupper=\footnotesize]
-\textbf{The kernel's narrow exception} (Dec 2024, Brauner; suggested and
-reviewed by McKenney): \code{list\_bidir\_del\_rcu()} +
-\code{list\_bidir\_prev\_rcu()} let a reader step back out of a ghost ---
-useful, and not a coherent reverse walk. No mixing with
-\code{list\_del\_rcu()} on one list; its sole caller takes one hop.
+\begin{callout}[halign=flush left]
+\textbf{The kernel's narrow exception} (Dec 2024):
+\code{list\_bidir\_del\_rcu()} + \code{list\_bidir\_prev\_rcu()} let a reader
+step back out of a ghost --- not a coherent reverse walk.
 \end{callout}
 \end{columns}
 \note{%
@@ -372,6 +369,8 @@ useful, and not a coherent reverse walk. No mixing with
       publication instants.
 \item What is missing is atomicity across two slots. That is why the fix has
       to be a mechanism rather than a barrier.
+\item The exception is Brauner's, suggested and reviewed by McKenney. It
+      may not be mixed with list\_del\_rcu() on one list.
 \item The sole in-tree caller as of next-20260226:
       \_\_ns\_tree\_adjoined\_rcu() in kernel/nstree.c, one hop, prev \emph{or}
       next, never comparing the two directions.
@@ -448,10 +447,9 @@ records. A sequence of \textbf{install} stores makes them visible, slot by
 slot, each still resolving \textit{old}; \textbf{one atomic commit step} then
 publishes the transition to \textit{new}, for all of them at once.
 \end{callout}
-\vspace{0.5mm}
-\begingroup\small\renewcommand{\arraystretch}{1.0}\arrayrulecolor{muted!60}
-% The first three rows are a sequence and are numbered as one; the rows
-% under the rule are properties of the result, not steps.
+\vspace{3mm}
+\begingroup\renewcommand{\arraystretch}{1.25}\arrayrulecolor{muted!60}
+% The three rows are a sequence and are numbered as one.
 \begin{tabular}{@{}l@{\hspace{2.5mm}}ll@{}}
 \toprule
 & \textbf{Journaling filesystem} & \textbf{Pseudo-transaction} \\
@@ -461,14 +459,10 @@ publishes the transition to \textit{new}, for all of them at once.
          & \textbf{records installed}: slots parked, still \emph{old} \\
 \stepnum{3} & \textbf{commit record written}
          & \textbf{one commit step}: \emph{old} → \emph{new}, for all \\
-\midrule
-& before commit: old state      & before commit: every record resolves \emph{old} \\
-& after commit: new state       & after commit: every record resolves \emph{new} \\
-& never a partial batch         & no slot, and no instant, is ever torn \\
-& readers are not transactional & readers are plain RCU readers \\
-& atomicity, not isolation      & atomicity, not opacity \\
 \bottomrule
 \end{tabular}\par\endgroup
+\vspace{5mm}
+\lead{\textbf{Atomicity, not isolation}: readers are plain RCU readers.}
 \note{%
 \begin{itemize}
 \item Freezing settles \emph{what} takes effect, and comes first; the single
@@ -530,7 +524,7 @@ Settle   & $n$, directly & $n$ & no: resolved value unchanged \\
 \begin{itemize}
 \item Install and settle both rewrite the slot, and change nothing a reader
       resolves.
-\item Settle \emph{is} the uninstall. Then \code{call\_rcu()} the txn
+\item Settle \emph{is} the uninstall. Then \code{call\_rcu()} frees the txn
       descriptor.
 \end{itemize}
 \note{%
@@ -592,18 +586,20 @@ next load's displacement.}
 \begin{frame}{Tags: the marker rides the pointer}
 \centerfig{fig-tagword}
 \vspace{5mm}
-\begin{itemize}\small
-\item \textbf{Per-record tag.} One commit may span structures with different
-      encodings --- bit 0 here, a reserved nibble there. Cross-structure
-      atomicity forces it.
-\item Records are 16-byte aligned: 4 low bits to choose from. A record stores
-      the tag, not a tagged pointer, so the descriptor can grow by moving.
-\item \textbf{Contract}: no legitimate slot value may carry the tag pattern.
-      Not checkable for free; the exclusion validator also trips on an alias
-      when it parks the slot.
+\begin{itemize}
+\item \textbf{Per-record tag:} one commit may span structures with different
+      encodings.
+\item Records are 16-byte aligned: 4 low bits to choose from.
+\item \textbf{Contract:} no legitimate slot value may carry the tag pattern.
 \end{itemize}
 \note{%
 \begin{itemize}
+\item Encodings differ per structure --- bit 0 here, a reserved nibble
+      there --- and cross-structure atomicity is what forces a per-record tag.
+\item A record stores the tag, not a tagged pointer, so the descriptor can
+      grow by moving.
+\item The contract is not checkable for free; the exclusion validator also
+      trips on an alias when it parks the slot.
 \item The tag's meaning belongs to the slot's structure: a reader never reads
       the tag from the value, it knows statically which structure it walks.
 \item The record keeps its copy for the write side only: the generic commit
@@ -614,19 +610,19 @@ next load's displacement.}
 \end{frame}
 
 \begin{frame}{Exclusion is per slot}
-\lead{The facility owns no lock. Exclusion is the embedder's, and it is
-\textbf{per slot}, not per structure.}
+\lead{No internal locking. The embedder provides mutual exclusion
+\textbf{per slot}.}
 \vspace{4mm}
 \begin{itemize}
-\item \textbf{No install CAS, no conflict detection, no abort}: that is why it
-      is cheap.
-\item Two writers on one slot \textbf{silently corrupt} it.
-      \code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE} aborts the process on a violation,
-      and costs nothing when off.
-\item Fine-grained locks --- per bucket, per node --- are the ordinary way to
-      meet it: \textbf{writers on disjoint slots commit concurrently}.
-\item A commit fails only for want of memory, before anything is parked.
-      \code{urcu\_txn\_sw\_reserve()} up front rules that out.
+\item \textbf{No install CAS, no conflict detection, no abort}: low writer
+      overhead.
+\item Two writers on the same slot \textbf{silently corrupt} it.
+      \code{-DURCU\_TXN\_SW\_EXCL\_VALIDATE} aborts the process on violation,
+      with no overhead when disabled.
+\item With fine-grained locking (per bucket, per node), \textbf{writers on
+      disjoint slots commit concurrently}.
+\item A commit can only fail on out-of-memory, before any slot is parked.
+      Calling \code{urcu\_txn\_sw\_reserve()} beforehand prevents it.
 \end{itemize}
 \label{fr:exclusion}
 \note{%
@@ -662,8 +658,8 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
 \item \code{record()} appends blindly: slots pairwise distinct.
       \code{record\_chain()} fuses onto this transaction's record for the
       slot: committed \emph{old} kept, \emph{new} advanced.
-\item One record commits as a plain release store; more: park, flip,
-      settle, \mbox{\code{call\_rcu()}}. OOM is sticky; never an abort.
+\item One record: the commit is a plain release store.
+\item Two or more records: install, commit, settle, then \code{call\_rcu()}.
 \end{itemize}
 \note{%
 \begin{itemize}
@@ -674,7 +670,8 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
       Bloom filter armed lazily for long write sets. On a handle declared
       disjoint, the find is skipped.
 \item The status enum is shared vocabulary; this engine returns OK or
-      MEMORY\_ERROR only.
+      MEMORY\_ERROR only. Out-of-memory is reported by commit(), also when
+      it struck in an earlier record(); a commit never aborts.
 \end{itemize}}
 \end{frame}
 
@@ -697,9 +694,10 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
   \begin{itemize}\small
   \item \textbf{Write-set atomicity}: every record resolves \emph{old} before
         the commit, \emph{new} after.
-  \item \textbf{No tearing}: no slot, and no instant, is ever torn.
-  \item \textbf{The commit linearizes at one point} --- a claim about the
-        write, and only the write.
+  \item \textbf{No tearing}: each slot resolves to \emph{old} or \emph{new},
+        never an intermediate value.
+  \item \textbf{The commit linearizes at one point} (transaction records
+        only).
   \item \textbf{Cross-structure atomicity}. The unit is one
         pseudo-transaction: two commits are two linearization points.
   \end{itemize}
@@ -711,8 +709,8 @@ v = urcu_txn_sw_resolve(rcu_dereference(*slot), TAG);
   \item \textbf{A reader is not a transaction of any kind}: a sequence of
         single-slot reads. A traversal may straddle a commit.
   \item \textbf{No opacity, no multi-read snapshot.}
-  \item \textbf{No read validation}: under exclusion there is nothing to
-        validate against.
+  \item \textbf{No read validation}: mutual exclusion makes it
+        unnecessary.
   \end{itemize}
 \end{columns}
 \label{fr:provides}
@@ -769,14 +767,14 @@ cannot happen, by construction: no seqcount, no retry.}
 & \textbf{RCU} & \textbf{\color{accent}Pseudo-transaction} & \textbf{Opaque STM} \\
 \midrule
 Atomic to readers & one slot & N slots, one commit & read and write sets \\
-The reader pays & nothing & one predicted branch; no added load, no
-  per-element state & a barrier on each transactional read \\
+The reader pays & nothing & one predicted branch\newline no added
+  load\newline no per-element state & a barrier on each transactional read \\
 The reader gets & one slot at a time & never new-then-old
   & isolation, opacity \\
 \bottomrule
 \end{tabular}\par\endgroup
 \vspace{4mm}
-\lead{Isolation is a read-side cost once updates mutate in place.
+\lead{Isolation is a read-side cost once updates mutate in place.\\
 \textbf{RCU pseudo-transactions decline to charge readers for it.}}
 \vspace{2mm}
 \aside{Honest asterisk: RLU gives readers a snapshot, existence a per-element
@@ -825,7 +823,7 @@ call_rcu(&e->rcu, free_e);
 \item A removed node keeps its own \code{next} and \code{prev} --- a ghost ---
       so a reader standing on it escapes either way.
 \item Coherence holds \emph{at} each resolution. Two resolutions that must
-      agree are asking for a snapshot, which is not on offer.
+      agree are asking for a snapshot, which is not provided.
 \end{itemize}
 \note{%
 \begin{itemize}
@@ -945,22 +943,22 @@ itself is standard in deferred-update STM.}
 \end{frame}
 
 \begin{frame}{The hlist: one transacted edge}
-\lead{Readers walk an hlist forward only, so an operation has \textbf{one}
-reader-visible edge.}
+\lead{Readers walk an hlist forward only: \textbf{one} reader-visible edge
+per operation.}
 \vspace{4mm}
 \begin{itemize}
-\item \code{pprev} is writer-only and plain-stored: no reader loads it, and no
-      peer races it.
-\item A lone insert or delete costs about an \code{rcu\_assign\_pointer()}: no
-      proxy, no group, no \code{call\_rcu()}.
-\item It still composes, through \code{\_prepare}: the single edge folds into a
-      larger flip (slide~\ref{fr:twostructs}).
-\item Single-pointer head: a bucket costs 8 bytes, and no operation
-      special-cases the head.
+\item \code{pprev} is only used by writers: plain stores.
+\item A single insert or delete costs about one \code{rcu\_assign\_pointer()}:
+      no proxy, no \code{call\_rcu()}.
+\item Composes with larger transactions through \code{\_prepare}
+      (slide~\ref{fr:twostructs}).
+\item Single-pointer head: 8 bytes per bucket.
 \end{itemize}
 \note{%
 \begin{itemize}
 \item [opt] Cut first if short on time.
+\item Left off the slide: no peer races pprev; a lone operation needs no
+      group either; no operation special-cases the head.
 \item pprev is written eagerly, in the prepare step. Deferring it and reading
       it raw would be the hlist form of the adjacent-delete trap.
 \end{itemize}}
@@ -1018,7 +1016,7 @@ Per node: & \code{rculist}     & 8  & instructions: 2 branches, 2 loads & \\
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Against schemes that give readers more}
+\begin{frame}{Comparison with stronger reader guarantees}
 \begingroup\small\renewcommand{\arraystretch}{1.4}\arrayrulecolor{muted!60}
 \begin{tabular}{@{}llcclc@{}}
 \toprule
@@ -1035,10 +1033,10 @@ MV-RLU & header + versions & $\ge 2$ & $\ge 3$ & snapshot & 1.43× / 3.01× \\
 \textbf{This work} & \textbf{none} & \textbf{0} & 1 & never new-then-old & --- \\
 \bottomrule
 \end{tabular}\par\endgroup
-\vspace{7mm}
-\lead{They charge readers more \textbf{and} deliver more: a price, not a
-defect.}
-\vspace{3mm}
+\vspace{4mm}
+\lead{They add reader overhead \textbf{and} provide additional guarantees:\\
+a tradeoff, not a defect.}
+\vspace{2mm}
 \aside{Existence in its best layout (a 32-byte element); MV-RLU in its
 global-clock configuration, ratios at 192 readers. Write throughput is not
 ranked across this boundary.}
@@ -1060,7 +1058,7 @@ ranked across this boundary.}
 \end{itemize}}
 \end{frame}
 
-\begin{frame}{Writer: 1.3--1.8×, and it is not the flip}
+\begin{frame}{Writer performance breakdown}
 \begin{columns}[T, onlytextwidth]
 \column{0.27\textwidth}
   {\fontsize{25}{28}\selectfont\bfseries\color{accent}1.3--1.8×\par}
@@ -1149,26 +1147,26 @@ forward walk.\par}
 \talksection{Kernel and close}
 
 \begin{frame}{Dentry cache: bucket locks around SW commits}
+\lead{A \textbf{userspace model}, two engines.}
+\vspace{5mm}
 \begin{columns}[T, onlytextwidth]
-\column{0.34\textwidth}
-  \begingroup\small
-  A \textbf{userspace model}, two engines.\par
-  \vspace{1mm}
-  \textbf{\color{old}The kernel's scheme.}
-  \code{d\_seq} hand over hand, \code{rename\_lock}, \code{i\_rwsem}.\par
-  \vspace{1mm}
-  \textbf{\color{accent}Bucket lock + SW txn.}
+\column{0.4\textwidth}
+  {\bfseries\color{old}The kernel's scheme\par}
+  \vspace{1.5mm}
+  \code{d\_seq} hand over hand, \mbox{\code{rename\_lock}},
+  \code{i\_rwsem}.
+\column{0.55\textwidth}
+  {\bfseries\color{accent}Bucket lock + SW txn\par}
+  \vspace{1.5mm}
   Bit locks on the bucket and child-list heads. A rename is \textbf{one
   commit} across both indexes. No \code{d\_seq}, no \code{rename\_lock}, no
-  lock in \code{readdir}.\par
-  \endgroup
-  \vspace{1.5mm}
-  \aside{Reader rows: both engines at the same paced rename load.
-  A userspace model is not kernel evidence: no reference counts, and no
-  \code{i\_rwsem}, which filesystems rely on.}
-\column{0.65\textwidth}
-  \centerfig{fig-dcache}
+  lock in \code{readdir}.
 \end{columns}
+\vspace{7mm}
+\begin{callout}[fontupper=\normalsize, halign=flush left]
+A userspace model is not kernel evidence: no reference counts, and no
+\code{i\_rwsem}, which filesystems rely on.
+\end{callout}
 \label{fr:dcache}
 \note{%
 \begin{itemize}
@@ -1181,6 +1179,22 @@ forward walk.\par}
       of a status word, settle; no CAS, no contention abort. It is not
       \code{rcu-txn-sw.h}'s \code{urcu\_txn\_sw\_commit()}, and its readers
       resolve through the record's descriptor, not a proxy's group.
+\item The whole-path consistency the model's lookups get is the embedder's
+      re-check of a deletion mark, not the facility's: slide \ref{fr:provides} stands.
+\item Say ``model'' and ``userspace'' each time: that \code{rename\_lock} and
+      \code{d\_seq} can go is the claim most likely to be challenged.
+\end{itemize}}
+\end{frame}
+
+% The chart had the setup above as a column at its left until 2026-10-05; it
+% has the slide to itself since, and fig-dcache.tex is sized for that.
+\begin{frame}{Dentry cache: results}
+\centerfig{fig-dcache}
+\vspace{1mm}
+\aside{Userspace model. Reader rows: both engines at the same paced rename
+load.}
+\note{%
+\begin{itemize}
 \item 11 of the benchmark summary's 22 rows. The rows cut are all on par or
       faster; both of its slower rows are here. Sweep
       \texttt{\dcacheSweep}, benchmark tree \texttt{\dcacheBench}; a dot is
@@ -1190,10 +1204,6 @@ forward walk.\par}
       48 on the baseline's renamers starve.
 \item Why it loses, and what the writers' lead includes: backup slide
       \ref{fr:dcachemodel}.
-\item The whole-path consistency the model's lookups get is the embedder's
-      re-check of a deletion mark, not the facility's: slide \ref{fr:provides} stands.
-\item Say ``model'' and ``userspace'' each time: that \code{rename\_lock} and
-      \code{d\_seq} can go is the claim most likely to be challenged.
 \end{itemize}}
 \end{frame}
 
@@ -1258,7 +1268,7 @@ forward walk.\par}
 \begin{itemize}
 \item \textbf{Not STM.} No snapshot, no opacity: a reader is not a transaction
       of any kind.
-\item \textbf{Exclusion is the embedder's}, per slot, with its own locks.
+\item \textbf{The embedder provides mutual exclusion}, per slot.
       Two writers on one slot corrupt it.
 \item \textbf{The tag contract}: no legitimate slot value may carry the tag
       pattern. The contracts underwrite memory safety, not just atomicity.

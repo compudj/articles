@@ -42,7 +42,8 @@ machine's Claude memory, so the standing rules are restated at the end.
    slide, not even a teaser.
 5. **Dentry cache: in (2026-10-03).** The benchmarks finished (sweep of
    2026-10-02; re-taken 2026-10-03 at P1's engine pin, nothing moved, §7)
-   and Mathieu cleared the figures for the talk. One slide (26)
+   and Mathieu cleared the figures for the talk. One slide (26; two since
+   2026-10-05, the setup on 26 and the chart on 27: item 8)
    and one backup slide, on the bucket lock + SW txn engine only: the MW txn
    arms of the same benchmark fall under decision 4 and are not shown.
 6. **Charts are static** (projected + PDF upload): no hover/tooltips; print the
@@ -58,6 +59,13 @@ machine's Claude memory, so the standing rules are restated at the end.
    guarantees" (Mathieu, 2026-10-04) and the others kept theirs, so the
    kickers read MODEL (7), MECHANISM (8–12), API (13), GUARANTEES (14–16),
    API (17–21).
+8. **Mathieu's review, and slide 26 split in two (2026-10-05).** He went
+   through the deck slide by slide the day before the talk; §5 opens with the
+   list of what changed. One change adds a slide: the dentry-cache slide's
+   left text column became a slide of its own (26, the setup) ahead of the
+   chart (27, "Dentry cache: results"). Renumbering: old 27–33 → **28–34**;
+   slides 1–26 keep their numbers. Commit messages and notes written before
+   that date use the old numbers.
 
 Advice given (not yet a decision), because Linus may attend: the dcache is his
 code, and "dissolve `rename_lock` + `d_seq`" is the claim most likely to be
@@ -106,7 +114,92 @@ Type scale (artifact, 1920×1080): 88 cover / 60 titles / 36 lead / 30 body /
 ## 5. Slide-by-slide draft (~25 slides, ~33 min + Q&A)
 
 Timing guide ≈ 1.3 min/slide. `[opt]` = cut first if short on time.
-Order and numbers are the deck's since the 2026-10-04 reorder (§2 item 7).
+Order and numbers are the deck's since the 2026-10-04 reorder (§2 item 7)
+and the 2026-10-05 split of slide 26 (§2 item 8).
+
+**Wording: `main.tex` is authoritative since 2026-10-05.** Mathieu reviewed
+the deck that day; the list below is what he asked for, and it supersedes the
+drafts further down wherever they differ. Do not restore a draft's wording
+from this section into the deck.
+
+His register, to keep to in any later edit (his words on slide 12's lead:
+"This really is the voice of a LLM is it ? Rephrase it in my style"; on
+slide 23: "we are not a delivery company"): plain subject and verb; no
+possessive used as a predicate ("is the embedder's"), no "X, and it is Y,
+not Z" cadence, no commercial metaphor (charge, price, deliver, on offer), no
+"for want of", "rules that out", "the ordinary way to meet it". Shorter is
+better: he cut clauses on slides 4, 7, 11, 13, 14 and 21.
+
+| Slide | Was | Is |
+|---|---|---|
+| 2 | "Readers pay nothing." | "No reader overhead." |
+| 3 | "`list_del_rcu()` poisons `prev`: rculist ships forward iterators only — and so does Userspace RCU's `cds_list_*_rcu`." | "Linux kernel and Userspace RCU rculist expose forward iterators only." |
+| 3 | "A considered trade, not an oversight: the poison buys use-after-delete debugging." | "Tradeoff: poison `prev` for use-after-removal debugging." |
+| 4 | "Even properly published, two edges are two release stores." | "Two edges are two release stores." |
+| 4 | the "narrow exception" block, five lines | "The kernel's narrow exception (Dec 2024): `list_bidir_del_rcu()` + `list_bidir_prev_rcu()` let a reader step back out of a ghost — not a coherent reverse walk." |
+| 7 | five rows under the three numbered steps | one line under the table: "Atomicity, not isolation: readers are plain RCU readers." |
+| 9 | "Then `call_rcu()` the txn descriptor." | "Then `call_rcu()` frees the txn descriptor." |
+| 11 | three two-line bullets, small | "Per-record tag: one commit may span structures with different encodings." / "Records are 16-byte aligned: 4 low bits to choose from." / "Contract: no legitimate slot value may carry the tag pattern." |
+| 12 | "The facility owns no lock. Exclusion is the embedder's, and it is per slot, not per structure." | "No internal locking. The embedder provides mutual exclusion per slot." |
+| 12 | "…: that is why it is cheap." | "…: low writer overhead." |
+| 12 | "Two writers on one slot silently corrupt it. … aborts the process on a violation, and costs nothing when off." | "Two writers on the same slot silently corrupt it. … aborts the process on violation, with no overhead when disabled." |
+| 12 | "Fine-grained locks — per bucket, per node — are the ordinary way to meet it: writers on disjoint slots commit concurrently." | "With fine-grained locking (per bucket, per node), writers on disjoint slots commit concurrently." |
+| 12 | "A commit fails only for want of memory, before anything is parked. `urcu_txn_sw_reserve()` up front rules that out." | "A commit can only fail on out-of-memory, before any slot is parked. Calling `urcu_txn_sw_reserve()` beforehand prevents it." |
+| 13 | "One record commits as a plain release store; more: park, flip, settle, `call_rcu()`. OOM is sticky; never an abort." | "One record: the commit is a plain release store." / "Two or more records: install, commit, settle, then `call_rcu()`." |
+| 14 | "No tearing: no slot, and no instant, is ever torn." | "No tearing: each slot resolves to *old* or *new*, never an intermediate value." |
+| 14 | "The commit linearizes at one point — a claim about the write, and only the write." | "The commit linearizes at one point (transaction records only)." |
+| 14 | "No read validation: under exclusion there is nothing to validate against." | "No read validation: mutual exclusion makes it unnecessary." |
+| 16 | "one predicted branch; no added load, no per-element state" | the three clauses, one per line, no separators |
+| 16 | the lead as one paragraph | line break before "RCU pseudo-transactions decline…" |
+| 17 | "…a snapshot, which is not on offer." | "…a snapshot, which is not provided." |
+| 21 | "Readers walk an hlist forward only, so an operation has one reader-visible edge." and four two-clause bullets | "Readers walk an hlist forward only: one reader-visible edge per operation." / "`pprev` is only used by writers: plain stores." / "A single insert or delete costs about one `rcu_assign_pointer()`: no proxy, no `call_rcu()`." / "Composes with larger transactions through `_prepare` (slide 19)." / "Single-pointer head: 8 bytes per bucket." |
+| 23 | title "Against schemes that give readers more" | "Comparison with stronger reader guarantees" |
+| 23 | "They charge readers more and deliver more: a price, not a defect." | "They add reader overhead and provide additional guarantees: a tradeoff, not a defect." |
+| 24 | title "Writer: 1.3–1.8×, and it is not the flip" | "Writer performance breakdown" |
+| 26 | one slide: text column at the left, chart at the right | two slides, 26 and 27 (§2 item 8) |
+| 29 (was 28) | "Exclusion is the embedder's, per slot, with its own locks." | "The embedder provides mutual exclusion, per slot." |
+
+What in that list is the session's and not his, for him to overrule:
+- Slide 2: he was told that "pay" runs through the deck (slide 6's title and
+  "Who pays" column, slide 16's "The reader pays" row, slide 23's "Reader
+  pays vs txn", slide 29's "The writer pays 1.3–1.8×") and did not say
+  whether those should change. They were left.
+- Slide 3: he wrote "expose public iterators only"; "forward" is the reading
+  taken, said to him twice, not contradicted.
+- Slide 4: he asked for the block "shortened. more concise"; what was cut is
+  the session's choice — the credit (Brauner; suggested and reviewed by
+  McKenney), "useful, and", the no-mixing rule and the sole caller. The
+  credit and the rule are in the slide's notes.
+- Slide 7: he chose to keep the one line. The table is at body size now that
+  it has three rows (it was `\small`).
+- Slide 9: his note was "Then call_rcu() free"; "frees the txn descriptor" is
+  the reading taken.
+- Slide 11: he named one clause ("bit 0 here… there") as an example of the
+  slide being "very verbose"; the other cuts are the session's. Everything
+  cut is in the notes, and the bullets are at body size.
+- Slide 12: "the caller" was offered in place of "the embedder" and not
+  taken up; "not per structure" was offered back and not taken up.
+- Slide 13: he asked for the multi-record case as its own bullet. A third
+  bullet, "Out-of-memory is reported by `commit()`; a commit never aborts.",
+  was agreed but does not fit the slide (it overflowed by a line); it is in
+  the notes, and the listing's comments still carry out-of-memory.
+- Slide 14: "transaction records only" is his third wording, after "the
+  write only" and "transaction set only".
+- Slide 21: he asked for "more concise"; the wording is the session's. Left
+  off, now in the notes: no peer races `pprev`, no group, no operation
+  special-cases the head.
+- Slide 23: he asked how he would say the title; of two offered,
+  "Comparison with stronger reader guarantees" was announced as the default
+  and not contradicted. "tradeoff" for "price" and "add reader overhead" for
+  "charge readers more" go with his "provides additional guarantees".
+- Slide 24: his words were "something more along the line of" that title.
+- Slides 26–27: the titles, the callout on 26 and the one line under the
+  chart on 27 were proposed to him before "apply the changes". The chart is
+  wider (axis 8.4 cm, was 5.2) and one type size larger; rows 3.15 mm apart
+  (was 3.3) to make room for the line under it.
+- Slide 20's notes still say "Under exclusion there is nothing to validate
+  against": it is the paper's sentence, and he was told the notes would be
+  left.
 Numbers are P1's, engine pin 2793224e since the 2026-10-03 re-take (provenance in §7).
 
 ### A. The problem (~7 min)
@@ -114,7 +207,7 @@ Numbers are P1's, engine pin 2793224e since the 2026-10-03 re-take (provenance i
 **1. Cover.** Title; "Mathieu Desnoyers · EfficiOS"; "LPC 2026 · Prague ·
 6 October 2026".
 
-**2. RCU's contract.** Statement: *Readers pay nothing. In exchange, a writer
+**2. RCU's contract.** Statement: *No reader overhead. In exchange, a writer
 gets exactly one atomic operation: a single pointer store.* Three boxes: Build
 (private, unconstrained) → **Publish (one store — the linearization point)** →
 Reclaim (after a grace period). Punchline: a pseudo-transaction does not add a
@@ -344,7 +437,8 @@ two were 2% apart, which was code layout). L3/DRAM-sized lists:
 indistinguishable within noise (13% and 5%). Scaling 97.1–98.4% of ideal. Caveat to keep: few-% differences between the
 load controls are code-level noise (P1 §7).
 
-**23. Against schemes that give readers more.** (P1 tab:comparison + fig:readclass)
+**23. Comparison with stronger reader guarantees** (titled "Against schemes
+that give readers more" until 2026-10-05). (P1 tab:comparison + fig:readclass)
 
 | | per-element state | extra loads | extra branches | reader guarantee | reader cost vs txn, scattered / walk |
 |---|---|---|---|---|---|
@@ -359,7 +453,8 @@ rank write throughput across this boundary. The scattered figures are from two
 readers up: at one reader existence and RLU read low in four runs of five in
 the 2026-10-03 take (gaps of 7% and 9% there), unexplained and not quoted.
 
-**24. Writer: 1.3–1.8×, and it is not the flip.** Big number **1.3–1.8×** (one
+**24. Writer performance breakdown** (titled "Writer: 1.3–1.8×, and it is
+not the flip" until 2026-10-05). Big number **1.3–1.8×** (one
 writer with readers, each under the mutex: scattered nodes 1.55–1.58 up to 4
 readers and 1.61–1.80 beyond; walk order 1.34–1.39 up to 4 readers, 1.30 at 8,
 1.26–1.52 up to 191). Figure: two bars on one cycle scale, the writer's thread
@@ -378,8 +473,8 @@ now "allocate, hand back"; under the figure: "Intrinsic: a fresh txn
 descriptor per update, kept for a grace period. The commit: 19 cycles of 243."
 and "Not intrinsic: this slab. Under rseq: no lock, no atomics. A kernel port
 could use the allocator and `kfree_rcu()`." The kernel sentence is not P1's
-and nothing about it is measured; slide 27 got no line for it then (since
-2026-10-05 its reclaim line names `kfree_rcu()`: see slide 27). The bars and
+and nothing about it is measured; slide 28 got no line for it then (since
+2026-10-05 its reclaim line names `kfree_rcu()`: see slide 28). The bars and
 the headline are unchanged. The rseq build has ratios but no profile:
 `HANDOFF-slab-profile.md` is the handoff for that investigation.
 
@@ -420,11 +515,18 @@ placement matters on this box (128 and 160 writers two-moded, up to 21%;
 
 ### F. Kernel and close (~3 min)
 
-**26. Dentry cache: bucket locks around SW commits.** Left: a userspace
+**26. Dentry cache: bucket locks around SW commits**, and **27. Dentry
+cache: results.** One slide until 2026-10-05, with the setup as a column at
+the chart's left (Mathieu: "the text column at the left should be moved to
+its own slide"). Slide 26, the setup: a userspace
 model, two engines — the kernel's scheme (`d_seq` hand over hand,
 `rename_lock`, `i_rwsem`) and bucket lock + SW txn (bit locks on the bucket
 and child-list heads; a rename is one commit across both indexes; no `d_seq`,
-no `rename_lock`, no lock in `readdir`). Right: `fig-dcache.tex`, 11 of the
+no `rename_lock`, no lock in `readdir`), then the caveat as a callout ("A
+userspace model is not kernel evidence: no reference counts, and no
+`i_rwsem`, which filesystems rely on."). Slide 27, the chart alone, with one
+line under it ("Userspace model. Reader rows: both engines at the same paced
+rename load."): `fig-dcache.tex`, 11 of the
 22 rows of the benchmark tree's `figures/dcache_bucketlock_summary.png`
 (engine ÷ baseline, log axis, a dot per measured point): on par (lookups at
 10k–30k renames/s and at rest, allocating create/delete), faster (lookups at
@@ -437,7 +539,7 @@ The hits row's low end was 0.84 in the 2026-10-02 sweep: the 160-reader point
 184-reader one dropped out because they did not. That region is noisy and its
 cause is not established (benchmark README); if asked, say so.
 Say "model" and "userspace" each time; the slide says userspace ratios are
-not kernel evidence. Backup slide 33 has the baseline's fidelity, the
+not kernel evidence. Backup slide 34 has the baseline's fidelity, the
 comparison rules, why it loses where it does, what the writers' lead
 includes (`i_rwsem`, the cross-directory rename mutex) and what is not
 modelled. Provenance in §7.
@@ -451,10 +553,10 @@ contention abort. Same park/flip/settle shape as slide 9, but it is NOT
 `urcu_txn_resolve_record()` (record → descriptor status → old or new), not
 through a proxy's group selector. The slide says "SW txn" and "one commit",
 which hold; do not say the model uses the API of slides 13 and 17–19. Backup slide
-33 states it ("How the model commits"), at Mathieu's request (2026-10-03):
+34 states it ("How the model commits"), at Mathieu's request (2026-10-03):
 the one place the deck names `rcu-txn.h`, and only its single-writer path.
 Two limits of the model, to say out loud (Mathieu, 2026-10-03; on slide 26's
-aside, slide 27's right column and backup 33; kernel facts checked in a
+callout, slide 28's right column and backup 34; kernel facts checked in a
 v7.3-rc5 tree, written up in the benchmark tree's
 `experiments/dcache/README.md`, "What the model leaves out that a kernel port
 needs"):
@@ -475,7 +577,7 @@ needs"):
   that leaves the VFS alone does not get that part. The share is not
   isolated for renames (no engine arm keeps the baseline's locks).
 
-**27. What a kernel port needs.**
+**28. What a kernel port needs.**
 Grounded items: a spare low bit in the slot (list pointers are aligned); commit
 fails only on OOM and before anything is parked → reserve up front in
 non-sleeping context; one `kfree_rcu()` per multi-edge commit, which batches
@@ -498,11 +600,11 @@ port-status placeholder is gone ("I think we can remove the "PLACEHOLDER"
 block there"): the slide states no port status, and is no longer full (about
 15 mm free under both columns; the lists are still `\small`).
 
-**28. What it is not.** Not STM (no snapshot, no opacity); exclusion is the
-embedder's (per slot, locks); tag contract; commit width grows with edges (a tall tower
+**29. What it is not.** Not STM (no snapshot, no opacity); the embedder
+provides mutual exclusion (per slot); tag contract; commit width grows with edges (a tall tower
 commits many records where existence flips one group); writer 1.3–1.8×.
 
-**29. Summary + availability.** Paper: `[arXiv link — TBD]`. Code:
+**30. Summary + availability.** Paper: `[arXiv link — TBD]`. Code:
 github.com/compudj/userspace-rcu-dev @ `2793224e` (on GitHub since 2026-10-03), `include/urcu/`:
 `rcu-txn-sw.h`, `rcu-txn-sw-list.h`, `rcu-txn-sw-hlist.h`, `rcu-txn-status.h`.
 Questions.
@@ -544,7 +646,7 @@ Questions.
     RDCSS — and it differs by settling at once and deciding with a store. It
     is not lock-free; theirs is. P2 was re-scoped on this the same day
     (`p2-sole-driver-mcas/SCOPE.md`, section dated 2026-10-03).
-  - Where it is in the deck: backup slide 30 (the Q&A and its note), and one
+  - Where it is in the deck: backup slide 31 (the Q&A and its note), and one
     speaker note each on slide 8 (the flip-latch: lineage) and slide 9
     (lifecycle: "why settle at all?"). No main-line slide changed.
 - *STM reads can opt out of the barrier.* (added 2026-10-04, on Mathieu's
@@ -653,10 +755,10 @@ warm-up. Data: `p1-sw-flip-latch/data/fig-*.csv`; text: P1 §7.
   inline assertions and the seqlock baseline, which has none, did not. The
   re-take changed nothing a slide says: an engine's own throughput is within
   1% of the `c21f5a38` sweep in the median of 171 of 197 panel-and-engine
-  groups, and slide 26's eleven medians moved by at most 1.6% (directory
+  groups, and slide 27's eleven medians moved by at most 1.6% (directory
   capacity 4%).
 
-**Slide 26 and backup 33 (dentry cache)** are not P1's: benchmark tree
+**Slides 26–27 and backup 34 (dentry cache)** are not P1's: benchmark tree
 `efficios-trie-benchmark` at `253d8e4`, sweep `3225b8ec0e79-2793224e`
 (2026-10-03, liburcu `2793224e`, no assertions), same machine. It replaced
 sweep `c03704139064-c21f5a38` (2026-10-02, benchmark tree `3a79ed3`).
@@ -672,16 +774,16 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
 
 ## 8. Open items
 
-1. ~~Dentry-cache section~~ — **in, 2026-10-03** (§2 item 5, slide 26).
-2. ~~Kernel-port status for slide 27 (placeholder)~~ — **placeholder removed
-   2026-10-05** at Mathieu's word; the slide states no port status (§5 slide 27).
-3. P1 public link (arXiv?) for slide 29 (placeholder).
+1. ~~Dentry-cache section~~ — **in, 2026-10-03** (§2 item 5, slides 26–27).
+2. ~~Kernel-port status for slide 28 (placeholder)~~ — **placeholder removed
+   2026-10-05** at Mathieu's word; the slide states no port status (§5 slide 28).
+3. P1 public link (arXiv?) for slide 30 (placeholder).
 4. ~~Format~~ — **decided 2026-09-30: Beamer** (§10). The claude.ai artifact
    stays empty.
 5. Optional engine header doc fixes (§6).
 6. ~~Slides 24–25 predate the batching default~~ — **done 2026-10-03**:
    Mathieu chose the re-take, then three engine changes, then a full re-take of
-   P1 §7 at `2793224e`; slides 22–25, 27–29 and P1 follow it (§5 slide 24).
+   P1 §7 at `2793224e`; slides 22–25, 28–30 and P1 follow it (§5 slide 24).
 7. ~~Push `urcu-txn-dev`~~ — **done 2026-10-03** (GitHub tip `2793224e`).
 8. ~~Commit the re-take~~ — **done 2026-10-03**: benchmark tree `24dcb17` and
    `af3dbad`; `articles` `e71e58f` (P1) and the deck commit that carries this
@@ -693,9 +795,9 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
    slab's freelist with atomics), the rseq slab stays a remedy.
 10. ~~Re-sweep the dentry cache at `2793224e`~~ — **done 2026-10-03**
     (3 h 27 min, no conservation failure, every figure fresh), built
-    `-DNDEBUG`; benchmark tree `253d8e4`; slides 26 and 33 read the new data
-    (§7). Nothing moved but the hits row's low end, 0.84 → 0.80 (§5 slide 26).
-11. Dentry cache, for a kernel port (Mathieu, 2026-10-03; §5 slide 26): how to
+    `-DNDEBUG`; benchmark tree `253d8e4`; slides 27 and 34 read the new data
+    (§7). Nothing moved but the hits row's low end, 0.84 → 0.80 (§5 slides 26–27).
+11. Dentry cache, for a kernel port (Mathieu, 2026-10-03; §5 slides 26–27): how to
     hold a dentry across blocking — a reference count, or hazard pointers —
     is not evaluated; and the share of the writers' lead that is `i_rwsem`
     is not isolated (it would take an engine arm that keeps the baseline's
@@ -743,11 +845,12 @@ template shows none, so the content vanishes without a warning. `make notes` bui
 `main-notes.pdf`, each slide followed by its speaker notes (the caveats of §5
 and §7 live there).
 
-- Slides 1–29 follow §5 one-for-one and keep its numbering (the placeholders
-  point at it). Backup, after `\appendix`: 30 anticipated questions, 31
-  Triplett's reverse-publish rule (the `[opt]` of slide 15), 32 P1's
-  one-writer-with-readers curves, 33 the dentry-cache model and where it
-  loses (added last, so nothing was renumbered).
+- Slides 1–30 follow §5 one-for-one and keep its numbering (the placeholder
+  points at it). Backup, after `\appendix`: 31 anticipated questions, 32
+  Triplett's reverse-publish rule (the `[opt]` of slide 15), 33 P1's
+  one-writer-with-readers curves, 34 the dentry-cache model and where it
+  loses (added last, so nothing was renumbered then; all four moved up by
+  one when slide 26 was split, 2026-10-05).
 - Charts read `../p1-sw-flip-latch/data/*.csv` in place, and the printed
   endpoint values come from the CSVs' last rows, so a re-take of P1's data
   flows into the slides with no hand edits.
@@ -766,14 +869,14 @@ and §7 live there).
   it took no room from any slide: the build of 2026-10-05 differs from the one
   before it only in that corner. It is at the right and that size because of
   the slides: at the left margin, body text runs to within 2.5 mm of the
-  footline (slides 22, 25, 29), and a logo there at the Tracing MC deck's
+  footline (slides 22, 25, 30), and a logo there at the Tracing MC deck's
   3.7 mm overlapped text on nine slides. Tightest now: slide 22, whose
   "Setup:" line ends 1 mm above it. A slide that gains a line at its bottom
   right can run into the logo with no overfull box to say so: look at that
   corner. The repository ignores `*.pdf`; a `.gitignore` here un-ignores the
   logo.
 - Slide 18's lead ("Two edges, one flip") became part of its title, to fit.
-- Slide 27 cross-checked against P1 (which has no kernel section; every item
+- Slide 28 cross-checked against P1 (which has no kernel section; every item
   maps a P1 statement onto the kernel). Two changes from §5: the reserve line
   now follows P1 §4.5 ("before the first irreversible step"), with "under a
   spinlock" as the kernel reading; and "list_bidir users" became "a coherent

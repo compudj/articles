@@ -49,23 +49,23 @@
 % \dcrow{y}{key}{group}{lo}{hi}. The range is printed right of the bar, or left
 % of it where the bar ends too near the axis' right edge to leave it room.
 \def\dcrow#1#2#3#4#5{\dcneed{#2}%
-  \draw[dc #3, line width=3.4pt, line cap=round]
+  \draw[dc #3, line width=3.8pt, line cap=round]
     (axis cs:#4,#1) -- (axis cs:#5,#1);
-  \node[anchor=east, font=\scriptsize, text=ink, inner sep=0pt, xshift=-1.5mm]
+  \node[anchor=east, font=\footnotesize, text=ink, inner sep=0pt, xshift=-1.5mm]
     at (axis cs:\dcXmin,#1) {\csname dcL/#2\endcsname};
   \pgfmathtruncatemacro{\dcFar}{#5 > 8}%
   \ifnum\dcFar=1
-    \node[anchor=east, font=\scriptsize, text=ink, inner sep=0pt, xshift=-2.2mm]
+    \node[anchor=east, font=\footnotesize, text=ink, inner sep=0pt, xshift=-2.2mm]
       at (axis cs:#4,#1) {\dcnum{#4}--\dcnum{#5}×};
   \else
-    \node[anchor=west, font=\scriptsize, text=ink, inner sep=0pt, xshift=2.2mm]
+    \node[anchor=west, font=\footnotesize, text=ink, inner sep=0pt, xshift=2.2mm]
       at (axis cs:#5,#1) {\dcnum{#4}--\dcnum{#5}×};
   \fi}
 % \dchdr{y}{key}{group}
 \def\dchdr#1#2#3{\dcneed{#2}%
-  \node[anchor=east, font=\scriptsize\bfseries, dc text #3, inner sep=0pt,
+  \node[anchor=east, font=\footnotesize\bfseries, dc text #3, inner sep=0pt,
         xshift=-1.5mm] at (axis cs:\dcXmin,#1) {\csname dcL/#2\endcsname};
-  \node[anchor=west, font=\scriptsize, text=muted, inner sep=0pt, xshift=1.5mm]
+  \node[anchor=west, font=\footnotesize, text=muted, inner sep=0pt, xshift=1.5mm]
     at (axis cs:1.05,#1) {\csname dcL/note-#3\endcsname};}
 
 \begin{tikzpicture}[
@@ -78,18 +78,18 @@
   dc text faster/.style   = {text=accent},
   dc text slower/.style   = {text=old},
   dc text capacity/.style = {text=accent},
-  dcdots/.style = {only marks, mark=*, mark size=1.15pt,
+  dcdots/.style = {only marks, mark=*, mark size=1.3pt,
                    mark options={draw=paper, line width=0.25pt, fill=#1}},
 ]
 \begin{axis}[
-  scale only axis, width=5.2cm, y=3.3mm,
+  scale only axis, width=8.4cm, y=3.15mm,
   xmode=log, log basis x=2,
   xmin=\dcXmin, xmax=32, ymin=\dcBot-0.8, ymax=\dcTop+0.6,
   xtick={1,2,4,8,16}, xticklabels={1×,2×,4×,8×,16×},
   minor tick style={draw=none},
   axis x line=bottom, axis y line=none,
   axis line style={muted!60, -}, tick style={muted!60},
-  tick label style={font=\scriptsize, text=muted},
+  tick label style={font=\footnotesize, text=muted},
   xmajorgrids, grid style={muted!18},
   clip=false,
   % the points file holds one column per group, nan elsewhere
