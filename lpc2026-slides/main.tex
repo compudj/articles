@@ -144,10 +144,30 @@
   \vskip 3mm}
 \makeatother
 
+% The EfficiOS wordmark, for the footline. efficios-logo.pdf is vector art on
+% a letter page, and the viewport boxes it: left and right at the ink's edges,
+% top at the top of the E, bottom at the letters' baseline (y = 424.1 bp; the
+% ff descends to 405.6). It is not clipped, so the descenders hang under the
+% box as a glyph's would; height= is therefore the height of the E.
+%
+% Where and how big is set by the slides, not by taste: body text runs to
+% within 2.5 mm of the footline's baseline at the left margin (slides 22, 25,
+% 29), and to 3.2 mm at the right. So the logo sits at the right, by the
+% frame number, 3 mm tall, lowered 0.85 mm to centre on the footline's
+% capitals. \smash: the footline stays as tall as its text, so the logo moves
+% no slide's layout. Black on transparent: it needs a light background (the
+% dark cover is a plain frame and has no footline).
+\newcommand{\footlogo}{\smash{\raisebox{-0.85mm}{%
+  \includegraphics[viewport=149.4 424.1 457.3 501.2, height=3mm]%
+    {efficios-logo.pdf}}}}
+
+% The frame number is set in a box as wide as two digits: the logo beside it
+% must not shift between slides 9 and 10.
 \setbeamertemplate{footline}{%
   \usebeamerfont{footline}\usebeamercolor[fg]{footline}%
   \hbox to \paperwidth{\hskip 9mm RCU Pseudo-Transactions\enspace·\enspace
-    LPC 2026\hfill\insertframenumber\hskip 9mm}%
+    LPC 2026\hfill\footlogo\hskip 2.5mm
+    \hbox to 2.6mm{\hfil\insertframenumber}\hskip 9mm}%
   \vskip 3.5mm}
 
 \setbeamertemplate{itemize item}{\textcolor{accent}{–}}

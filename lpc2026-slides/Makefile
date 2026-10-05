@@ -21,7 +21,7 @@ LATEX := $(NICE) xelatex -interaction=nonstopmode -halt-on-error
 # place. make cannot see through either, and a stale PDF that reports success
 # is worse than a failed build, so list them.
 DEPS  := $(DECK).tex $(wildcard fig-*.tex) $(wildcard $(P1)/data/*.csv) \
-         $(wildcard data/*) ../common/macros.tex
+         $(wildcard data/*) ../common/macros.tex efficios-logo.pdf
 
 .PHONY: all notes check check-terms check-placeholders check-overfull \
         check-frame-open dcache-data \

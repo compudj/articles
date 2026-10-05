@@ -747,6 +747,18 @@ and §7 live there).
   either. A font change moves line breaks: rerun `make` and read the checks.
 - Section dividers were replaced by a small section kicker above each title
   (no slot time to spare).
+- The footline carries the EfficiOS logo (2026-10-05, at Mathieu's request):
+  `efficios-logo.pdf`, vector, boxed by a viewport in `main.tex`. It sits at
+  the bottom right, beside the frame number, 3 mm tall, and is `\smash`-ed, so
+  it took no room from any slide: the build of 2026-10-05 differs from the one
+  before it only in that corner. It is at the right and that size because of
+  the slides: at the left margin, body text runs to within 2.5 mm of the
+  footline (slides 22, 25, 29), and a logo there at the Tracing MC deck's
+  3.7 mm overlapped text on nine slides. Tightest now: slide 22, whose
+  "Setup:" line ends 1 mm above it. A slide that gains a line at its bottom
+  right can run into the logo with no overfull box to say so: look at that
+  corner. The repository ignores `*.pdf`; a `.gitignore` here un-ignores the
+  logo.
 - Slide 18's lead ("Two edges, one flip") became part of its title, to fit.
 - Slide 27 cross-checked against P1 (which has no kernel section; every item
   maps a P1 statement onto the kernel). Two changes from §5: the reserve line
