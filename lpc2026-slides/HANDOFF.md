@@ -604,7 +604,10 @@ block there"): the slide states no port status, and is no longer full (about
 provides mutual exclusion (per slot); tag contract; commit width grows with edges (a tall tower
 commits many records where existence flips one group); writer 1.3–1.8×.
 
-**30. Summary + availability.** Paper: `[arXiv link — TBD]`. Code:
+**30. Summary + availability.** Paper:
+https://www.efficios.com/pub/rcu-txn/mathieu-desnoyers-rcu-pseudo-transactions.pdf
+(shown without `https://www.`, which is what fits on one line; the bare domain
+redirects, and the PDF link carries the full URL). Code:
 github.com/compudj/userspace-rcu-dev @ `2793224e` (on GitHub since 2026-10-03), `include/urcu/`:
 `rcu-txn-sw.h`, `rcu-txn-sw-list.h`, `rcu-txn-sw-hlist.h`, `rcu-txn-status.h`.
 Questions.
@@ -777,7 +780,9 @@ prints `-unknown`); the source hash it prints still matches the sweep's.
 1. ~~Dentry-cache section~~ — **in, 2026-10-03** (§2 item 5, slides 26–27).
 2. ~~Kernel-port status for slide 28 (placeholder)~~ — **placeholder removed
    2026-10-05** at Mathieu's word; the slide states no port status (§5 slide 28).
-3. P1 public link (arXiv?) for slide 30 (placeholder).
+3. ~~P1 public link for slide 30 (placeholder)~~ — **in, 2026-10-05**: the
+   efficios.com link (§5 slide 30). arXiv is not done yet, it waits on sponsor
+   approval; the deck has no placeholder left.
 4. ~~Format~~ — **decided 2026-09-30: Beamer** (§10). The claude.ai artifact
    stays empty.
 5. Optional engine header doc fixes (§6).
@@ -845,8 +850,7 @@ template shows none, so the content vanishes without a warning. `make notes` bui
 `main-notes.pdf`, each slide followed by its speaker notes (the caveats of §5
 and §7 live there).
 
-- Slides 1–30 follow §5 one-for-one and keep its numbering (the placeholder
-  points at it). Backup, after `\appendix`: 31 anticipated questions, 32
+- Slides 1–30 follow §5 one-for-one and keep its numbering. Backup, after `\appendix`: 31 anticipated questions, 32
   Triplett's reverse-publish rule (the `[opt]` of slide 15), 33 P1's
   one-writer-with-readers curves, 34 the dentry-cache model and where it
   loses (added last, so nothing was renumbered then; all four moved up by
