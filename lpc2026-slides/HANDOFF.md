@@ -532,7 +532,7 @@ rename load."): `fig-dcache.tex`, 11 of the
 10k–30k renames/s and at rest, allocating create/delete), faster (lookups at
 100k–300k renames/s 1.18–1.85×, reverse walk 1.40–6.75×, readdir 1.11–3.38×,
 create/delete in place 1.13–1.21×), slower (hits on objects being renamed
-0.80–0.93×, at rest 0.90–0.96×), writers flat out (leaf 20.7–21.6×, directory
+0.80–0.93×, at rest 0.90–0.96×), writers scaling (headed "Writers flat out" until 2026-10-05; leaf 20.7–21.6×, directory
 4.0–4.5×). Both "slower" rows are kept; the rows cut are on par or faster.
 The hits row's low end was 0.84 in the 2026-10-02 sweep: the 160-reader point
 (0.80) counts now because the engine's writers kept the pace there, and the
