@@ -1,0 +1,2 @@
+# The repository ignores *.pdf as build output; the logo is a source.
+!efficios-logo.pdf

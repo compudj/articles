@@ -20,7 +20,7 @@ LATEX := $(NICE) xelatex -interaction=nonstopmode -halt-on-error
 all: $(DECK).pdf
 
 # Two passes: the footer's frame number settles on the second.
-$(DECK).pdf: $(DECK).tex
+$(DECK).pdf: $(DECK).tex efficios-logo.pdf
 	$(LATEX) $(DECK).tex
 	$(LATEX) $(DECK).tex
 	@$(MAKE) --no-print-directory check
