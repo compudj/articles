@@ -82,22 +82,21 @@
 % a letter page, and the viewport boxes it: left and right at the ink's edges,
 % top at the top of the E, bottom at the letters' BASELINE (y = 424.1 bp; the
 % ff descends to 405.6). It is not clipped, so the descenders hang under the
-% box as a glyph's would: the E starts on the text margin and the wordmark
-% shares the footline's baseline. height= is therefore the height of the E.
-% \smash: the footline stays as tall as its text, so the logo moves no slide's
-% layout.
+% box as a glyph's would: the wordmark shares the footline's baseline.
+% height= is therefore the height of the E. \smash: the footline stays as
+% tall as its text, so the logo moves no slide's layout.
 \newcommand{\footlogo}{\smash{%
   \includegraphics[viewport=149.4 424.1 457.3 501.2, height=3.7mm]%
     {efficios-logo.pdf}}}
 
 % No cover slide in a microconference slot, so the footline names the speaker;
-% the logo stands for the affiliation.
+% the logo stands for the affiliation. It is at the right, beside the frame
+% number, as in ../lpc2026-slides, whose left margin has no room for it.
 \setbeamertemplate{footline}{%
   \usebeamerfont{footline}\usebeamercolor[fg]{footline}%
-  \hbox to \paperwidth{\hskip 9mm \footlogo\hskip 2.5mm
-    Mathieu Desnoyers\enspace·\enspace
+  \hbox to \paperwidth{\hskip 9mm Mathieu Desnoyers\enspace·\enspace
     Tracing Microconference\enspace·\enspace LPC 2026\hfill
-    \insertframenumber\hskip 9mm}%
+    \footlogo\hskip 2.5mm\insertframenumber\hskip 9mm}%
   \vskip 3.5mm}
 
 \setbeamertemplate{itemize item}{\textcolor{accent}{–}}
